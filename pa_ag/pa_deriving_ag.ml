@@ -40,6 +40,7 @@ type pertype_customization_t = {
 
 type t = {
   optional : bool
+; plugin_name : string
 ; module_name : uident
 } [@@deriving params {
     formal_args = {
