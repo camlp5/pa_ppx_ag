@@ -20,7 +20,7 @@ end
 module Unique = struct
   [%%import: Test1_ast.expr]
   [@@deriving unique {
-    uniqified_module_name = HC
+    uniqified_module_name = UN
   ; normal_module_name = OK
   }]
 end
