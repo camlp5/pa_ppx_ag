@@ -66,11 +66,30 @@ value expr_to_attribute_reference e =
   ]
 ;
 
+value extract_attribute_references e =
+  let references = ref [] in
+  let dt = Camlp5_migrate.make_dt () in
+  let fallback_migrate_expr = dt.migrate_expr in
+  let migrate_expr dt e =
+    try do { Std.push references (expr_to_attribute_reference e); e } 
+    with _ -> fallback_migrate_expr dt e in
+  let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in do {
+    ignore(dt.migrate_expr dt e) ;
+    List.rev references.val
+  }
+;
+
 value assignment_to_equation e = match e with [
     <:expr< $lhs$ . val := $rhs$ >> ->
-    { AG.AEQ.lhs = expr_to_attribute_reference lhs ; rhs_nodes = [] ; rhs_expr = rhs }
+    { AG.AEQ.lhs = expr_to_attribute_reference lhs
+    ; rhs_nodes = extract_attribute_references rhs
+    ; rhs_expr = rhs }
   | <:expr< $lhs$ := $rhs$ >> ->
-    { AG.AEQ.lhs = expr_to_attribute_reference lhs ; rhs_nodes = [] ; rhs_expr = rhs }
+    { AG.AEQ.lhs = expr_to_attribute_reference lhs
+    ; rhs_nodes = extract_attribute_references rhs
+    ; rhs_expr = rhs }
+  | _ -> Ploc.raise (MLast.loc_of_expr e) (Failure Fmt.(str "assignment_to_equation: not an assignment@ %a"
+                                                          Pp_MLast.pp_expr e))
 ]
 ;
 

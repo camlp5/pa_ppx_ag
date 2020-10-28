@@ -7,4 +7,4 @@ type expr =
   | REF of string
   | ASSIGN of string * expr
   | SEQ of expr list
-
+and prog = expr
