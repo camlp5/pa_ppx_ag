@@ -61,6 +61,8 @@ value expr_to_attribute_reference e =
     (CHILD None (int_of_string n), attrna)
   | <:expr< [%attr $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
     (CHILD (Some tyname) (int_of_string n), attrna)
+  | <:expr< [%prim $int:n$;] . $lid:attrna$ >> ->
+    (PRIM (int_of_string n), attrna)
   | _ -> Ploc.raise (MLast.loc_of_expr e) (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
                                                           Pp_MLast.pp_expr e))
   ]
@@ -93,7 +95,7 @@ value assignment_to_equation e = match e with [
 ]
 ;
 
-value extract_attribute_equations l =
+value extract_attribute_equations l : (alist lident (list AG.AEQ.t)) =
   l |> List.map (fun (prodname, e) ->
                   match e with [
                     <:expr< do { $list:l$ } >> ->
