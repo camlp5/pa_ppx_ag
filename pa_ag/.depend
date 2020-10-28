@@ -1,9 +1,9 @@
-pa_deriving_ag.cmo pa_ppx_ag_runtime.cmo pa_deriving_ag.cmi pa_ppx_ag_runtime.cmi pa_deriving_ag.cmx pa_ppx_ag_runtime.cmx: 
-pa_deriving_ag.cmo :
-pa_deriving_ag.cmx :
-pa_deriving_ag_ppo.cmo :
-pa_deriving_ag_ppo.cmx :
+camlp5_migrate.cmo pa_deriving_ag.cmo pa_ppx_ag_runtime.cmo camlp5_migrate.cmi pa_deriving_ag.cmi pa_ppx_ag_runtime.cmi camlp5_migrate.cmx pa_deriving_ag.cmx pa_ppx_ag_runtime.cmx: 
+pa_deriving_ag.cmo : \
+    camlp5_migrate.cmo
+pa_deriving_ag.cmx : \
+    camlp5_migrate.cmx
 pa_ppx_ag_runtime.cmo :
 pa_ppx_ag_runtime.cmx :
-pa_ppx_ag_runtime_ppo.cmo :
-pa_ppx_ag_runtime_ppo.cmx :
+camlp5_migrate.cmo :
+camlp5_migrate.cmx :

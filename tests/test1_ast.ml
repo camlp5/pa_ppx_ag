@@ -6,5 +6,5 @@ type expr =
   | PLUS of expr * expr
   | REF of string
   | ASSIGN of string * expr
-  | SEQ of expr list
+  | SEQ of expr * expr
 and prog = expr
