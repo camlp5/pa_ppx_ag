@@ -29,6 +29,13 @@ value builtin_types =
   ]
 ;
 
+module PP_hum = struct
+value ctyp pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));
+value expr pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_expr Pprintf.empty_pc ty));
+value patt pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_patt Pprintf.empty_pc ty));
+
+end
+;
 module AG = struct
 
 module NodeReference = struct
@@ -37,8 +44,18 @@ module NodeReference = struct
     | CHILD of option string and int
     | PRIM of option string and int
     ] ;
+  value pp_hum pps = fun [
+    PARENT (Some name) -> Fmt.(pf pps "[%%nterm %s ;]" name)
+  | PARENT None -> Fmt.(pf pps "[%%nterm 0 ;]")
+  | CHILD (Some name) i -> Fmt.(pf pps "[%%nterm %s.(%d) ;]" name i)
+  | CHILD None i -> Fmt.(pf pps "[%%nterm %d ;]" i)
+  | PRIM (Some name) i -> Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
+  | PRIM None i -> Fmt.(pf pps "[%%nterm %d ;]" i)
+  ]
+  ;
   value to_patt loc = fun [
     PARENT (Some name) -> <:patt< [%nterm $lid:name$ ;] >>
+  | PARENT None -> <:patt< [%nterm 0 ;] >>
   | CHILD (Some name) i -> <:patt< [%nterm $lid:name$ . ( $int:string_of_int i$ ) ;] >>
   | CHILD None i -> <:patt< [%nterm $int:string_of_int i$ ;] >>
   | PRIM (Some name) i -> <:patt< [%prim $lid:name$ . ( $int:string_of_int i$ ) ;] >>
@@ -47,6 +64,7 @@ module NodeReference = struct
   ;
   value to_expr loc = fun [
     PARENT (Some name) -> <:expr< [%nterm $lid:name$ ;] >>
+  | PARENT None -> <:expr< [%nterm 0 ;] >>
   | CHILD (Some name) i -> <:expr< [%nterm $lid:name$ . ( $int:string_of_int i$ ) ;] >>
   | CHILD None i -> <:expr< [%nterm $int:string_of_int i$ ;] >>
   | PRIM (Some name) i -> <:expr< [%prim $lid:name$ . ( $int:string_of_int i$ ) ;] >>
@@ -57,10 +75,18 @@ module NodeReference = struct
 end ;
 module NR = NodeReference ;
 
-  type production_name_t = {
+  module ProductionName = struct
+  type t = {
     nonterm_name: string
   ; case_name: option string
   } ;
+  value pp_hum pps = fun [
+    {nonterm_name=nonterm_name; case_name = None} -> Fmt.(pf pps "%s" nonterm_name)
+  | {nonterm_name=nonterm_name; case_name = Some case_name} -> Fmt.(pf pps "%s__%s" nonterm_name case_name)
+  ]
+  ;
+  end ;
+  module PN = ProductionName ;
   module AEQ = struct
     type t = {
       lhs : (NR.t * string)
@@ -68,16 +94,18 @@ module NR = NodeReference ;
     ; rhs_expr : MLast.expr
     }
     ;
+    value pp_hum pps x = Fmt.(pf pps "%a.%s := %a\n" NR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
   end ;
   module Production = struct
     type t = {
-      name : production_name_t
+      name : PN.t
     ; node_aliases : list (NR.t * NR.t)
     ; equations : list AEQ.t
     ; patt : MLast.patt
     } ;
+    value pp_hum pps x = Fmt.(pf pps "%a : %a\n%a" PN.pp_hum x.name PP_hum.patt x.patt (list AEQ.pp_hum) x.equations) ;
   end ;
-  module Prod = Production ;
+  module P = Production ;
 end ;
 
 module AGContext = struct
@@ -130,17 +158,18 @@ value assignment_to_equation e = match e with [
 ]
 ;
 
-value name_re = Pcre.regexp "^(.*)__((?:_?[^_])_?)$" ;
+value name_re = Pcre.regexp "^(.*)__((?:_?[^_])+_?)$" ;
 value parse_prodname loc s =
+  let open AG in
   match Pcre.extract ~{rex=name_re} ~{pos=0} s with [
     [|_;lhs;rhs|] ->
-    { AG.nonterm_name = lhs; case_name = Some rhs }
+    { PN.nonterm_name = lhs; case_name = Some rhs }
   | exception Not_found ->
-    { AG.nonterm_name = s ; case_name = None }
+    { PN.nonterm_name = s ; case_name = None }
   ]
 ;
 
-value extract_attribute_equations loc l : (alist AG.production_name_t (list AG.AEQ.t)) =
+value extract_attribute_equations loc l : (alist AG.PN.t (list AG.AEQ.t)) =
   l |> List.map (fun (prodname, e) ->
     let prodname = parse_prodname loc prodname in
     match e with [
@@ -169,7 +198,7 @@ type t = {
 ; module_name : uident
 ; attributes : (alist lident (alist lident ctyp))
 ; raw_attribution: (alist lident expr) [@name attribution;]
-; attribution: (alist AG.production_name_t (list AG.AEQ.t)) [@computed extract_attribute_equations loc raw_attribution;]
+; attribution: (alist AG.PN.t (list AG.AEQ.t)) [@computed extract_attribute_equations loc raw_attribution;]
 ; name2nodename : (alist lident lident) [@computed compute_name2nodename type_decls;]
 ; rev_name2nodename : (alist lident lident) [@computed List.map (fun (a,b) -> (b,a)) name2nodename;]
 ; type_decls : list (string * MLast.type_decl) [@computed type_decls;]
@@ -238,9 +267,10 @@ value branch2production loc rc lhs_name b =
         (Failure Fmt.(str "productions: unsupported rhs-of-production type: %s@ %a"
                         lhs_name Pp_MLast.pp_ctyp ty))
   ]) in
-  { Prod.name = { nonterm_name = lhs_name ; case_name = Some ci }
-  ; node_aliases = NA.get node_aliases
-  ; equations = []
+  let pn = { PN.nonterm_name = lhs_name ; case_name = Some ci } in
+  { P.name = pn
+  ; node_aliases = [(NR.PARENT (Some lhs_name), NR.PARENT None) :: NA.get node_aliases]
+  ; equations = match List.assoc pn rc.attribution with [ x -> x | exception Not_found -> [] ]
   ; patt = Patt.applist <:patt< $uid:ci$ >> patl
   }
 ]
@@ -265,9 +295,10 @@ value tuple2production loc rc lhs_name tl =
         (Failure Fmt.(str "productions: unsupported rhs-of-production type: %s@ %a"
                         lhs_name Pp_MLast.pp_ctyp ty))
   ]) in
-  { Prod.name = { nonterm_name = lhs_name ; case_name = None }
-  ; node_aliases = NA.get node_aliases
-  ; equations = []
+  let pn = { PN.nonterm_name = lhs_name ; case_name = None } in
+  { P.name = pn
+  ; node_aliases = [(NR.PARENT (Some lhs_name), NR.PARENT None) :: NA.get node_aliases]
+  ; equations = match List.assoc pn rc.attribution with [ x -> x | exception Not_found -> [] ]
   ; patt = Patt.tuple loc patl
   }
 ;
@@ -275,7 +306,12 @@ value tuple2production loc rc lhs_name tl =
 value productions rc =
   rc.type_decls |>
   List.map (fun (name, td) ->
-    if List.mem_assoc name rc.rev_name2nodename then
+    if List.mem_assoc name rc.name2nodename then
+      let node_name = List.assoc name rc.name2nodename in
+      let td = match List.assoc node_name rc.type_decls with [
+        x -> x
+      | exception Not_found -> assert False
+      ] in
       match td.tdDef with [
         (<:ctyp:< [ $list:branches$ ] >> | <:ctyp:< $_$ == [ $list:branches$ ] >>) ->
           List.map (branch2production loc rc name) branches
