@@ -43,7 +43,8 @@
       )
     ; prog = (
         [%nterm 1].inh_env := [] ;
-        [%nterm 0].value_ := [%nterm 1].value_
+        [%nterm 0].value_ := [%nterm 1].value_ ;
+        assert True
       )
     }
   }]

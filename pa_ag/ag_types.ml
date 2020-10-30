@@ -28,8 +28,11 @@ value builtin_types =
 
 module PP_hum = struct
   value ctyp pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));
+  value ctyp_top pps x = Fmt.(pf pps "#<ctyp< %a >>" ctyp x) ;
   value expr pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_expr Pprintf.empty_pc ty));
+  value expr_top pps x = Fmt.(pf pps "#<expr< %a >>" expr x) ;
   value patt pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_patt Pprintf.empty_pc ty));
+  value patt_top pps x = Fmt.(pf pps "#<patt< %a >>" patt x) ;
 end
 ;
 module AG = struct
@@ -48,6 +51,7 @@ module AG = struct
   | PRIM None i -> Fmt.(pf pps "[%%nterm %d ;]" i)
   ]
   ;
+  value pp_top pps x = Fmt.(pf pps "#<nr< %a >>" pp_hum x) ;
 
   value to_patt loc = fun [
     PARENT (Some name) -> <:patt< [%nterm $lid:name$ ;] >>
@@ -81,6 +85,7 @@ module AG = struct
     | PRIM name i -> Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
     ]
     ;
+    value pp_top pps x = Fmt.(pf pps "#<tnr< %a >>" pp_hum x) ;
     value to_nr = fun [
       PARENT name -> NR.PARENT (Some name)
     | CHILD name i -> NR.CHILD (Some name) i
@@ -103,6 +108,7 @@ module AG = struct
     | {nonterm_name=nonterm_name; case_name = Some case_name} -> Fmt.(pf pps "%s__%s" nonterm_name case_name)
     ]
     ;
+    value pp_top pps x = Fmt.(pf pps "#<pn< %a >>" pp_hum x) ;
   end ;
   module PN = ProductionName ;
 
@@ -113,7 +119,8 @@ module AG = struct
     ; rhs_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "%a.%s := %a\n" NR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
+    value pp_hum pps x = Fmt.(pf pps "%a.%s := %a" NR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
+    value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" pp_hum x) ;
   end ;
 
   module TAEQ = struct
@@ -123,7 +130,8 @@ module AG = struct
     ; rhs_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "%a.%s := %a\n" TNR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
+    value pp_hum pps x = Fmt.(pf pps "%a.%s := %a" TNR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
+    value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" pp_hum x) ;
   end ;
   module Cond = struct
     type t = {
@@ -131,7 +139,8 @@ module AG = struct
     ; body_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "assert %a\n"  PP_hum.expr x.body_expr) ;
+    value pp_hum pps x = Fmt.(pf pps "assert %a"  PP_hum.expr x.body_expr) ;
+    value pp_top pps x = Fmt.(pf pps "#<cond< %a >>" pp_hum x) ;
   end ;
 
   module TCond = struct
@@ -140,7 +149,8 @@ module AG = struct
     ; body_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "assert %a\n" PP_hum.expr x.body_expr) ;
+    value pp_hum pps x = Fmt.(pf pps "assert %a" PP_hum.expr x.body_expr) ;
+    value pp_top pps x = Fmt.(pf pps "#<tcond< %a >>" pp_hum x) ;
   end ;
 
   module Production = struct
@@ -162,6 +172,7 @@ module AG = struct
              (list AEQ.pp_hum) x.equations
              (list Cond.pp_hum) x.conditions
           ) ;
+    value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
     value typed_attribute p (nr, attrna) =
       match List.assoc nr p.typed_node_names with [
         x -> (x, attrna)
@@ -510,6 +521,7 @@ module AGOps = struct
         | (TNR.PARENT n, attrna) when n = ntname -> Some attrna
         | _ -> None
         ])
+      |> Std2.hash_uniq
     ;
 
     value _inherited_attributes_of ag ntname =
@@ -520,6 +532,7 @@ module AGOps = struct
           (TNR.CHILD n _, attrna) when n = ntname -> Some attrna
         | _ -> None
         ])
+      |> Std2.hash_uniq
     ;
     value _synthesized_attributes_of ag ntname =
       ag.productions
@@ -529,6 +542,7 @@ module AGOps = struct
           (TNR.PARENT n, attrna) when n = ntname -> Some attrna
         | _ -> None
         ])
+      |> Std2.hash_uniq
     ;
 
     type memoized_af_ai_is_t = {
