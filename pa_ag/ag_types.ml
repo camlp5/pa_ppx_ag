@@ -125,6 +125,23 @@ module AG = struct
     ;
     value pp_hum pps x = Fmt.(pf pps "%a.%s := %a\n" TNR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
   end ;
+  module Cond = struct
+    type t = {
+      body_nodes : list (NR.t * string)
+    ; body_expr : MLast.expr
+    }
+    ;
+    value pp_hum pps x = Fmt.(pf pps "assert %a\n"  PP_hum.expr x.body_expr) ;
+  end ;
+
+  module TCond = struct
+    type t = {
+      body_nodes : list (TNR.t * string)
+    ; body_expr : MLast.expr
+    }
+    ;
+    value pp_hum pps x = Fmt.(pf pps "assert %a\n" PP_hum.expr x.body_expr) ;
+  end ;
 
   module Production = struct
     type t = {
@@ -133,22 +150,38 @@ module AG = struct
     ; typed_node_names : list (NR.t * TNR.t)
     ; equations : list AEQ.t
     ; typed_equations : list TAEQ.t
+    ; conditions : list Cond.t
+    ; typed_conditions : list TCond.t
     ; patt : MLast.patt
     } ;
-    value pp_hum pps x = Fmt.(pf pps "%a : %a\n%a" PN.pp_hum x.name PP_hum.patt x.patt (list AEQ.pp_hum) x.equations) ;
+    value pp_hum pps x =
+      Fmt.(pf pps "%a : %a\n%a@ %a"
+             PN.pp_hum x.name
+             PP_hum.patt x.patt
+             (list AEQ.pp_hum) x.equations
+             (list Cond.pp_hum) x.conditions
+          ) ;
+    value typed_attribute p (nr, attrna) =
+      match List.assoc nr p.typed_node_names with [
+        x -> (x, attrna)
+      | exception Not_found ->
+        Ploc.raise p.loc (Failure Fmt.(str "attribute %a.%s could not be converted to its typed form"
+                                         NR.pp_hum nr attrna))
+      ]
+    ;
     value typed_equation p aeq =
-      let typed_attribute (nr, attrna) =
-        match List.assoc nr p.typed_node_names with [
-          x -> (x, attrna)
-        | exception Not_found ->
-          Ploc.raise p.loc (Failure Fmt.(str "attribute %a.%s could not be converted to its typed form"
-                                        NR.pp_hum nr attrna))
-        ] in
       let { AEQ.lhs = lhs ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
       {
-        TAEQ.lhs = typed_attribute lhs
-      ; rhs_nodes = List.map typed_attribute rhs_nodes
+        TAEQ.lhs = typed_attribute p lhs
+      ; rhs_nodes = List.map (typed_attribute p) rhs_nodes
       ; rhs_expr = rhs_expr
+      }
+      ;
+    value typed_condition p cond =
+      let { Cond.body_nodes = body_nodes ; body_expr = body_expr } = cond in
+      {
+        TCond.body_nodes = List.map (typed_attribute p) body_nodes
+      ; body_expr = body_expr
       }
       ;
   end ;
@@ -157,12 +190,14 @@ module AG = struct
   type t = {
     nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
+  ; conditions : list (PN.t * (list Cond.t))
   ; productions : list (string * list P.t)
   }
   ;
-  value mk0 nonterminals equations = {
+  value mk0 nonterminals equations conditions = {
     nonterminals = nonterminals
   ; equations = equations
+  ; conditions = conditions
   ; productions = []
   }
   ;
@@ -202,17 +237,24 @@ value extract_attribute_references e =
   }
 ;
 
-value assignment_to_equation e = match e with [
+value assignment_to_equation_or_condition e = match e with [
     <:expr< $lhs$ . val := $rhs$ >> ->
-    { AG.AEQ.lhs = expr_to_attribute_reference lhs
+    Left {
+      AG.AEQ.lhs = expr_to_attribute_reference lhs
     ; rhs_nodes = extract_attribute_references rhs
     ; rhs_expr = rhs }
   | <:expr< $lhs$ := $rhs$ >> ->
-    { AG.AEQ.lhs = expr_to_attribute_reference lhs
+    Left { 
+      AG.AEQ.lhs = expr_to_attribute_reference lhs
     ; rhs_nodes = extract_attribute_references rhs
     ; rhs_expr = rhs }
-  | _ -> Ploc.raise (MLast.loc_of_expr e) (Failure Fmt.(str "assignment_to_equation: not an assignment@ %a"
-                                                          Pp_MLast.pp_expr e))
+  | <:expr< assert $e$ >> ->
+    Right { 
+      AG.Cond.body_nodes = extract_attribute_references e
+    ; body_expr = e }
+  | _ -> Ploc.raise (MLast.loc_of_expr e)
+      (Failure Fmt.(str "assignment_to_equation_or_condition: neither assignment nor condition@ %a"
+                      Pp_MLast.pp_expr e))
 ]
 ;
 
@@ -227,16 +269,32 @@ value parse_prodname loc s =
   ]
 ;
 
-value extract_attribute_equations loc l : (list (AG.PN.t * (list AG.AEQ.t))) =
+value extract_attribute_equations_and_conditions loc l : (list (AG.PN.t * (list (choice AG.AEQ.t AG.Cond.t)))) =
   l |> List.map (fun (prodname, e) ->
     let prodname = parse_prodname loc prodname in
     match e with [
       <:expr< do { $list:l$ } >> ->
-      (prodname, List.map assignment_to_equation l)
+      (prodname, List.map assignment_to_equation_or_condition l)
     | <:expr< $_$ . val := $_$ >> ->
-      (prodname, [assignment_to_equation e])
+      (prodname, [assignment_to_equation_or_condition e])
+    | _ -> Ploc.raise (MLast.loc_of_expr e)
+        (Failure Fmt.(str "extract_attribute_equations_and_conditions (production %a): unrecognized@ %a"
+                        AG.PN.pp_hum prodname Pp_MLast.pp_expr e))
     ])
 ;
+
+value extract_attribute_equations loc l : (list (AG.PN.t * (list AG.AEQ.t))) =
+  extract_attribute_equations_and_conditions loc l
+  |> List.map (fun (n, l) ->
+                (n, l |> Std.filter Asttools.isLeft |> List.map Asttools.outLeft))
+;
+
+value extract_attribute_conditions loc l : (list (AG.PN.t * (list AG.Cond.t))) =
+  extract_attribute_equations_and_conditions loc l
+  |> List.map (fun (n, l) ->
+                (n, l |> Std.filter Asttools.isRight |> List.map Asttools.outRight))
+;
+
 
 value compute_name2nodename type_decls =
   type_decls |> List.map (fun (name, td) ->
@@ -300,6 +358,7 @@ value branch2production loc ag lhs_name b =
   ]) in
   let pn = { PN.nonterm_name = lhs_name ; case_name = Some ci } in
   let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
+  let conditions = match List.assoc pn ag.conditions with [ x -> x | exception Not_found -> [] ] in
   let node_aliases = [(TNR.PARENT lhs_name, NR.PARENT None) :: NA.get node_aliases] in
   let typed_node_names = 
     (List.map (fun (tnr,_) -> (TNR.to_nr tnr, tnr)) node_aliases)
@@ -310,10 +369,16 @@ value branch2production loc ag lhs_name b =
   ; typed_node_names = typed_node_names
   ; equations = equations
   ; typed_equations = []
+  ; conditions = conditions
+  ; typed_conditions = []
   ; patt = Patt.applist <:patt< $uid:ci$ >> patl
   } in
   let typed_equations = List.map (P.typed_equation p) equations in
-  { (p) with P.typed_equations = typed_equations }
+  let typed_conditions = List.map (P.typed_condition p) conditions in
+  { (p) with
+    P.typed_equations = typed_equations
+  ; typed_conditions = typed_conditions
+  }
 ]
 ;
 
@@ -338,6 +403,7 @@ value tuple2production loc ag lhs_name tl =
   ]) in
   let pn = { PN.nonterm_name = lhs_name ; case_name = None } in
   let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
+  let conditions = match List.assoc pn ag.conditions with [ x -> x | exception Not_found -> [] ] in
   let node_aliases = [(TNR.PARENT lhs_name, NR.PARENT None) :: NA.get node_aliases] in
   let typed_node_names = 
     (List.map (fun (tnr,_) -> (TNR.to_nr tnr, tnr)) node_aliases)
@@ -348,10 +414,16 @@ value tuple2production loc ag lhs_name tl =
   ; typed_node_names = typed_node_names
   ; equations = equations
   ; typed_equations = []
+  ; conditions = conditions
+  ; typed_conditions = []
   ; patt = Patt.tuple loc patl
   } in
   let typed_equations = List.map (P.typed_equation p) equations in
-  { (p) with P.typed_equations = typed_equations }
+  let typed_conditions = List.map (P.typed_condition p) conditions in
+  { (p) with
+    P.typed_equations = typed_equations
+  ; typed_conditions = typed_conditions
+  }
 ;
 
 value productions ag type_decls =

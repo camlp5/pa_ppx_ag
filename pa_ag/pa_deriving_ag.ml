@@ -24,7 +24,8 @@ type t = {
 ; module_name : uident
 ; attributes : (alist lident (alist lident ctyp))
 ; raw_attribution: (alist lident expr) [@name attribution;]
-; attribution: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
+; equations: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
+; conditions: (alist AG.PN.t (list AG.Cond.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
 ; name2nodename : (alist lident lident) [@computed Demarshal.compute_name2nodename type_decls;]
 ; rev_name2nodename : (alist lident lident) [@computed List.map (fun (a,b) -> (b,a)) name2nodename;]
 ; type_decls : list (string * MLast.type_decl) [@computed type_decls;]
@@ -51,7 +52,7 @@ module AGC = AGContext ;
 value str_item_gen_ag name arg = fun [
   <:str_item:< type $_flag:_$ $list:tdl$ >> ->
     let rc = AGC.build_context loc arg tdl in
-    let ag0 = AG.mk0 (List.map fst rc.AGC.name2nodename) rc.AGC.attribution in
+    let ag0 = AG.mk0 (List.map fst rc.AGC.name2nodename) rc.AGC.equations rc.AGC.conditions in
     let _ = Demarshal.productions ag0 rc.AGC.type_decls in
       <:str_item< module $uid:rc.AGC.module_name$ = struct
                     value x = 1 ;
