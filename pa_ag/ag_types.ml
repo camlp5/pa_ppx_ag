@@ -188,14 +188,16 @@ module AG = struct
   module P = Production ;
 
   type t = {
-    nonterminals : list string
+    loc : Ploc.t
+  ; nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
   ; conditions : list (PN.t * (list Cond.t))
   ; productions : list (string * list P.t)
   }
   ;
-  value mk0 nonterminals equations conditions = {
-    nonterminals = nonterminals
+  value mk0 loc nonterminals equations conditions = {
+    loc = loc
+  ; nonterminals = nonterminals
   ; equations = equations
   ; conditions = conditions
   ; productions = []
@@ -458,3 +460,116 @@ value productions ag type_decls =
 end
 ;
 
+module AGOps = struct
+  open AG ;
+
+  value productions ag nt =
+    match List.assoc nt ag.productions with [
+      x -> x
+    | exception Not_found ->
+      Ploc.raise ag.loc (Failure Fmt.(str "No productions found for nonterminal %s" nt))
+    ]
+  ;
+
+  module P = struct
+    value attribute_occurrences p =
+      p.P.typed_equations
+      |> List.map (fun teq -> [teq.TAEQ.lhs :: teq.TAEQ.rhs_nodes])
+      |> List.concat ;
+
+    value defining_occurrences p =
+      List.map (fun teq -> teq.TAEQ.lhs) p.P.typed_equations ;
+
+    value inherited_occurrences p =
+      p
+      |> defining_occurrences
+      |> Std.filter (fun [
+          (TNR.CHILD _ _, _) -> True
+        | _ -> False
+        ])
+    ;
+    value synthesized_occurrences p =
+      p
+      |> defining_occurrences
+      |> Std.filter (fun [
+          (TNR.PARENT _, _) -> True
+        | _ -> False
+        ])
+    ;
+  end ;
+
+  module Attributes = struct
+    value is_inherited ag (ntname, attrna) =
+      ntname
+      |> productions ag
+      |> List.map P.inherited_occurrences
+      |> List.concat
+      |> Std.filter (fun [
+          (TNR.CHILD n _, attrna') -> n = ntname && attrna = attrna'
+        | _ -> False
+        ])
+      |> ((<>) [])
+    ;
+    value is_synthesized ag (ntname,attrna) =
+      ntname
+      |> productions ag
+      |> List.map P.synthesized_occurrences
+      |> List.concat
+      |> Std.filter (fun [
+          (TNR.PARENT n, attrna') -> n = ntname && attrna = attrna'
+        | _ -> False
+        ])
+      |> ((<>) [])
+    ;
+  end ;
+
+  module NT = struct
+    value attributes_of ag ntname =
+      ag.productions
+      |> List.map snd |> List.concat
+      |> List.map P.attribute_occurrences |> List.concat
+      |> List.filter_map (fun [
+          (TNR.CHILD n _, attrna) when n = ntname -> Some attrna
+        | (TNR.PARENT n, attrna) when n = ntname -> Some attrna
+        | _ -> None
+        ])
+    ;
+
+    value inherited_attributes_of ag ntname =
+      ag.productions
+      |> List.map snd |> List.concat
+      |> List.map P.inherited_occurrences |> List.concat
+      |> List.filter_map (fun [
+          (TNR.CHILD n _, attrna) when n = ntname -> Some attrna
+        | _ -> None
+        ])
+    ;
+    value synthesized_attributes_of ag ntname =
+      ag.productions
+      |> List.map snd |> List.concat
+      |> List.map P.synthesized_occurrences |> List.concat
+      |> List.filter_map (fun [
+          (TNR.PARENT n, attrna) when n = ntname -> Some attrna
+        | _ -> None
+        ])
+    ;
+  end ;
+
+  value well_formed ag =
+    (ag.nonterminals |> List.for_all (fun nt ->
+      Std.same_members (NT.attributes_of ag nt)
+        (Std.union (NT.inherited_attributes_of ag nt) (NT.synthesized_attributes_of ag nt))
+    ))
+    && (ag.nonterminals |> List.for_all (fun nt ->
+        [] = Std.intersect
+          (NT.inherited_attributes_of ag nt)
+          (NT.synthesized_attributes_of ag nt)
+    ))
+    && (ag.productions |> List.for_all (fun (_, pl) ->
+        pl |> List.for_all (fun p ->
+            Std.distinct (P.defining_occurrences p)
+          )
+      ))
+  ;
+end
+;
