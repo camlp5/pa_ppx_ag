@@ -73,6 +73,12 @@ module AG = struct
   ;
   end ;
   module NR = NodeReference ;
+  module AR = struct
+    type t = (NR.t * string) ;
+    value pp_hum pps (nr, a) = Fmt.(pf pps "%a.%s" NR.pp_hum nr a) ;
+    value pp_top pps x = Fmt.(pf pps "#<ar< %a >>" pp_hum x) ;
+  end ;
+
   module TypedNodeReference = struct
     type t = [
         PARENT of string
@@ -97,6 +103,11 @@ module AG = struct
   end
   ;
   module TNR = TypedNodeReference ;
+  module TAR = struct
+    type t = (TNR.t * string) ;
+    value pp_hum pps (nr, a) = Fmt.(pf pps "%a.%s" TNR.pp_hum nr a) ;
+    value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
+  end ;
 
   module ProductionName = struct
     type t = {
@@ -114,8 +125,8 @@ module AG = struct
 
   module AEQ = struct
     type t = {
-      lhs : (NR.t * string)
-    ; rhs_nodes : list (NR.t * string)
+      lhs : AR.t
+    ; rhs_nodes : list AR.t
     ; rhs_expr : MLast.expr
     }
     ;
@@ -125,8 +136,8 @@ module AG = struct
 
   module TAEQ = struct
     type t = {
-      lhs : (TNR.t * string)
-    ; rhs_nodes : list (TNR.t * string)
+      lhs : TAR.t
+    ; rhs_nodes : list TAR.t
     ; rhs_expr : MLast.expr
     }
     ;
@@ -135,7 +146,7 @@ module AG = struct
   end ;
   module Cond = struct
     type t = {
-      body_nodes : list (NR.t * string)
+      body_nodes : list AR.t
     ; body_expr : MLast.expr
     }
     ;
@@ -145,7 +156,7 @@ module AG = struct
 
   module TCond = struct
     type t = {
-      body_nodes : list (TNR.t * string)
+      body_nodes : list TAR.t
     ; body_expr : MLast.expr
     }
     ;
@@ -484,6 +495,15 @@ module AGOps = struct
         | _ -> False
         ])
     ;
+
+    value direct_reference_graph p =
+      p.P.typed_equations
+      |> List.map (fun teq ->
+        let open TAEQ in
+        List.map (fun rhs_ar -> (rhs_ar, teq.lhs)) teq.rhs_nodes)
+      |> List.concat
+    ;
+
   end ;
 
   module AOps = struct
@@ -627,5 +647,14 @@ module AGOps = struct
     && ([] = NTOps._AI m ag.axiom)
     && True
   ;
+
+  value locally_acyclic m =
+    let ag = m.NTOps.ag in
+    ag.productions |> List.for_all (fun (_, pl) -> pl |> List.for_all (fun p ->
+        let ddp = POps.direct_reference_graph p in
+        not Tsort0.(cyclic (nodes ddp) (mkadj ddp))
+      ))
+  ;
+
 end
 ;

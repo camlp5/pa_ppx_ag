@@ -63,6 +63,7 @@ value str_item_gen_ag name arg = fun [
     let memo = AGOps.NTOps.mk_memo ag in
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;
+      assert (AGOps.locally_acyclic memo) ;
       <:str_item< module $uid:rc.AGC.module_name$ = struct
                     value x = 1 ;
                   end >>
