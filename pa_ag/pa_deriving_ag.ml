@@ -22,7 +22,7 @@ type t = {
   optional : bool
 ; plugin_name : string
 ; module_name : uident
-; attributes : (alist lident (alist lident ctyp))
+; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
 ; raw_attribution: (alist lident expr) [@name attribution;]
 ; equations: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
 ; conditions: (alist AG.PN.t (list AG.Cond.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
@@ -52,10 +52,11 @@ module AGC = AGContext ;
 value str_item_gen_ag name arg = fun [
   <:str_item:< type $_flag:_$ $list:tdl$ >> ->
     let rc = AGC.build_context loc arg tdl in
-    let ag0 = AG.mk0 loc (List.map fst rc.AGC.name2nodename) rc.AGC.equations rc.AGC.conditions in
+    let ag0 = AG.mk0 loc (List.map fst rc.AGC.name2nodename) rc.AGC.typed_attributes rc.AGC.equations rc.AGC.conditions in
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
-    let memo = AGOps.NT.mk_memo ag in
+    let memo = AGOps.NTOps.mk_memo ag in
       assert (AGOps.well_formed memo) ;
+      assert (AGOps.complete memo) ;
       <:str_item< module $uid:rc.AGC.module_name$ = struct
                     value x = 1 ;
                   end >>

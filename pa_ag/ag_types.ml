@@ -147,6 +147,7 @@ module AG = struct
     type t = {
       name : PN.t
     ; loc : Ploc.t
+    ; typed_nodes : list TNR.t
     ; typed_node_names : list (NR.t * TNR.t)
     ; equations : list AEQ.t
     ; typed_equations : list TAEQ.t
@@ -189,15 +190,17 @@ module AG = struct
 
   type t = {
     loc : Ploc.t
+  ; typed_attributes : list (string * (list (string * MLast.ctyp)))
   ; nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
   ; conditions : list (PN.t * (list Cond.t))
   ; productions : list (string * list P.t)
   }
   ;
-  value mk0 loc nonterminals equations conditions = {
+  value mk0 loc nonterminals typed_attributes equations conditions = {
     loc = loc
   ; nonterminals = nonterminals
+  ; typed_attributes = typed_attributes
   ; equations = equations
   ; conditions = conditions
   ; productions = []
@@ -337,20 +340,21 @@ module NodeAliases = struct
 end ;
 module NA = NodeAliases ;
 
-value branch2production loc ag lhs_name b =
+value tuple2production loc ag lhs_name ?{case_name=None} tl =
   let open AG in
-  match b with [
-  <:constructor< $uid:ci$ of $list:tl$ $_algattrs:_$ >> ->
   let node_aliases = NA.mk() in
+  let typed_nodes = ref [TNR.PARENT lhs_name] in
   let patl = tl |> List.mapi (fun i -> fun [
       <:ctyp:< $lid:tyname$ >> when List.mem tyname ag.nonterminals -> do {
         let aliasnum = NA.next_nterm_number node_aliases tyname in
         NA.add node_aliases (TNR.CHILD tyname aliasnum, NR.CHILD None (i+1)) ;
+        Std.push typed_nodes (TNR.CHILD tyname aliasnum) ;
         NR.to_patt loc (NR.CHILD None (i+1))
       }
     | <:ctyp:< $lid:tyname$ >> as z when List.mem (canon_ctyp z) builtin_types -> do {
         let aliasnum = NA.next_prim_number node_aliases tyname in
         NA.add node_aliases (TNR.PRIM tyname aliasnum, NR.PRIM None (i+1)) ;
+        Std.push typed_nodes (TNR.PRIM tyname aliasnum) ;
         NR.to_patt loc (NR.PRIM None (i+1))
       }
     | ty ->
@@ -358,7 +362,8 @@ value branch2production loc ag lhs_name b =
         (Failure Fmt.(str "productions: unsupported rhs-of-production type: %s@ %a"
                         lhs_name Pp_MLast.pp_ctyp ty))
   ]) in
-  let pn = { PN.nonterm_name = lhs_name ; case_name = Some ci } in
+  let pn = { PN.nonterm_name = lhs_name ; case_name = case_name } in
+  let typed_nodes = List.rev typed_nodes.val in
   let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
   let conditions = match List.assoc pn ag.conditions with [ x -> x | exception Not_found -> [] ] in
   let node_aliases = [(TNR.PARENT lhs_name, NR.PARENT None) :: NA.get node_aliases] in
@@ -368,51 +373,7 @@ value branch2production loc ag lhs_name b =
   let p = {
     P.name = pn
   ; loc = loc
-  ; typed_node_names = typed_node_names
-  ; equations = equations
-  ; typed_equations = []
-  ; conditions = conditions
-  ; typed_conditions = []
-  ; patt = Patt.applist <:patt< $uid:ci$ >> patl
-  } in
-  let typed_equations = List.map (P.typed_equation p) equations in
-  let typed_conditions = List.map (P.typed_condition p) conditions in
-  { (p) with
-    P.typed_equations = typed_equations
-  ; typed_conditions = typed_conditions
-  }
-]
-;
-
-value tuple2production loc ag lhs_name tl =
-  let open AG in
-  let node_aliases = NA.mk() in
-  let patl = tl |> List.mapi (fun i -> fun [
-      <:ctyp:< $lid:tyname$ >> when List.mem tyname ag.nonterminals -> do {
-        let aliasnum = NA.next_nterm_number node_aliases tyname in
-        NA.add node_aliases (TNR.CHILD tyname aliasnum, NR.CHILD None (i+1)) ;
-        NR.to_patt loc (NR.CHILD None (i+1))
-      }
-    | <:ctyp:< $lid:tyname$ >> as z when List.mem (canon_ctyp z) builtin_types -> do {
-        let aliasnum = NA.next_prim_number node_aliases tyname in
-        NA.add node_aliases (TNR.PRIM tyname aliasnum, NR.PRIM None (i+1)) ;
-        NR.to_patt loc (NR.PRIM None (i+1))
-      }
-    | ty ->
-      Ploc.raise (MLast.loc_of_ctyp ty)
-        (Failure Fmt.(str "productions: unsupported rhs-of-production type: %s@ %a"
-                        lhs_name Pp_MLast.pp_ctyp ty))
-  ]) in
-  let pn = { PN.nonterm_name = lhs_name ; case_name = None } in
-  let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
-  let conditions = match List.assoc pn ag.conditions with [ x -> x | exception Not_found -> [] ] in
-  let node_aliases = [(TNR.PARENT lhs_name, NR.PARENT None) :: NA.get node_aliases] in
-  let typed_node_names = 
-    (List.map (fun (tnr,_) -> (TNR.to_nr tnr, tnr)) node_aliases)
-    @(List.map (fun (a,b) -> (b,a)) node_aliases) in
-  let p = {
-    P.name = pn
-  ; loc = loc
+  ; typed_nodes = typed_nodes
   ; typed_node_names = typed_node_names
   ; equations = equations
   ; typed_equations = []
@@ -426,6 +387,20 @@ value tuple2production loc ag lhs_name tl =
     P.typed_equations = typed_equations
   ; typed_conditions = typed_conditions
   }
+;
+
+value branch2production loc ag lhs_name b =
+  let open AG in
+  match b with [
+  <:constructor< $uid:ci$ of $list:tl$ $_algattrs:_$ >> ->
+    let p = tuple2production loc ag lhs_name ~{case_name=Some ci} tl in
+    { (p) with
+      patt = match p.P.patt with [
+        <:patt< ( $list:patl$ ) >> -> Patt.applist <:patt< $uid:ci$ >> patl
+      | p -> Patt.applist <:patt< $uid:ci$ >> [p]
+      ]
+    }
+  ]
 ;
 
 value productions ag type_decls =
@@ -471,7 +446,7 @@ module AGOps = struct
     ]
   ;
 
-  module P = struct
+  module POps = struct
     value attribute_occurrences p =
       p.P.typed_equations
       |> List.map (fun teq -> [teq.TAEQ.lhs :: teq.TAEQ.rhs_nodes])
@@ -498,11 +473,11 @@ module AGOps = struct
     ;
   end ;
 
-  module Attributes = struct
+  module AOps = struct
     value is_inherited ag (ntname, attrna) =
       ntname
       |> productions ag
-      |> List.map P.inherited_occurrences
+      |> List.map POps.inherited_occurrences
       |> List.concat
       |> Std.filter (fun [
           (TNR.CHILD n _, attrna') -> n = ntname && attrna = attrna'
@@ -513,7 +488,7 @@ module AGOps = struct
     value is_synthesized ag (ntname,attrna) =
       ntname
       |> productions ag
-      |> List.map P.synthesized_occurrences
+      |> List.map POps.synthesized_occurrences
       |> List.concat
       |> Std.filter (fun [
           (TNR.PARENT n, attrna') -> n = ntname && attrna = attrna'
@@ -523,11 +498,11 @@ module AGOps = struct
     ;
   end ;
 
-  module NT = struct
+  module NTOps = struct
     value _attributes_of ag ntname =
       ag.productions
       |> List.map snd |> List.concat
-      |> List.map P.attribute_occurrences |> List.concat
+      |> List.map POps.attribute_occurrences |> List.concat
       |> List.filter_map (fun [
           (TNR.CHILD n _, attrna) when n = ntname -> Some attrna
         | (TNR.PARENT n, attrna) when n = ntname -> Some attrna
@@ -538,7 +513,7 @@ module AGOps = struct
     value _inherited_attributes_of ag ntname =
       ag.productions
       |> List.map snd |> List.concat
-      |> List.map P.inherited_occurrences |> List.concat
+      |> List.map POps.inherited_occurrences |> List.concat
       |> List.filter_map (fun [
           (TNR.CHILD n _, attrna) when n = ntname -> Some attrna
         | _ -> None
@@ -547,7 +522,7 @@ module AGOps = struct
     value _synthesized_attributes_of ag ntname =
       ag.productions
       |> List.map snd |> List.concat
-      |> List.map P.synthesized_occurrences |> List.concat
+      |> List.map POps.synthesized_occurrences |> List.concat
       |> List.filter_map (fun [
           (TNR.PARENT n, attrna) when n = ntname -> Some attrna
         | _ -> None
@@ -599,22 +574,40 @@ module AGOps = struct
   end ;
 
   value well_formed m =
-    let ag = m.NT.ag in
+    let ag = m.NTOps.ag in
     (ag.nonterminals |> List.for_all (fun nt ->
-        [] = Std.intersect (NT._AI m nt) (NT._AS m nt)
+        [] = Std.intersect (NTOps._AI m nt) (NTOps._AS m nt)
     ))
     && (ag.productions |> List.for_all (fun (_, pl) ->
         pl |> List.for_all (fun p ->
-            Std.distinct (P.defining_occurrences p)
+            Std.distinct (POps.defining_occurrences p)
           )
       ))
   ;
 
   value complete m =
-    let ag = m.NT.ag in
+    let ag = m.NTOps.ag in
     (ag.nonterminals |> List.for_all (fun nt ->
-      Std.same_members (NT._A m nt) (Std.union (NT._AI m nt) (NT._AS m nt))
+      Std.same_members (NTOps._A m nt) (Std.union (NTOps._AI m nt) (NTOps._AS m nt)) &&
+      Std.same_members (NTOps._A m nt)
+        (match List.assoc nt ag.typed_attributes with
+           [ l -> List.map fst l | exception Not_found -> assert False ])
     ))
+    && (ag.productions |> List.for_all
+          (fun (_, pl) -> pl |> List.for_all (fun p ->
+               (List.tl p.P.typed_nodes) |> List.for_all (fun node ->
+                   match node with [
+                     TNR.PARENT nt ->
+                     let synthesized = NTOps._AS m nt in
+                     let occurrences = List.map (fun a -> (node, a)) synthesized in
+                     Std.subset occurrences (POps.defining_occurrences p)
+                   | TNR.CHILD nt _ ->
+                     let inherited = NTOps._AI m nt in
+                     let occurrences = List.map (fun a -> (node, a)) inherited in
+                     Std.subset occurrences (POps.defining_occurrences p)
+                   | TNR.PRIM _ _ -> True
+                   ]
+                 ))))
     && True
   ;
 end
