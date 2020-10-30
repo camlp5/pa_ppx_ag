@@ -190,6 +190,7 @@ module AG = struct
 
   type t = {
     loc : Ploc.t
+  ; axiom : string
   ; typed_attributes : list (string * (list (string * MLast.ctyp)))
   ; nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
@@ -197,8 +198,9 @@ module AG = struct
   ; productions : list (string * list P.t)
   }
   ;
-  value mk0 loc nonterminals typed_attributes equations conditions = {
+  value mk0 loc axiom nonterminals typed_attributes equations conditions = {
     loc = loc
+  ; axiom = axiom
   ; nonterminals = nonterminals
   ; typed_attributes = typed_attributes
   ; equations = equations
@@ -608,6 +610,7 @@ module AGOps = struct
                    | TNR.PRIM _ _ -> True
                    ]
                  ))))
+    && ([] = NTOps._AI m ag.axiom)
     && True
   ;
 end

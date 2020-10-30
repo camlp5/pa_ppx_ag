@@ -4,6 +4,7 @@
 [%%import: Test1_variants.Unique.UN.expr]
   [@@deriving ag {
     module_name = AG
+  ; axiom = prog
   ; attributes = {
       expr = {
         inh_env = [%typ: (string * int) list]
