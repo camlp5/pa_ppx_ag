@@ -524,7 +524,7 @@ module AGOps = struct
   end ;
 
   module NT = struct
-    value attributes_of ag ntname =
+    value _attributes_of ag ntname =
       ag.productions
       |> List.map snd |> List.concat
       |> List.map P.attribute_occurrences |> List.concat
@@ -535,7 +535,7 @@ module AGOps = struct
         ])
     ;
 
-    value inherited_attributes_of ag ntname =
+    value _inherited_attributes_of ag ntname =
       ag.productions
       |> List.map snd |> List.concat
       |> List.map P.inherited_occurrences |> List.concat
@@ -544,7 +544,7 @@ module AGOps = struct
         | _ -> None
         ])
     ;
-    value synthesized_attributes_of ag ntname =
+    value _synthesized_attributes_of ag ntname =
       ag.productions
       |> List.map snd |> List.concat
       |> List.map P.synthesized_occurrences |> List.concat
@@ -553,23 +553,69 @@ module AGOps = struct
         | _ -> None
         ])
     ;
+
+    type memoized_af_ai_is_t = {
+      ag : AG.t
+    ; _A : list (string * list string)
+    ; _AI : list (string * list string)
+    ; _AS : list (string * list string)
+    }
+    ;
+
+    value mk_memo ag =
+    let a = ag.nonterminals |> List.map (fun nt ->
+        (nt, _attributes_of ag nt)
+      ) in
+    let ainh = ag.nonterminals |> List.map (fun nt ->
+        (nt, _inherited_attributes_of ag nt)
+      ) in
+    let asyn = ag.nonterminals |> List.map (fun nt ->
+        (nt, _synthesized_attributes_of ag nt)
+      ) in
+    { ag = ag ; _A = a ; _AI = ainh ; _AS = asyn }
+    ;
+    value _A m nt = match List.assoc nt m._A with [
+      x -> x
+    | exception Not_found ->
+      Ploc.raise m.ag.loc
+        (Failure Fmt.(str "INTERNAL ERROR: A: nonterminal %s appears to be unknown" nt))
+    ]
+    ;
+    value _AI m nt = match List.assoc nt m._AI with [
+      x -> x
+    | exception Not_found ->
+      Ploc.raise m.ag.loc
+        (Failure Fmt.(str "INTERNAL ERROR: AI: nonterminal %s appears to be unknown" nt))
+    ]
+    ;
+    value _AS m nt = match List.assoc nt m._AS with [
+      x -> x
+    | exception Not_found ->
+      Ploc.raise m.ag.loc
+        (Failure Fmt.(str "INTERNAL ERROR: AS: nonterminal %s appears to be unknown" nt))
+    ]
+    ;
+
   end ;
 
-  value well_formed ag =
+  value well_formed m =
+    let ag = m.NT.ag in
     (ag.nonterminals |> List.for_all (fun nt ->
-      Std.same_members (NT.attributes_of ag nt)
-        (Std.union (NT.inherited_attributes_of ag nt) (NT.synthesized_attributes_of ag nt))
-    ))
-    && (ag.nonterminals |> List.for_all (fun nt ->
-        [] = Std.intersect
-          (NT.inherited_attributes_of ag nt)
-          (NT.synthesized_attributes_of ag nt)
+        [] = Std.intersect (NT._AI m nt) (NT._AS m nt)
     ))
     && (ag.productions |> List.for_all (fun (_, pl) ->
         pl |> List.for_all (fun p ->
             Std.distinct (P.defining_occurrences p)
           )
       ))
+  ;
+
+  value complete m =
+    let ag = m.NT.ag in
+    (ag.nonterminals |> List.for_all (fun nt ->
+      Std.same_members (NT._A m nt) (Std.union (NT._AI m nt) (NT._AS m nt))
+    ))
+    && True
   ;
 end
 ;

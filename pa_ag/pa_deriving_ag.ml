@@ -54,7 +54,8 @@ value str_item_gen_ag name arg = fun [
     let rc = AGC.build_context loc arg tdl in
     let ag0 = AG.mk0 loc (List.map fst rc.AGC.name2nodename) rc.AGC.equations rc.AGC.conditions in
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
-      assert (AGOps.well_formed ag) ;
+    let memo = AGOps.NT.mk_memo ag in
+      assert (AGOps.well_formed memo) ;
       <:str_item< module $uid:rc.AGC.module_name$ = struct
                     value x = 1 ;
                   end >>
