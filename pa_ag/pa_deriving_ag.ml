@@ -11,6 +11,7 @@ open Surveil ;
 open Pa_deriving_base ;
 open Pa_ppx_utils ;
 open Ag_types ;
+open Ag_tsort ;
 
 value debug = Pa_passthru.debug ;
 
@@ -65,7 +66,8 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.complete memo) ;
       assert (AGOps.locally_acyclic memo) ;
       <:str_item< module $uid:rc.AGC.module_name$ = struct
-                    value x = 1 ;
+                  declare $list:node_attribute_table_declaration memo
+                                @[node_type_declaration memo]$ end ;
                   end >>
     }
 | _ -> assert False ]
