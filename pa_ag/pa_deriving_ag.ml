@@ -66,8 +66,11 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.complete memo) ;
       assert (AGOps.locally_acyclic memo) ;
       <:str_item< module $uid:rc.AGC.module_name$ = struct
-                  declare $list:node_attribute_table_declaration memo
-                                @[node_type_declaration memo]$ end ;
+                  declare $list:[node_type_declaration memo]
+                                @node_attribute_table_declaration memo$ end ;
+                  open Pa_ppx_utils ;
+                  open Pa_ppx_unique_runtime.Unique ;
+                  value rec $list:actual_dep_function_declarations memo$ ;
                   end >>
     }
 | _ -> assert False ]
