@@ -81,6 +81,19 @@ value attr_type_declaration memo =
   <:str_item< type attrname_t = [ $list:branches$ ] >>
 ;
 
+value lookup_parent_declaration memo =
+  let open AGOps.NTOps in
+  let open AG in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let branches = ag.nonterminals |> List.map (fun nt ->
+      (<:patt< $uid:node_constructor nt$ node >>, <:vala< None >>,
+       <:expr< $uid:node_hash_module nt$.find attrs . $lid:nt$ . parent node >>)
+    ) in
+  Reloc.str_item (fun _ -> Ploc.dummy) 0
+  <:str_item< value lookup_parent = fun attrs -> fun [ $list:branches$ ] >>
+;
+
 value typed_equation_to_deps taeq =
   let open AG in
   let open TAEQ in
@@ -222,7 +235,7 @@ value synthesized_attribute_branch p teqn = do {
     let ntcons = node_constructor nt in
     let nthash = node_hash_module nt in
     let patt = <:patt< ($uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-    let check_parent_unset = <:expr< assert (not ($uid:nthash$ . mem attrs . $lid:nt$ . $lid:attrna$ lhs)) >> in
+    let check_lhs_unset = <:expr< assert (not ($uid:nthash$ . mem attrs . $lid:nt$ . $lid:attrna$ lhs)) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
         (((CHILD dnt _) as dnr), dattr) ->
         let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
@@ -232,8 +245,8 @@ value synthesized_attribute_branch p teqn = do {
       | (PRIM _ _, _) -> None
       ]) in
     let body = compile_teqn_body p teqn in
-    let set_parent = <:expr< $uid:nthash$ . add attrs . $lid:nt$ . $lid:attrna$ lhs $body$ >> in
-    let l = [check_parent_unset]@check_deps_set@[set_parent] in
+    let set_lhs = <:expr< $uid:nthash$ . add attrs . $lid:nt$ . $lid:attrna$ lhs $body$ >> in
+    let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     Some (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
   | _ -> None
   ]
@@ -254,6 +267,77 @@ value synthesized_attribute_function memo =
       ))
     |> List.concat |> List.concat in
   (<:patt< compute_synthesized_attribute >>,
-   <:expr< fun attrs -> fun node -> fun attrna -> match (node, attrna) with [ $list:branches$ ] >>,
+   <:expr< fun attrs -> fun (node, attrna) -> match (node, attrna) with [ $list:branches$ ] >>,
+   <:vala< [] >>)
+;
+
+
+(** generate inherited-attribute branches
+
+    (1) args are parent+childnum+childnode+attrname
+
+    (2) for each equation that is for an inherited attribute, we
+   generate code to check that the inferred child (via childnum) is
+   equal to the specified childnode, all required attributes are
+   defined, that the specified attribute is *not* defined, and then
+   execute the equation, define the attribute's entry.  We can find
+   that entry by first finding the child, using childnum.
+
+    (3) then assign the computed value to the slot in the global
+   attribute table.
+
+*)
+value inherited_attribute_branch p teqn = do {
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  let loc = teqn.loc in
+  let pnt = p.name.PN.nonterm_name in
+  match teqn.lhs with [
+    (CHILD cnt childnum, cattrna) ->
+    let cattrcons = attr_constructor cattrna in
+    let cntcons = node_constructor cnt in
+    let cnthash = node_hash_module cnt in
+    let pntcons = node_constructor pnt in
+    let pnthash = node_hash_module pnt in
+    let patt = <:patt< ($uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int childnum$,
+                        $uid:cntcons$ lhs, $uid:cattrcons$) >> in
+    let check_lhs_unset = <:expr< assert (not ($uid:cnthash$ . mem attrs . $lid:cnt$ . $lid:cattrna$ lhs)) >> in
+    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
+        (((CHILD dnt _) as dnr), dattr) ->
+        let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+        Some <:expr< assert ($uid:node_hash_module dnt$ . mem attrs . $lid:dnt$ . $lid:dattr$ $lid:v$) >>
+      | (PARENT dnt, dattr) ->
+        Some <:expr< assert ($uid:pnthash$ . mem attrs . $lid:dnt$ . $lid:dattr$ lhs) >>
+      | (PRIM _ _, _) -> None
+      ]) in
+    let body = compile_teqn_body p teqn in
+    let set_lhs = <:expr< $uid:cnthash$ . add attrs . $lid:cnt$ . $lid:cattrna$ lhs $body$ >> in
+    let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
+    Some (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
+
+  | (PARENT _, _) | (PRIM _ _, _) -> None
+  ]
+}
+;
+
+value inherited_attribute_function memo =
+  let open AGOps.NTOps in
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let branches = 
+    ag.productions |> List.map (fun (nt, pl) -> pl |> List.map (fun p ->
+        p.typed_equations |> List.filter_map (inherited_attribute_branch p)
+      ))
+    |> List.concat |> List.concat in
+  (<:patt< compute_inherited_attribute >>,
+   <:expr< fun attrs -> fun (node, attrna) ->
+           let (parent, childnum) = lookup_parent attrs node in
+           match (parent, childnum, node, attrna) with [ $list:branches$ ] >>,
    <:vala< [] >>)
 ;
