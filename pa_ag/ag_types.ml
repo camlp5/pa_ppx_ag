@@ -125,7 +125,8 @@ module AG = struct
 
   module AEQ = struct
     type t = {
-      lhs : AR.t
+      loc : Ploc.t
+    ; lhs : AR.t
     ; rhs_nodes : list AR.t
     ; rhs_expr : MLast.expr
     }
@@ -136,7 +137,8 @@ module AG = struct
 
   module TAEQ = struct
     type t = {
-      lhs : TAR.t
+      loc : Ploc.t
+    ; lhs : TAR.t
     ; rhs_nodes : list TAR.t
     ; rhs_expr : MLast.expr
     }
@@ -146,7 +148,8 @@ module AG = struct
   end ;
   module Cond = struct
     type t = {
-      body_nodes : list AR.t
+      loc : Ploc.t
+    ; body_nodes : list AR.t
     ; body_expr : MLast.expr
     }
     ;
@@ -156,7 +159,8 @@ module AG = struct
 
   module TCond = struct
     type t = {
-      body_nodes : list TAR.t
+      loc : Ploc.t
+    ; body_nodes : list TAR.t
     ; body_expr : MLast.expr
     }
     ;
@@ -175,7 +179,8 @@ module AG = struct
     ; conditions : list Cond.t
     ; typed_conditions : list TCond.t
     ; patt : MLast.patt
-    ; patt_vars_to_noderefs : list (string * TNR.t)
+    ; patt_var_to_noderef : list (string * TNR.t)
+    ; patt_var_to_childnum : list (string * int)
     } ;
     value pp_hum pps x =
       Fmt.(pf pps "%a : %a\n%a@ %a"
@@ -194,17 +199,19 @@ module AG = struct
       ]
     ;
     value typed_equation p aeq =
-      let { AEQ.lhs = lhs ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
+      let { AEQ.loc = loc; lhs = lhs ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
       {
-        TAEQ.lhs = typed_attribute p lhs
+        TAEQ.loc = loc
+      ; lhs = typed_attribute p lhs
       ; rhs_nodes = List.map (typed_attribute p) rhs_nodes
       ; rhs_expr = rhs_expr
       }
       ;
     value typed_condition p cond =
-      let { Cond.body_nodes = body_nodes ; body_expr = body_expr } = cond in
+      let { Cond.loc = loc; body_nodes = body_nodes ; body_expr = body_expr } = cond in
       {
-        TCond.body_nodes = List.map (typed_attribute p) body_nodes
+        TCond.loc = loc
+      ; body_nodes = List.map (typed_attribute p) body_nodes
       ; body_expr = body_expr
       }
       ;
@@ -268,19 +275,22 @@ value extract_attribute_references e =
 ;
 
 value assignment_to_equation_or_condition e = match e with [
-    <:expr< $lhs$ . val := $rhs$ >> ->
+    <:expr:< $lhs$ . val := $rhs$ >> ->
     Left {
-      AG.AEQ.lhs = expr_to_attribute_reference lhs
+      AG.AEQ.loc = loc
+    ; lhs = expr_to_attribute_reference lhs
     ; rhs_nodes = extract_attribute_references rhs
     ; rhs_expr = rhs }
-  | <:expr< $lhs$ := $rhs$ >> ->
+  | <:expr:< $lhs$ := $rhs$ >> ->
     Left { 
-      AG.AEQ.lhs = expr_to_attribute_reference lhs
+      AG.AEQ.loc = loc
+    ; lhs = expr_to_attribute_reference lhs
     ; rhs_nodes = extract_attribute_references rhs
     ; rhs_expr = rhs }
-  | <:expr< assert $e$ >> ->
+  | <:expr:< assert $e$ >> ->
     Right { 
-      AG.Cond.body_nodes = extract_attribute_references e
+      AG.Cond.loc = loc
+    ; body_nodes = extract_attribute_references e
     ; body_expr = e }
   | _ -> Ploc.raise (MLast.loc_of_expr e)
       (Failure Fmt.(str "assignment_to_equation_or_condition: neither assignment nor condition@ %a"
@@ -375,14 +385,14 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
         NA.add node_aliases (TNR.CHILD tyname aliasnum, NR.CHILD None (i+1)) ;
         Std.push typed_nodes (TNR.CHILD tyname aliasnum) ;
         let v = Printf.sprintf "v_%d" (i+1) in
-        (<:patt< $lid:v$ >>, (v, TNR.CHILD tyname aliasnum))
+        (<:patt< $lid:v$ >>, (v, TNR.CHILD tyname aliasnum), (v, i+1))
       }
     | <:ctyp:< $lid:tyname$ >> as z when List.mem (canon_ctyp z) builtin_types -> do {
         let aliasnum = NA.next_prim_number node_aliases tyname in
         NA.add node_aliases (TNR.PRIM tyname aliasnum, NR.PRIM None (i+1)) ;
         Std.push typed_nodes (TNR.PRIM tyname aliasnum) ;
         let v = Printf.sprintf "v_%d" (i+1) in
-        (<:patt< $lid:v$ >>, (v, TNR.PRIM tyname aliasnum))
+        (<:patt< $lid:v$ >>, (v, TNR.PRIM tyname aliasnum), (v, i+1))
       }
     | ty ->
       Ploc.raise (MLast.loc_of_ctyp ty)
@@ -406,8 +416,9 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   ; typed_equations = []
   ; conditions = conditions
   ; typed_conditions = []
-  ; patt = Patt.tuple loc (List.map fst patt_nref_l)
-  ; patt_vars_to_noderefs = List.map snd patt_nref_l
+  ; patt = Patt.tuple loc (List.map Std.fst3 patt_nref_l)
+  ; patt_var_to_noderef = List.map Std.snd3 patt_nref_l
+  ; patt_var_to_childnum = List.map Std.third3 patt_nref_l
   } in
   let typed_equations = List.map (P.typed_equation p) equations in
   let typed_conditions = List.map (P.typed_condition p) conditions in

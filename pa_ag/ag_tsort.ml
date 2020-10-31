@@ -32,7 +32,7 @@ value node_attribute_table_declaration memo =
       let ltl = attrs |> List.map (fun (aname, aty) ->
           let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
           (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
-      let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t node_t >>, <:vala< [] >>)::ltl] in
+      let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (node_t * int) >>, <:vala< [] >>)::ltl] in
       <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
      ))@
   [let ltl = ag.typed_attributes |> List.map (fun (nt, _) ->
@@ -98,13 +98,13 @@ value actual_dep_function_declarations memo =
   let loc = ag.loc in
   (ag.productions |> List.map (fun (nt, pl) ->
        let branches = pl |> List.map (fun p ->
-           let rev_patt_vars_to_noderefs = List.map (fun (a,b) -> (b,a)) p.P.patt_vars_to_noderefs in
+           let rev_patt_var_to_noderef = List.map (fun (a,b) -> (b,a)) p.P.patt_var_to_noderef in
            let deps = p.P.typed_equations |> List.map typed_equation_to_deps |> List.concat in
            let deps = Std2.hash_uniq deps in
            let aref_to_exp = fun [
              (TNR.PARENT tyname, aname) -> <:expr< ($uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
            | (((TNR.CHILD tyname i) as nr), aname) ->
-              let v = match List.assoc nr rev_patt_vars_to_noderefs with [
+              let v = match List.assoc nr rev_patt_var_to_noderef with [
                 x -> x
               | exception Not_found ->
                 Ploc.raise loc
@@ -115,14 +115,17 @@ value actual_dep_function_declarations memo =
            ] in
            let deps = List.map (fun (a, b) -> (aref_to_exp a, aref_to_exp b)) deps in
            let depacts = deps |> List.map (fun (a,b) -> <:expr< Std.push acc ($a$, $b$) >>) in
-           let child_node_acts = rev_patt_vars_to_noderefs |> List.filter_map (fun [
+           let child_node_acts = rev_patt_var_to_noderef |> List.filter_map (fun [
              (TNR.CHILD tyname i, v) ->
+             let abs_childnum = match List.assoc v p.P.patt_var_to_childnum with [
+               x -> x | exception Not_found -> assert False
+             ] in
              let fname = preprocess_fname tyname in
              Some <:expr< do {
                           $uid:node_hash_module tyname$ . add
                             attrs . $lid:tyname$ . parent
                             $lid:v$
-                            ($uid:node_constructor nt$ lhs) ;
+                            ($uid:node_constructor nt$ lhs, $int:string_of_int abs_childnum$) ;
                           $lid:fname$ attrs acc $lid:v$
                           } >>
            | (TNR.PRIM _ _, _) -> None
@@ -135,4 +138,52 @@ value actual_dep_function_declarations memo =
         <:expr< fun attrs -> fun acc -> fun lhs -> match lhs.node with [ $list:branches$ ] >>,
         <:vala< [] >>)
      ))
+;
+
+value compile_teqn_body p teqn =
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  let loc = teqn.loc in
+  <:expr< assert False >>
+;
+
+(** generate synthesized-attribute branches
+
+    (1) args are noderef+attrname
+
+    (2) for each equation that is for a synthesized attribute, we
+   generate code to check that all required attributes are defined,
+   that the specified attribute is *not* defined, and then execute the
+   equation, define the attribute's entry.
+*)
+value synthesized_attribute_branch p teqn = do {
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  let loc = teqn.loc in
+  let rev_patt_var_to_noderef = List.map (fun (a,b) -> (b,a)) p.patt_var_to_noderef in
+  match teqn.lhs with [
+    (PARENT nt, attrna) ->
+    let attrcons = attr_constructor attrna in
+    let ntcons = node_constructor nt in
+    let nthash = node_hash_module nt in
+    let patt = <:patt< ($uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
+    let check_parent_unset = <:expr< assert (not ($uid:nthash$ . mem attrs . $lid:nt$ . $lid:attrna$ lhs)) >> in
+    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
+        (((CHILD dnt _) as dnr), dattr) ->
+        let v = match List.assoc dnr rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+        Some <:expr< assert ($uid:node_hash_module dnt$ . mem attrs . $lid:dnt$ . $lid:dattr$ $lid:v$) >>
+      | (PARENT dnt, dattr) ->
+        Some <:expr< assert ($uid:nthash$ . mem attrs . $lid:nt$ . $lid:dattr$ lhs) >>
+      | (PRIM _ _, _) -> None
+      ]) in
+    let body = compile_teqn_body p teqn in
+    let l = [check_parent_unset]@check_deps_set@[body] in
+    (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
+  | _ -> assert False
+  ]
+}
 ;
