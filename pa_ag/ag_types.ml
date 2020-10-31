@@ -57,18 +57,22 @@ module AG = struct
     PARENT (Some name) -> <:patt< [%nterm $lid:name$ ;] >>
   | PARENT None -> <:patt< [%nterm 0 ;] >>
   | CHILD (Some name) i -> <:patt< [%nterm $lid:name$ . ( $int:string_of_int i$ ) ;] >>
-  | CHILD None i -> <:patt< [%nterm $int:string_of_int i$ ;] >>
+  | CHILD None i when i > 0 -> <:patt< [%nterm $int:string_of_int i$ ;] >>
+  | CHILD None i when i <= 0 -> assert False
   | PRIM (Some name) i -> <:patt< [%prim $lid:name$ . ( $int:string_of_int i$ ) ;] >>
-  | PRIM None i -> <:patt< [%prim $int:string_of_int i$ ;] >>
+  | PRIM None i when i > 0 -> <:patt< [%prim $int:string_of_int i$ ;] >>
+  | PRIM None i when i <= 0 -> assert False
   ]
   ;
   value to_expr loc = fun [
     PARENT (Some name) -> <:expr< [%nterm $lid:name$ ;] >>
   | PARENT None -> <:expr< [%nterm 0 ;] >>
   | CHILD (Some name) i -> <:expr< [%nterm $lid:name$ . ( $int:string_of_int i$ ) ;] >>
-  | CHILD None i -> <:expr< [%nterm $int:string_of_int i$ ;] >>
+  | CHILD None i when i > 0 -> <:expr< [%nterm $int:string_of_int i$ ;] >>
+  | CHILD None i when i <= 0 -> assert False
   | PRIM (Some name) i -> <:expr< [%prim $lid:name$ . ( $int:string_of_int i$ ) ;] >>
-  | PRIM None i -> <:expr< [%prim $int:string_of_int i$ ;] >>
+  | PRIM None i when i > 0 -> <:expr< [%prim $int:string_of_int i$ ;] >>
+  | PRIM None i when i <= 0 -> assert False
   ]
   ;
   end ;
@@ -180,6 +184,7 @@ module AG = struct
     ; typed_conditions : list TCond.t
     ; patt : MLast.patt
     ; patt_var_to_noderef : list (string * TNR.t)
+    ; rev_patt_var_to_noderef : list (TNR.t * string)
     ; patt_var_to_childnum : list (string * int)
     } ;
     value pp_hum pps x =
@@ -418,6 +423,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   ; typed_conditions = []
   ; patt = Patt.tuple loc (List.map Std.fst3 patt_nref_l)
   ; patt_var_to_noderef = List.map Std.snd3 patt_nref_l
+  ; rev_patt_var_to_noderef = patt_nref_l |> List.map Std.snd3 |> List.map (fun (a,b) -> (b,a))
   ; patt_var_to_childnum = List.map Std.third3 patt_nref_l
   } in
   let typed_equations = List.map (P.typed_equation p) equations in

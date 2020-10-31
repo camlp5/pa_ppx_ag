@@ -71,6 +71,7 @@ value str_item_gen_ag name arg = fun [
                   open Pa_ppx_utils ;
                   open Pa_ppx_unique_runtime.Unique ;
                   value rec $list:actual_dep_function_declarations memo$ ;
+                  value $list:[synthesized_attribute_function memo]$ ;
                   end >>
     }
 | _ -> assert False ]
