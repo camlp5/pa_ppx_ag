@@ -46,7 +46,7 @@ value node_type_declaration memo =
   let ag = memo.ag in
   let loc = ag.loc in
   let branches = ag.nonterminals |> List.map (fun nt ->
-      (loc, <:vala< Printf.sprintf "Node_%s" nt >>, <:vala< [] >>, <:vala< None >>, <:vala< [] >>)
+      (loc, <:vala< Printf.sprintf "Node_%s" nt >>, <:vala< [<:ctyp< $lid:nt$ >>] >>, <:vala< None >>, <:vala< [] >>)
     ) in
   <:str_item< type node_type_t = [ $list:branches$ ] >>
 ;

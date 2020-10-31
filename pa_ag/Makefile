@@ -58,7 +58,7 @@ $(CMO) $(CMI) $(CMX): $(EXTERNAL)
 
 depend::
 	echo "$(CMO) $(CMI) $(CMX): $(EXTERNAL)" > .depend.NEW
-	$(OCAMLFIND) ocamldep -package $(PACKAGES) -syntax camlp5r pa*.ml  >> .depend.NEW
+	$(OCAMLFIND) ocamldep -package $(PACKAGES) -syntax camlp5r ag_*.ml pa*.ml  >> .depend.NEW
 	$(OCAMLFIND) ocamldep -package $(PACKAGES) -syntax camlp5o camlp5_migrate.ml  >> .depend.NEW
 	mv .depend.NEW .depend
 

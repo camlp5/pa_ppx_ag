@@ -175,6 +175,7 @@ module AG = struct
     ; conditions : list Cond.t
     ; typed_conditions : list TCond.t
     ; patt : MLast.patt
+    ; patt_vars_to_noderefs : list (string * TNR.t)
     } ;
     value pp_hum pps x =
       Fmt.(pf pps "%a : %a\n%a@ %a"
@@ -368,18 +369,20 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   let open AG in
   let node_aliases = NA.mk() in
   let typed_nodes = ref [TNR.PARENT lhs_name] in
-  let patl = tl |> List.mapi (fun i -> fun [
+  let patt_nref_l = tl |> List.mapi (fun i -> fun [
       <:ctyp:< $lid:tyname$ >> when List.mem tyname ag.nonterminals -> do {
         let aliasnum = NA.next_nterm_number node_aliases tyname in
         NA.add node_aliases (TNR.CHILD tyname aliasnum, NR.CHILD None (i+1)) ;
         Std.push typed_nodes (TNR.CHILD tyname aliasnum) ;
-        NR.to_patt loc (NR.CHILD None (i+1))
+        let v = Printf.sprintf "v_%d" (i+1) in
+        (<:patt< $lid:v$ >>, (v, TNR.CHILD tyname aliasnum))
       }
     | <:ctyp:< $lid:tyname$ >> as z when List.mem (canon_ctyp z) builtin_types -> do {
         let aliasnum = NA.next_prim_number node_aliases tyname in
         NA.add node_aliases (TNR.PRIM tyname aliasnum, NR.PRIM None (i+1)) ;
         Std.push typed_nodes (TNR.PRIM tyname aliasnum) ;
-        NR.to_patt loc (NR.PRIM None (i+1))
+        let v = Printf.sprintf "v_%d" (i+1) in
+        (<:patt< $lid:v$ >>, (v, TNR.PRIM tyname aliasnum))
       }
     | ty ->
       Ploc.raise (MLast.loc_of_ctyp ty)
@@ -403,7 +406,8 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   ; typed_equations = []
   ; conditions = conditions
   ; typed_conditions = []
-  ; patt = Patt.tuple loc patl
+  ; patt = Patt.tuple loc (List.map fst patt_nref_l)
+  ; patt_vars_to_noderefs = List.map snd patt_nref_l
   } in
   let typed_equations = List.map (P.typed_equation p) equations in
   let typed_conditions = List.map (P.typed_condition p) conditions in
