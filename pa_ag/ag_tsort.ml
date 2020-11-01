@@ -32,7 +32,7 @@ value node_attribute_table_declaration memo =
       let ltl = attrs |> List.map (fun (aname, aty) ->
           let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
           (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
-      let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (node_t * int) >>, <:vala< [] >>)::ltl] in
+      let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
       <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
      ))@
   [let ltl = ag.typed_attributes |> List.map (fun (nt, _) ->
@@ -53,7 +53,7 @@ value node_constructor nt = Printf.sprintf "Node_%s" nt ;
 value attr_constructor attrna = Printf.sprintf "Attr_%s" attrna ;
 value preprocess_fname nt = Printf.sprintf "preprocess_%s" nt ;
 
-value node_type_declaration memo =
+value node_module_declaration memo =
   let open AGOps.NTOps in
   let open AG in
   let ag = memo.ag in
@@ -61,7 +61,32 @@ value node_type_declaration memo =
   let branches = ag.nonterminals |> List.map (fun nt ->
       (loc, <:vala< node_constructor nt >>, <:vala< [<:ctyp< $lid:nt$ >>] >>, <:vala< None >>, <:vala< [] >>)
     ) in
-  <:str_item< type node_t = [ $list:branches$ ] >>
+  let eqbranches = ag.nonterminals |> List.map (fun nt ->
+    let nodecons = node_constructor nt in
+    (<:patt< ($uid:nodecons$ x, $uid:nodecons$ y) >>, <:vala< None >>, <:expr< x.id = y.id >>)
+  ) in
+  let eqbranches = eqbranches @ [
+    (<:patt< _ >>, <:vala< None >>, <:expr< False >>)
+  ] in
+  let hashbranches = ag.nonterminals |> List.map (fun nt ->
+    let nodecons = node_constructor nt in
+    (<:patt< ($uid:nodecons$ x) >>, <:vala< None >>, <:expr< x.id >>)
+  ) in
+  let cmpbranches = ag.nonterminals |> List.map (fun nt ->
+    let nodecons = node_constructor nt in
+    (<:patt< ($uid:nodecons$ x, $uid:nodecons$ y) >>, <:vala< None >>, <:expr< Stdlib.compare x.id y.id >>)
+  ) in
+  let cmpbranches = cmpbranches @ [
+    (<:patt< (x,y) >>, <:vala< None >>, <:expr< Stdlib.compare (Obj.tag (Obj.repr x)) (Obj.tag (Obj.repr y)) >>)
+  ] in
+
+  Reloc.str_item (fun _ -> Ploc.dummy) 0
+  <:str_item< module Node = struct
+                type t = [ $list:branches$ ] ;
+                value equal x y = match (x,y) with [ $list:eqbranches$ ] ;
+                value compare x y = match (x,y) with [ $list:cmpbranches$ ] ;
+                value hash = fun [ $list:hashbranches$ ] ;
+              end >>
 ;
 
 value attr_type_declaration memo =
@@ -87,7 +112,7 @@ value lookup_parent_declaration memo =
   let ag = memo.ag in
   let loc = ag.loc in
   let branches = ag.nonterminals |> List.map (fun nt ->
-      (<:patt< $uid:node_constructor nt$ node >>, <:vala< None >>,
+      (<:patt< Node . $uid:node_constructor nt$ node >>, <:vala< None >>,
        <:expr< $uid:node_hash_module nt$.find attrs . $lid:nt$ . parent node >>)
     ) in
   Reloc.str_item (fun _ -> Ploc.dummy) 0
@@ -114,7 +139,7 @@ value actual_dep_function_declarations memo =
            let deps = p.P.typed_equations |> List.map typed_equation_to_deps |> List.concat in
            let deps = Std2.hash_uniq deps in
            let aref_to_exp = fun [
-             (TNR.PARENT tyname, aname) -> <:expr< ($uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
+             (TNR.PARENT tyname, aname) -> <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
            | (((TNR.CHILD tyname i) as nr), aname) ->
               let v = match List.assoc nr p.P.rev_patt_var_to_noderef with [
                 x -> x
@@ -122,7 +147,7 @@ value actual_dep_function_declarations memo =
                 Ploc.raise loc
                   (Failure "actual_dep_function_declarations: cannot map attribute-ref back to variable")
               ] in
-              <:expr< ($uid:node_constructor tyname$ $lid:v$, $uid:attr_constructor aname$) >>
+              <:expr< (Node . $uid:node_constructor tyname$ $lid:v$, $uid:attr_constructor aname$) >>
            | _ -> assert False
            ] in
            let deps = List.map (fun (a, b) -> (aref_to_exp a, aref_to_exp b)) deps in
@@ -137,7 +162,7 @@ value actual_dep_function_declarations memo =
                           $uid:node_hash_module tyname$ . add
                             attrs . $lid:tyname$ . parent
                             $lid:v$
-                            ($uid:node_constructor nt$ lhs, $int:string_of_int abs_childnum$) ;
+                            (Node . $uid:node_constructor nt$ lhs, $int:string_of_int abs_childnum$) ;
                           $lid:fname$ attrs acc $lid:v$
                           } >>
            | (TNR.PRIM _ _, _) -> None
@@ -234,7 +259,7 @@ value synthesized_attribute_branch p teqn = do {
     let attrcons = attr_constructor attrna in
     let ntcons = node_constructor nt in
     let nthash = node_hash_module nt in
-    let patt = <:patt< ($uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
+    let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
     let check_lhs_unset = <:expr< assert (not ($uid:nthash$ . mem attrs . $lid:nt$ . $lid:attrna$ lhs)) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
         (((CHILD dnt _) as dnr), dattr) ->
@@ -301,8 +326,8 @@ value inherited_attribute_branch p teqn = do {
     let cnthash = node_hash_module cnt in
     let pntcons = node_constructor pnt in
     let pnthash = node_hash_module pnt in
-    let patt = <:patt< ($uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int childnum$,
-                        $uid:cntcons$ lhs, $uid:cattrcons$) >> in
+    let patt = <:patt< (Node . $uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int childnum$,
+                        Node . $uid:cntcons$ lhs, $uid:cattrcons$) >> in
     let check_lhs_unset = <:expr< assert (not ($uid:cnthash$ . mem attrs . $lid:cnt$ . $lid:cattrna$ lhs)) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
         (((CHILD dnt _) as dnr), dattr) ->
@@ -336,8 +361,42 @@ value inherited_attribute_function memo =
       ))
     |> List.concat |> List.concat in
   (<:patt< compute_inherited_attribute >>,
+   Reloc.expr (fun _ -> Ploc.dummy) 0
    <:expr< fun attrs -> fun (node, attrna) ->
            let (parent, childnum) = lookup_parent attrs node in
            match (parent, childnum, node, attrna) with [ $list:branches$ ] >>,
+   <:vala< [] >>)
+;
+
+(** evaluate the AG on the argument tree.
+
+    (1) create the global attribute-table
+    (2) preprocess the tree to produce the dependency graph
+    (3) tsort the graph
+    (4) execute the graph in topological order
+    (5) extract and return all attributes of the axiom node 
+*)
+
+value eval_function memo =
+  let open AGOps.NTOps in
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let axiom = ag.axiom in
+  let preprocess_axiom = Printf.sprintf "preprocess_%s" axiom in
+  (<:patt< evaluate >>,
+   Reloc.expr (fun _ -> Ploc.dummy) 0
+   <:expr< fun t ->
+     let attrs = make_attributes_t() in
+     let deps = ref [] in
+     let deps = do {
+       ignore ($lid:preprocess_axiom$ attrs deps t) ;
+       deps.val
+     } in
+     deps     
+   >>,
    <:vala< [] >>)
 ;
