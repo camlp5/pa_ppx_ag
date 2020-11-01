@@ -451,8 +451,10 @@ value eval_function memo =
        ignore ($lid:preprocess_axiom$ attrs deps t) ;
        deps.val
      } in
-   let g = edges_to_graph deps in
-   TSort.iter (compute_attribute attrs) g
+   let g = edges_to_graph deps in do {
+     TSort.iter (compute_attribute attrs) g ;
+     attrs
+   }
    >>,
    <:vala< [] >>)
 ;
