@@ -226,6 +226,7 @@ value actual_dep_function_declarations memo =
                           } >>
            | (TNR.PRIM _ _, _) -> None
            ]) in
+           let child_node_acts = child_node_acts@[ <:expr< () >> ] in
            (p.P.patt, <:vala< None >>,
             <:expr< do { $list:depacts@child_node_acts$ } >>)
          ) in
@@ -281,6 +282,9 @@ value compile_teqn_body p teqn =
       let tnr = lookup_tnr p (NR.PARENT None) in
       let cnt = match tnr with [ TNR.PARENT cnt -> cnt | _ -> assert False ] in
       <:expr< ( AttrTable. $lid:attr_accessor_name cnt attrna$ attrs parent  ) >>
+
+    | <:expr:< [%nterm $lid:nt$ ;] . $lid:attrna$ >> ->
+      <:expr< ( AttrTable. $lid:attr_accessor_name nt attrna$ attrs parent  ) >>
 
     | <:expr:< [%nterm $int:absi$ ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.CHILD None (int_of_string absi)) in
@@ -482,6 +486,14 @@ value eval_function memo =
   let loc = ag.loc in
   let axiom = ag.axiom in
   let preprocess_axiom = Printf.sprintf "preprocess_%s" axiom in
+  let result_expr =
+    match List.assoc axiom memo._AS with [
+      x -> x
+    | exception Not_found -> assert False
+    ]
+      |> List.map (fun attrna ->
+          <:expr< AttrTable. $lid:attr_accessor_name axiom attrna$ attrs t >>
+        ) |> (fun l -> Expr.tuple loc l) in
   (<:patt< evaluate >>,
    Reloc.expr (fun _ -> Ploc.dummy) 0
    <:expr< fun t ->
@@ -493,7 +505,7 @@ value eval_function memo =
      } in
    let g = edges_to_graph deps in do {
      TSort.iter (compute_attribute attrs) g ;
-     attrs
+     $result_expr$
    }
    >>,
    <:vala< [] >>)

@@ -23,6 +23,8 @@ module OK = struct
         ; types = [
             prog
           ; expr
+          ; binop
+          ; unop
           ]
         }
       ]
@@ -52,6 +54,8 @@ module HC = struct
         ; types = [
             prog_node
           ; expr_node
+          ; binop_node
+          ; unop_node
           ]
         }
       ]
@@ -74,6 +78,18 @@ module HC = struct
         ; code = fun __dt__ -> fun { Hashcons.node = node } ->
             Test1_variants.Hashcons.HC.make_prog (migrate_prog_node __dt__ node)
         }
+      ; migrate_binop = {
+          srctype = [%typ: binop]
+        ; dsttype = [%typ: binop]
+        ; code = fun __dt__ -> fun { Hashcons.node = node } ->
+            Test1_variants.Hashcons.HC.make_binop (migrate_binop_node __dt__ node)
+        }
+      ; migrate_unop = {
+          srctype = [%typ: unop]
+        ; dsttype = [%typ: unop]
+        ; code = fun __dt__ -> fun { Hashcons.node = node } ->
+            Test1_variants.Hashcons.HC.make_unop (migrate_unop_node __dt__ node)
+        }
       }
     }
   ]
@@ -93,6 +109,8 @@ module Unique = struct
         ; types = [
             prog_node
           ; expr_node
+          ; binop_node
+          ; unop_node
           ]
         }
       ]
@@ -114,6 +132,18 @@ module Unique = struct
         ; dsttype = [%typ: prog]
         ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
             Test1_variants.Unique.UN.make_prog (migrate_prog_node __dt__ node)
+        }
+      ; migrate_binop = {
+          srctype = [%typ: binop]
+        ; dsttype = [%typ: binop]
+        ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
+            Test1_variants.Unique.UN.make_binop (migrate_binop_node __dt__ node)
+        }
+      ; migrate_unop = {
+          srctype = [%typ: unop]
+        ; dsttype = [%typ: unop]
+        ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
+            Test1_variants.Unique.UN.make_unop (migrate_unop_node __dt__ node)
         }
       }
     }
@@ -147,6 +177,28 @@ module ToUnique = struct
         ; dsttype = [%typ: Test1_variants.Unique.UN.prog]
         ; code = (fun __dt__ x ->
             Test1_variants.Unique.UN.make_prog (__dt__.migrate_prog_node __dt__ x)
+          )
+        }
+      ; migrate_binop_node = {
+          srctype = [%typ: binop_node]
+        ; dsttype = [%typ: Test1_variants.Unique.UN.binop_node]
+        }
+      ; migrate_binop = {
+          srctype = [%typ: binop]
+        ; dsttype = [%typ: Test1_variants.Unique.UN.binop]
+        ; code = (fun __dt__ x ->
+            Test1_variants.Unique.UN.make_binop (__dt__.migrate_binop_node __dt__ x)
+          )
+        }
+      ; migrate_unop_node = {
+          srctype = [%typ: unop_node]
+        ; dsttype = [%typ: Test1_variants.Unique.UN.unop_node]
+        }
+      ; migrate_unop = {
+          srctype = [%typ: unop]
+        ; dsttype = [%typ: Test1_variants.Unique.UN.unop]
+        ; code = (fun __dt__ x ->
+            Test1_variants.Unique.UN.make_unop (__dt__.migrate_unop_node __dt__ x)
           )
         }
       }
@@ -188,6 +240,28 @@ module FromUnique = struct
             __dt__.migrate_prog_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
           )
         }
+      ; migrate_binop_node = {
+          srctype = [%typ: binop_node]
+        ; dsttype = [%typ: Test1_variants.Unique.OK.binop_node]
+        }
+      ; migrate_binop = {
+          srctype = [%typ: binop]
+        ; dsttype = [%typ: Test1_variants.Unique.OK.binop]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_binop_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
+          )
+        }
+      ; migrate_unop_node = {
+          srctype = [%typ: unop_node]
+        ; dsttype = [%typ: Test1_variants.Unique.OK.unop_node]
+        }
+      ; migrate_unop = {
+          srctype = [%typ: unop]
+        ; dsttype = [%typ: Test1_variants.Unique.OK.unop]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_unop_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
+          )
+        }
       }
     }
 ]
@@ -197,4 +271,3 @@ let expr x = dt.migrate_expr dt x
 let prog x = dt.migrate_prog dt x
 
 end
-
