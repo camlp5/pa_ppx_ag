@@ -68,16 +68,22 @@ value str_item_gen_ag name arg = fun [
       <:str_item< module $uid:rc.AGC.module_name$ = struct
                   open Pa_ppx_utils ;
                   open Pa_ppx_unique_runtime.Unique ;
-                  declare $list:[node_module_declaration memo;attr_type_declaration memo]
+                  declare $list:[node_module_declaration memo
+                                ;attr_type_declaration memo
+                                ;nodeattr_type_declaration memo
+                                ]
                                 @node_attribute_table_declaration memo
                                 @[lookup_parent_declaration memo]$ end ;
-                  module G = Graph.Persistent.Digraph.ConcreteBidirectional(Node) ;
+                  module G = Graph.Persistent.Digraph.ConcreteBidirectional(NodeAttr) ;
+                  value edges_to_graph l =
+                    List.fold_left (fun g (s,d) -> G.add_edge g s d) G.empty l ;
                   module TSort = Graph.Topological.Make_stable(G) ;
                   value rec $list:actual_dep_function_declarations memo$ ;
                   value $list:[synthesized_attribute_function memo
                               ;inherited_attribute_function memo
-                              ;eval_function memo
                               ]$ ;
+                  value $list:[attribute_function memo]$ ;
+                  value $list:[eval_function memo]$ ;
                   end >>
     }
 | _ -> assert False ]

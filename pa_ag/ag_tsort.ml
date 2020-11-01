@@ -106,6 +106,25 @@ value attr_type_declaration memo =
   <:str_item< type attrname_t = [ $list:branches$ ] >>
 ;
 
+value nodeattr_type_declaration memo =
+  let open AGOps.NTOps in
+  let open AG in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  <:str_item<
+    module NodeAttr = struct
+      type t = (Node.t * attrname_t) ;
+      value equal (n1, a1) (n2, a2) = Node.equal n1 n2 && a1 = a2 ;
+      value compare (n1, a1) (n2, a2) =
+        match Node.compare n1 n2 with [
+          0 -> Stdlib.compare a1 a2
+        | x -> x
+        ] ;
+      value hash (n,a) = Node.hash n + Hashtbl.hash a ;
+    end
+  >>
+;
+
 value lookup_parent_declaration memo =
   let open AGOps.NTOps in
   let open AG in
@@ -368,6 +387,37 @@ value inherited_attribute_function memo =
    <:vala< [] >>)
 ;
 
+value attribute_function memo =
+  let open AGOps.NTOps in
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let inh_patts =
+    memo._AI |> List.map (fun (nt, attrs) ->
+        attrs |> List.map (fun attrna ->
+            <:patt< (Node. $uid:node_constructor nt$ _, $uid:attr_constructor attrna$) >>))
+    |> List.concat
+  in
+  let syn_patts =
+    memo._AS |> List.map (fun (nt, attrs) ->
+        attrs |> List.map (fun attrna ->
+            <:patt< (Node. $uid:node_constructor nt$ _, $uid:attr_constructor attrna$) >>))
+    |> List.concat
+  in
+
+  let inh_branches = inh_patts |> List.map (fun p ->
+      (<:patt< ( $p$ as aref ) >>, <:vala< None >>, <:expr< compute_inherited_attribute attrs aref >>)) in
+  let syn_branches = syn_patts |> List.map (fun p ->
+      (<:patt< ( $p$ as aref ) >>, <:vala< None >>, <:expr< compute_synthesized_attribute attrs aref >>)) in
+
+  (<:patt< compute_attribute >>,
+   Reloc.expr (fun _ -> Ploc.dummy) 0
+   <:expr< fun attrs -> fun [ $list:inh_branches@syn_branches$ ] >>, <:vala< [] >>)
+;
+
 (** evaluate the AG on the argument tree.
 
     (1) create the global attribute-table
@@ -396,7 +446,8 @@ value eval_function memo =
        ignore ($lid:preprocess_axiom$ attrs deps t) ;
        deps.val
      } in
-     deps     
+   let g = edges_to_graph deps in
+   TSort.iter (compute_attribute attrs) g
    >>,
    <:vala< [] >>)
 ;
