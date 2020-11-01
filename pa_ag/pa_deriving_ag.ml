@@ -71,9 +71,8 @@ value str_item_gen_ag name arg = fun [
                   declare $list:[node_module_declaration memo
                                 ;attr_type_declaration memo
                                 ;nodeattr_type_declaration memo
-                                ]
-                                @node_attribute_table_declaration memo
-                                @[lookup_parent_declaration memo]$ end ;
+                                ;node_attribute_table_declaration memo
+                                ;lookup_parent_declaration memo]$ end ;
                   module G = Graph.Persistent.Digraph.ConcreteBidirectional(NodeAttr) ;
                   value edges_to_graph l =
                     List.fold_left (fun g (s,d) -> G.add_edge g s d) G.empty l ;

@@ -12,46 +12,86 @@ open Pa_ppx_utils ;
 open Ag_types ;
 
 value node_hash_module nt = Printf.sprintf "HTAttr_%s" nt ;
+value node_constructor nt = Printf.sprintf "Node_%s" nt ;
+value attr_constructor attrna = Printf.sprintf "Attr_%s" attrna ;
+value preprocess_fname nt = Printf.sprintf "preprocess_%s" nt ;
+value parent_accessor_name nt = Printf.sprintf "%s__parent" nt ;
+value parent_setter_name nt = Printf.sprintf "%s__set_parent" nt ;
+value parent_isset_name nt = Printf.sprintf "%s__isset_parent" nt ;
+value attr_accessor_name nt attrna = Printf.sprintf "%s__%s" nt attrna ;
+value attr_setter_name nt attrna = Printf.sprintf "%s__set_%s" nt attrna ;
+value attr_isset_name nt attrna = Printf.sprintf "%s__isset_%s" nt attrna ;
 
 value node_attribute_table_declaration memo =
   let open AGOps.NTOps in
   let open AG in
   let ag = memo.ag in
   let loc = ag.loc in
-  (ag.typed_attributes |> List.map (fun (nt,_) ->
-      Reloc.str_item (fun _ -> Ploc.dummy) 0
-      <:str_item< module $uid:node_hash_module nt$ = Hashtbl.Make(struct
-                    type t = $lid:nt$ ;
-                    open Pa_ppx_unique_runtime.Unique ;
-                    value equal a b = a.id = b.id ;
-                    value hash x = x.id ;
-                  end) >>
-    ))@
-  (ag.typed_attributes |> List.map (fun (nt, attrs) ->
-      let attr_type_name = Printf.sprintf "%s_attrs_t" nt in
-      let ltl = attrs |> List.map (fun (aname, aty) ->
-          let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
-          (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
-      let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
-      <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
-     ))@
-  [let ltl = ag.typed_attributes |> List.map (fun (nt, _) ->
-       let attr_type_name = Printf.sprintf "%s_attrs_t" nt in
-       (loc, nt, False, <:ctyp< $lid:attr_type_name$ >>, <:vala< [] >>)
-     ) in
-   <:str_item< type attributes_t = { $list:ltl$ } >> ;
-   let lel = ag.typed_attributes |> List.map (fun (nt, al) ->
-       let lel = al |> List.map (fun (aname, _) ->
-           (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
-       let lel = lel @ [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
-       (<:patt< $lid:nt$ >>, <:expr< { $list:lel$ } >>)) in
-   Reloc.str_item (fun _ -> Ploc.dummy) 0
-   <:str_item< value make_attributes_t () = { $list:lel$ } >>]
+  let l =
+    (ag.typed_attributes |> List.map (fun (nt,_) ->
+         Reloc.str_item (fun _ -> Ploc.dummy) 0
+           <:str_item< module $uid:node_hash_module nt$ = Hashtbl.Make(struct
+                         type t = $lid:nt$ ;
+                         open Pa_ppx_unique_runtime.Unique ;
+                         value equal a b = a.id = b.id ;
+                         value hash x = x.id ;
+                       end) >>
+       ))@
+    (ag.typed_attributes |> List.map (fun (nt, attrs) ->
+         let attr_type_name = Printf.sprintf "%s_attrs_t" nt in
+         let ltl = attrs |> List.map (fun (aname, aty) ->
+             let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
+             (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
+         let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
+         <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
+       ))@
+    [let ltl = ag.typed_attributes |> List.map (fun (nt, _) ->
+         let attr_type_name = Printf.sprintf "%s_attrs_t" nt in
+         (loc, nt, False, <:ctyp< $lid:attr_type_name$ >>, <:vala< [] >>)
+       ) in
+     <:str_item< type attributes_t = { $list:ltl$ } >> ;
+     let lel = ag.typed_attributes |> List.map (fun (nt, al) ->
+         let lel = al |> List.map (fun (aname, _) ->
+             (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
+         let lel = lel @ [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
+         (<:patt< $lid:nt$ >>, <:expr< { $list:lel$ } >>)) in
+     Reloc.str_item (fun _ -> Ploc.dummy) 0
+       <:str_item< value mk () = { $list:lel$ } >> ;
+     let parent_accessor_bindings = ag.typed_attributes |> List.map (fun (nt, _) ->
+         [(<:patt< $lid:parent_accessor_name nt$ >>,
+          <:expr< fun attrs -> fun node ->
+                  $uid:node_hash_module nt$ . find attrs . $lid:nt$ . parent node >>,
+          <:vala< [] >>) ;
+         (<:patt< $lid:parent_setter_name nt$ >>,
+          <:expr< fun attrs -> fun node -> fun p ->
+                  $uid:node_hash_module nt$ . add attrs . $lid:nt$ . parent node p >>,
+          <:vala< [] >>) ;
+         (<:patt< $lid:parent_isset_name nt$ >>,
+          <:expr< fun attrs -> fun node ->
+                  $uid:node_hash_module nt$ . mem attrs . $lid:nt$ . parent node >>,
+          <:vala< [] >>)]
+       ) |> List.concat in
+     let attr_accessor_bindings = ag.typed_attributes |> List.map (fun (nt, al) ->
+         al |> List.map (fun (attrna, _) ->
+             [(<:patt< $lid:attr_accessor_name nt attrna$ >>,
+               <:expr< fun attrs -> fun node ->
+                       $uid:node_hash_module nt$ . find attrs . $lid:nt$ . $lid:attrna$ node >>,
+               <:vala< [] >>) ;
+              (<:patt< $lid:attr_setter_name nt attrna$ >>,
+               <:expr< fun attrs -> fun node -> fun v ->
+                       $uid:node_hash_module nt$ . add attrs . $lid:nt$ . $lid:attrna$ node v >>,
+               <:vala< [] >>) ;
+              (<:patt< $lid:attr_isset_name nt attrna$ >>,
+               <:expr< fun attrs -> fun node ->
+                       $uid:node_hash_module nt$ . mem attrs . $lid:nt$ . $lid:attrna$ node >>,
+               <:vala< [] >>)]
+           )) |> List.concat |> List.concat in
+     <:str_item< value $list:parent_accessor_bindings@attr_accessor_bindings$ >>
+    ] in
+  <:str_item< module AttrTable = struct
+    $list:l$
+    end >>
 ;
-
-value node_constructor nt = Printf.sprintf "Node_%s" nt ;
-value attr_constructor attrna = Printf.sprintf "Attr_%s" attrna ;
-value preprocess_fname nt = Printf.sprintf "preprocess_%s" nt ;
 
 value node_module_declaration memo =
   let open AGOps.NTOps in
@@ -132,7 +172,7 @@ value lookup_parent_declaration memo =
   let loc = ag.loc in
   let branches = ag.nonterminals |> List.map (fun nt ->
       (<:patt< Node . $uid:node_constructor nt$ node >>, <:vala< None >>,
-       <:expr< $uid:node_hash_module nt$.find attrs . $lid:nt$ . parent node >>)
+       <:expr< AttrTable. $lid:parent_accessor_name nt$ attrs node >>)
     ) in
   Reloc.str_item (fun _ -> Ploc.dummy) 0
   <:str_item< value lookup_parent = fun attrs -> fun [ $list:branches$ ] >>
@@ -178,8 +218,8 @@ value actual_dep_function_declarations memo =
              ] in
              let fname = preprocess_fname tyname in
              Some <:expr< do {
-                          $uid:node_hash_module tyname$ . add
-                            attrs . $lid:tyname$ . parent
+                          AttrTable . $lid:parent_setter_name tyname$
+                            attrs
                             $lid:v$
                             (Node . $uid:node_constructor nt$ lhs, $int:string_of_int abs_childnum$) ;
                           $lid:fname$ attrs acc $lid:v$
@@ -240,17 +280,17 @@ value compile_teqn_body p teqn =
     | <:expr:< [%nterm 0 ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.PARENT None) in
       let cnt = match tnr with [ TNR.PARENT cnt -> cnt | _ -> assert False ] in
-      <:expr< ( $uid:node_hash_module cnt$ . find attrs . $lid:cnt$ . $lid:attrna$ parent  ) >>
+      <:expr< ( AttrTable. $lid:attr_accessor_name cnt attrna$ attrs parent  ) >>
 
     | <:expr:< [%nterm $int:absi$ ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.CHILD None (int_of_string absi)) in
       let v = lookup_var p (NR.CHILD None (int_of_string absi)) in
       let cnt = match tnr with [ TNR.CHILD cnt _ -> cnt | _ -> assert False ] in
-      <:expr< ( $uid:node_hash_module cnt$ . find attrs . $lid:cnt$ . $lid:attrna$ $lid:v$  ) >>
+      <:expr< ( AttrTable. $lid:attr_accessor_name cnt attrna$ attrs $lid:v$  ) >>
 
     | <:expr:< [%nterm $lid:cnt$ . ( $int:reli$ ) ;] . $lid:attrna$ >> ->
       let v = lookup_var p (NR.CHILD (Some cnt) (int_of_string reli)) in
-      <:expr< ( $uid:node_hash_module cnt$ . find attrs . $lid:cnt$ . $lid:attrna$ $lid:v$  ) >>
+      <:expr< ( AttrTable. $lid:attr_accessor_name cnt attrna$ attrs $lid:v$  ) >>
 
     | e -> fallback_migrate_expr dt e
     ] in
@@ -283,17 +323,17 @@ value synthesized_attribute_branch p teqn = do {
     let ntcons = node_constructor nt in
     let nthash = node_hash_module nt in
     let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-    let check_lhs_unset = <:expr< assert (not ($uid:nthash$ . mem attrs . $lid:nt$ . $lid:attrna$ lhs)) >> in
+    let check_lhs_unset = <:expr< assert (not (AttrTable. $lid:attr_isset_name nt attrna$ attrs lhs)) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
         (((CHILD dnt _) as dnr), dattr) ->
         let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
-        Some <:expr< assert ($uid:node_hash_module dnt$ . mem attrs . $lid:dnt$ . $lid:dattr$ $lid:v$) >>
+        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
       | (PARENT dnt, dattr) ->
-        Some <:expr< assert ($uid:nthash$ . mem attrs . $lid:nt$ . $lid:dattr$ lhs) >>
+        Some <:expr< assert (AttrTable. $lid:attr_isset_name nt dattr$ attrs lhs) >>
       | (PRIM _ _, _) -> None
       ]) in
     let body = compile_teqn_body p teqn in
-    let set_lhs = <:expr< $uid:nthash$ . add attrs . $lid:nt$ . $lid:attrna$ lhs $body$ >> in
+    let set_lhs = <:expr< AttrTable. $lid:attr_setter_name nt attrna$ attrs lhs $body$ >> in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     Some (patt, <:vala< None >>, <:expr< let parent = lhs in do { $list:l$ } >>)
   | _ -> None
@@ -352,17 +392,17 @@ value inherited_attribute_branch p teqn = do {
     let pnthash = node_hash_module pnt in
     let patt = <:patt< (Node . $uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int abs_childnum$,
                         Node . $uid:cntcons$ lhs, $uid:cattrcons$) >> in
-    let check_lhs_unset = <:expr< assert (not ($uid:cnthash$ . mem attrs . $lid:cnt$ . $lid:cattrna$ lhs)) >> in
+    let check_lhs_unset = <:expr< assert (not (AttrTable. $lid:attr_isset_name cnt cattrna$ attrs lhs)) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
         (((CHILD dnt _) as dnr), dattr) ->
         let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
-        Some <:expr< assert ($uid:node_hash_module dnt$ . mem attrs . $lid:dnt$ . $lid:dattr$ $lid:v$) >>
+        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
       | (PARENT dnt, dattr) ->
-        Some <:expr< assert ($uid:pnthash$ . mem attrs . $lid:dnt$ . $lid:dattr$ parent) >>
+        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs parent) >>
       | (PRIM _ _, _) -> None
       ]) in
     let body = compile_teqn_body p teqn in
-    let set_lhs = <:expr< $uid:cnthash$ . add attrs . $lid:cnt$ . $lid:cattrna$ lhs $body$ >> in
+    let set_lhs = <:expr< AttrTable. $lid:attr_setter_name cnt cattrna$ attrs lhs $body$ >> in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     Some (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
 
@@ -445,7 +485,7 @@ value eval_function memo =
   (<:patt< evaluate >>,
    Reloc.expr (fun _ -> Ploc.dummy) 0
    <:expr< fun t ->
-     let attrs = make_attributes_t() in
+     let attrs = AttrTable.mk() in
      let deps = ref [] in
      let deps = do {
        ignore ($lid:preprocess_axiom$ attrs deps t) ;
