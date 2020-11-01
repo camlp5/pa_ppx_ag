@@ -154,6 +154,7 @@ module ToUnique = struct
 ]
 
 let dt = make_dt ()
+let expr x = dt.migrate_expr dt x
 let prog x = dt.migrate_prog dt x
 
 end
@@ -192,6 +193,7 @@ module FromUnique = struct
 ]
 
 let dt = make_dt ()
+let expr x = dt.migrate_expr dt x
 let prog x = dt.migrate_prog dt x
 
 end

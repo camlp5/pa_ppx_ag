@@ -15,21 +15,39 @@ value prog_unique_eoi = Grammar.Entry.create gram "prog_unique_eoi";
 EXTEND
   GLOBAL: prog_eoi (* prog_hashcons_eoi *) prog_unique_eoi;
 
-  test1: [
-    [ e1 = test1 ; ";" ; e2 = test1 -> SEQ e1 e2 ]
-  | [ e1 = test1 ; "+" ; e2 = test1 -> PLUS e1 e2 ]
+  expr: [
+    [ e1 = expr ; ";" ; e2 = expr -> SEQ e1 e2 ]
+  | [ e1 = expr ; "+" ; e2 = expr -> PLUS e1 e2 ]
   | [ n = INT -> INT (int_of_string n)
     | id = LIDENT -> REF id
-    | id = LIDENT ; ":=" ; e = test1 -> ASSIGN id e
-    | "(" ; e = test1 ; ")" -> e
+    | id = LIDENT ; ":=" ; e = expr -> ASSIGN id e
+    | "(" ; e = expr ; ")" -> e
     ]
   ]
   ;
 
-  prog_eoi: [ [ x = test1; EOI -> x ] ];
+  prog_eoi: [ [ x = expr; EOI -> x ] ];
 (*
-  prog_hashcons_eoi: [ [ x = test1; EOI -> Test1_migrate.ToHC.prog x ] ];
+  prog_hashcons_eoi: [ [ x = expr; EOI -> Test1_migrate.ToHC.prog x ] ];
 *)
-  prog_unique_eoi: [ [ x = test1; EOI -> Test1_migrate.ToUnique.prog x ] ];
+  prog_unique_eoi: [ [ x = expr; EOI -> Test1_migrate.ToUnique.prog x ] ];
 
+END;
+
+value pr_expr = Eprinter.make "expr";
+value expr = Eprinter.apply pr_expr;
+
+EXTEND_PRINTER
+  pr_expr:
+    [ "semi"
+      [ SEQ e1 e2 -> pprintf pc "%p; %p" curr e1 next e2 ]
+    | "mul"
+      [ PLUS e1 e2 -> pprintf pc "%p + %p" curr e1 next e2 ]
+    | "simple"
+      [ INT n -> pprintf pc "%d" n
+      | REF id -> pprintf pc "%s" id
+      | ASSIGN id e -> pprintf pc "%s := %p" id expr e
+      | e -> pprintf pc "(%p)" expr e
+      ]
+    ] ;
 END;

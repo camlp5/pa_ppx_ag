@@ -211,6 +211,10 @@ value lookup_var p nr = match List.assoc (lookup_tnr p nr) p.AG.P.rev_patt_var_t
   x -> x | exception Not_found -> assert False
 ]
 ;
+value lookup_abs_childnum p nr = match List.assoc (lookup_var p nr) p.AG.P.patt_var_to_childnum with [
+  x -> x | exception Not_found -> assert False
+]
+;
 value compile_teqn_body p teqn =
   let open AG in
   let open P in
@@ -236,7 +240,7 @@ value compile_teqn_body p teqn =
     | <:expr:< [%nterm 0 ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.PARENT None) in
       let cnt = match tnr with [ TNR.PARENT cnt -> cnt | _ -> assert False ] in
-      <:expr< ( $uid:node_hash_module cnt$ . find attrs . $lid:cnt$ . $lid:attrna$ lhs  ) >>
+      <:expr< ( $uid:node_hash_module cnt$ . find attrs . $lid:cnt$ . $lid:attrna$ parent  ) >>
 
     | <:expr:< [%nterm $int:absi$ ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.CHILD None (int_of_string absi)) in
@@ -291,7 +295,7 @@ value synthesized_attribute_branch p teqn = do {
     let body = compile_teqn_body p teqn in
     let set_lhs = <:expr< $uid:nthash$ . add attrs . $lid:nt$ . $lid:attrna$ lhs $body$ >> in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
-    Some (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
+    Some (patt, <:vala< None >>, <:expr< let parent = lhs in do { $list:l$ } >>)
   | _ -> None
   ]
 }
@@ -340,12 +344,13 @@ value inherited_attribute_branch p teqn = do {
   let pnt = p.name.PN.nonterm_name in
   match teqn.lhs with [
     (CHILD cnt childnum, cattrna) ->
+    let abs_childnum = lookup_abs_childnum p (NR.CHILD (Some cnt) childnum) in
     let cattrcons = attr_constructor cattrna in
     let cntcons = node_constructor cnt in
     let cnthash = node_hash_module cnt in
     let pntcons = node_constructor pnt in
     let pnthash = node_hash_module pnt in
-    let patt = <:patt< (Node . $uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int childnum$,
+    let patt = <:patt< (Node . $uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int abs_childnum$,
                         Node . $uid:cntcons$ lhs, $uid:cattrcons$) >> in
     let check_lhs_unset = <:expr< assert (not ($uid:cnthash$ . mem attrs . $lid:cnt$ . $lid:cattrna$ lhs)) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
@@ -353,7 +358,7 @@ value inherited_attribute_branch p teqn = do {
         let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
         Some <:expr< assert ($uid:node_hash_module dnt$ . mem attrs . $lid:dnt$ . $lid:dattr$ $lid:v$) >>
       | (PARENT dnt, dattr) ->
-        Some <:expr< assert ($uid:pnthash$ . mem attrs . $lid:dnt$ . $lid:dattr$ lhs) >>
+        Some <:expr< assert ($uid:pnthash$ . mem attrs . $lid:dnt$ . $lid:dattr$ parent) >>
       | (PRIM _ _, _) -> None
       ]) in
     let body = compile_teqn_body p teqn in
