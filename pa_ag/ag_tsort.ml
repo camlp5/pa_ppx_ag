@@ -22,26 +22,44 @@ value attr_accessor_name nt attrna = Printf.sprintf "%s__%s" nt attrna ;
 value attr_setter_name nt attrna = Printf.sprintf "%s__set_%s" nt attrna ;
 value attr_isset_name nt attrna = Printf.sprintf "%s__isset_%s" nt attrna ;
 
-value node_attribute_table_declaration memo =
+type storage_mode_t = [ Hashtables | Records ] ;
+
+value storage_mode_wrapper_modules =
+let loc = Ploc.dummy in
+fun [
+  Hashtables ->
+  (<:longident< Pa_ppx_unique_runtime.Unique >>,
+   <:module_expr< Pa_ppx_unique_runtime.Unique >>)
+| Records ->
+  (<:longident< Pa_ppx_ag_runtime.Attributes >>,
+   <:module_expr< Pa_ppx_ag_runtime.Attributes >>)
+]
+;
+
+value node_attribute_table_declaration smode memo =
   let open AGOps.NTOps in
   let open AG in
   let ag = memo.ag in
   let loc = ag.loc in
+  let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules smode in
   let l =
     (ag.typed_attributes |> List.map (fun (nt,_) ->
          Reloc.str_item (fun _ -> Ploc.dummy) 0
            <:str_item< module $uid:node_hash_module nt$ = Hashtbl.Make(struct
                          type t = $lid:nt$ ;
-                         open Pa_ppx_unique_runtime.Unique ;
+                         open $wrapper_module_module_expr$ ;
                          value equal a b = a.id = b.id ;
                          value hash x = x.id ;
                        end) >>
        ))@
     (ag.typed_attributes |> List.map (fun (nt, attrs) ->
          let attr_type_name = Printf.sprintf "%s_attrs_t" nt in
-         let ltl = attrs |> List.map (fun (aname, aty) ->
+         let ltl = match smode with [
+           Hashtables -> attrs |> List.map (fun (aname, aty) ->
              let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
-             (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
+             (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>))
+         | Records -> []
+         ] in
          let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
          <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
        ))@
@@ -51,8 +69,11 @@ value node_attribute_table_declaration memo =
        ) in
      <:str_item< type attributes_t = { $list:ltl$ } >> ;
      let lel = ag.typed_attributes |> List.map (fun (nt, al) ->
-         let lel = al |> List.map (fun (aname, _) ->
-             (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
+         let lel = match smode with [
+           Hashtables -> al |> List.map (fun (aname, _) ->
+             (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>))
+         | Records -> []
+         ] in
          let lel = lel @ [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
          (<:patt< $lid:nt$ >>, <:expr< { $list:lel$ } >>)) in
      Reloc.str_item (fun _ -> Ploc.dummy) 0
@@ -74,22 +95,44 @@ value node_attribute_table_declaration memo =
      let attr_accessor_bindings = ag.typed_attributes |> List.map (fun (nt, al) ->
          al |> List.map (fun (attrna, _) ->
              [(<:patt< $lid:attr_accessor_name nt attrna$ >>,
-               <:expr< fun attrs -> fun node ->
-                       $uid:node_hash_module nt$ . find attrs . $lid:nt$ . $lid:attrna$ node >>,
+               match smode with [
+                 Hashtables ->
+                 <:expr< fun attrs -> fun node ->
+                         $uid:node_hash_module nt$ . find attrs . $lid:nt$ . $lid:attrna$ node >>
+               | Records ->
+                 <:expr< fun attrs -> fun node ->
+                         match node.attributes. $lid:attr_accessor_name nt attrna$ with [
+                         Some v -> v | None -> failwith $str:attr_accessor_name nt attrna$
+                         ] >>
+               ],
                <:vala< [] >>) ;
               (<:patt< $lid:attr_setter_name nt attrna$ >>,
-               <:expr< fun attrs -> fun node -> fun v ->
-                       $uid:node_hash_module nt$ . add attrs . $lid:nt$ . $lid:attrna$ node v >>,
+               match smode with [ 
+                 Hashtables ->
+                 <:expr< fun attrs -> fun node -> fun v ->
+                         $uid:node_hash_module nt$ . add attrs . $lid:nt$ . $lid:attrna$ node v >>
+               | Records ->
+                 <:expr< fun attrs -> fun node -> fun v ->
+                         node.attributes. $lid:attr_accessor_name nt attrna$ := Some v >>
+             ],
                <:vala< [] >>) ;
               (<:patt< $lid:attr_isset_name nt attrna$ >>,
-               <:expr< fun attrs -> fun node ->
-                       $uid:node_hash_module nt$ . mem attrs . $lid:nt$ . $lid:attrna$ node >>,
+               match smode with [
+                 Hashtables ->
+                 <:expr< fun attrs -> fun node ->
+                         $uid:node_hash_module nt$ . mem attrs . $lid:nt$ . $lid:attrna$ node >>
+               | Records ->
+                 <:expr< fun attrs -> fun node ->
+                         node.attributes. $lid:attr_accessor_name nt attrna$ <> None >>
+               ],
                <:vala< [] >>)]
            )) |> List.concat |> List.concat in
      <:str_item< value $list:parent_accessor_bindings@attr_accessor_bindings$ >>
     ] in
+  Reloc.str_item (fun _ -> Ploc.dummy) 0
   <:str_item< module AttrTable = struct
-    $list:l$
+    open $wrapper_module_module_expr$ ;
+    declare $list:l$ end ;
     end >>
 ;
 
@@ -151,6 +194,7 @@ value nodeattr_type_declaration memo =
   let open AG in
   let ag = memo.ag in
   let loc = ag.loc in
+  Reloc.str_item (fun _ -> Ploc.dummy) 0
   <:str_item<
     module NodeAttr = struct
       type t = (Node.t * attrname_t) ;

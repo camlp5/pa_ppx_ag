@@ -19,10 +19,19 @@ module AGContext = struct
 
 open Pa_ppx_params.Runtime ;
 
+value demarshal_raw_storage_mode loc = fun [
+    "Hashtables" -> Hashtables
+  | "Records" -> Records
+  | s -> Ploc.raise loc (Failure Fmt.(str "demarshal_raw_storage_mode: unrecognized mode %s (must be either Hashtables or Records)" s))
+]
+;
+
 type t = {
   optional : bool
 ; plugin_name : string
 ; module_name : uident
+; raw_storage_mode: uident [@name storage_mode;]
+; storage_mode : storage_mode_t [@computed demarshal_raw_storage_mode loc raw_storage_mode;]
 ; axiom : lident
 ; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
 ; raw_attribution: (alist lident expr) [@name attribution;]
@@ -54,6 +63,7 @@ module AGC = AGContext ;
 value str_item_gen_ag name arg = fun [
   <:str_item:< type $_flag:_$ $list:tdl$ >> ->
     let rc = AGC.build_context loc arg tdl in
+    let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules rc.AGC.storage_mode in
     let ag0 = AG.mk0 loc
         rc.AGC.axiom
         (List.map fst rc.AGC.name2nodename)
@@ -67,11 +77,11 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.locally_acyclic memo) ;
       <:str_item< module $uid:rc.AGC.module_name$ = struct
                   open Pa_ppx_utils ;
-                  open Pa_ppx_unique_runtime.Unique ;
+                  open $wrapper_module_module_expr$ ;
                   declare $list:[node_module_declaration memo
                                 ;attr_type_declaration memo
                                 ;nodeattr_type_declaration memo
-                                ;node_attribute_table_declaration memo
+                                ;node_attribute_table_declaration rc.AGC.storage_mode memo
                                 ;lookup_parent_declaration memo]$ end ;
                   module G = Graph.Persistent.Digraph.ConcreteBidirectional(NodeAttr) ;
                   value edges_to_graph l =
@@ -93,6 +103,7 @@ Pa_deriving.(Registry.add PI.{
 ; alternates = []
 ; options = ["optional"
             ; "axiom"
+            ; "storage_mode"
             ; "attributes"
             ; "attribution"
             ; "module_name"]

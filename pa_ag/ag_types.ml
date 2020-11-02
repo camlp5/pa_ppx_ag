@@ -344,9 +344,14 @@ value extract_attribute_conditions loc l : (list (AG.PN.t * (list AG.Cond.t))) =
 value compute_name2nodename type_decls =
   type_decls |> List.map (fun (name, td) ->
      match td.tdDef with [
-       (<:ctyp< unique $lid:nodename$ >>
+       (
+         <:ctyp< unique $lid:nodename$ >>
        | <:ctyp< Unique.unique $lid:nodename$ >>
-       | <:ctyp< Pa_ppx_unique_runtime.Unique.unique $lid:nodename$ >>) ->
+       | <:ctyp< Pa_ppx_unique_runtime.Unique.unique $lid:nodename$ >>
+       | <:ctyp< attributed $lid:nodename$ $_$ >>
+       | <:ctyp< Attributes.attributed $lid:nodename$ $_$ >>
+       | <:ctyp< Pa_ppx_ag_runtime.Attributes.attributed $lid:nodename$ $_$ >>
+       ) ->
        [(name,nodename)]
      | _ -> []
      ]
