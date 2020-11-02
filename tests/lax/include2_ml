@@ -1,0 +1,186 @@
+#use "topfind.camlp5";;
+#require "findlib.internal";;
+#require "compiler-libs.common" ;;
+#require "ounit2";;
+#require "fmt";;
+#require "rresult";;
+#require "pcre";;
+#require "bos";;
+#require "str";;
+
+#require "camlp5.pa_o";;
+Pcaml.inter_phrases := Some ";;\n";;
+(*
+#require "camlp5.pa_r";;
+Pcaml.inter_phrases := Some ";\n";;
+*)
+
+#require "camlp5.pr_o";;
+
+(*
+#require "camlp5.pr_r";;
+*)
+
+(*
+#require "camlp5.quotations";;
+#require "camlp5.extfun";;
+
+#require "camlp5.extend";;
+#require "camlp5.phony_quotations" ;;
+*)
+
+#require "pa_ppx.base";;
+#require "pa_ppx.testutils";;
+
+open OUnit2 ;;
+open Pa_ppx_testutils ;;
+open Testutil ;;
+open Testutil2 ;;
+open Papr_util ;;
+
+let pp_plexing_lexbuf b = Fmt.(pf stdout "<<%s>>" (Plexing.Lexbuf.get b)) ;;
+#install_printer pp_plexing_lexbuf ;;
+
+let nonws_re = Str.regexp "[^ \t\n]"
+let not_ws s = match Str.search_forward nonws_re s 0 with _ -> true | exception Not_found -> false ;;
+
+type ploc_verbosity = TERSE | COMMENT | LOCATION ;;
+
+let verbose_ploc = ref TERSE ;;
+let terse_pp_ploc (ploc : Ploc.t) =
+  Format.print_string "<loc>"
+;;
+let comment_pp_ploc (ploc : Ploc.t) =
+  let cs = Ploc.comment ploc in
+  if not_ws cs then Format.printf "<loc \"%s\">" (String.escaped cs)
+  else Format.print_string "<loc>"
+;;
+let verbose_pp_ploc (loc : Ploc.t) =
+  let file_name = Ploc.file_name loc in
+  let line_nb = Ploc.line_nb loc in
+  let bol_pos = Ploc.bol_pos loc in
+  let first_pos = Ploc.first_pos loc in
+  let last_pos = Ploc.last_pos loc in
+  let cs = Ploc.comment loc in
+  if not_ws cs then
+    Fmt.(pf stdout "<loc<\"%s\":%d (bol %d) %d-%d \"%s\">>"
+           file_name line_nb bol_pos first_pos last_pos (String.escaped cs))
+  else
+    Fmt.(pf stdout "<loc<\"%s\":%d (bol %d) %d-%d>>"
+           file_name line_nb bol_pos first_pos last_pos)
+;;
+let pp_ploc loc = match !verbose_ploc with 
+    TERSE -> terse_pp_ploc loc
+  | COMMENT -> comment_pp_ploc loc
+  | LOCATION -> verbose_pp_ploc loc
+;;
+#install_printer pp_ploc;;
+
+let pp_loc (loc : Location.t) = Format.print_string "<loc>" ;;
+#install_printer pp_loc ;;
+
+let pp_char_stream strm =
+  let l = Stream.npeek !Toploop.max_printer_depth strm in
+  Fmt.(pf stdout "<strm<[%a]>>" (list char) l)
+;;
+#install_printer pp_char_stream ;;
+
+let pp_token_stream strm =
+  let l = Stream.npeek !Toploop.max_printer_depth strm in
+  let rec trim_eoi = function
+    ("EOI",_ as x)::_ -> [x]
+  | h::t -> h::(trim_eoi t)
+  | [] -> []
+  in 
+  Fmt.(pf stdout "<strm<[%a]>>" (list ~sep:comma (parens (pair ~sep:comma (quote string) (quote string)))) (trim_eoi l))
+;;
+#install_printer pp_token_stream ;;
+
+let lexbuf_contents lb =
+  let open Lexing in
+  let pos = lb.lex_curr_pos in
+  let len = lb.lex_buffer_len - lb.lex_curr_pos in
+  (Bytes.to_string (Bytes.sub lb.lex_buffer pos len))
+;;
+
+let pp_lexbuf lb =
+  Format.print_string "#<lexbuf:<";
+  Format.print_string (lexbuf_contents lb);
+  Format.print_string ">>"
+;;
+#install_printer pp_lexbuf ;;
+
+open Asttypes ;;
+open Parsetree ;;
+open Longident ;;
+
+let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %s >>" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));;
+let pp_expr ty = Fmt.(pf stdout "#<expr< %s >>" (Eprinter.apply Pcaml.pr_expr Pprintf.empty_pc ty));;
+let pp_patt ty = Fmt.(pf stdout "#<patt< %s >>" (Eprinter.apply Pcaml.pr_patt Pprintf.empty_pc ty));;
+let pp_type_decl ty = Fmt.(pf stdout "#<patt< %s >>" (Pr_o.type_decl Pprintf.empty_pc ty));;
+
+(*
+let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %a >>" Pa_ppx_base.Pp_MLast.pp_ctyp ty);;
+let pp_expr ty = Fmt.(pf stdout "#<expr< %a >>" Pa_ppx_base.Pp_MLast.pp_expr ty);;
+let pp_patt ty = Fmt.(pf stdout "#<patt< %a >>" Pa_ppx_base.Pp_MLast.pp_patt ty);;
+*)
+#install_printer pp_ctyp ;;
+#install_printer pp_expr ;;
+#install_printer pp_patt ;;
+
+print_string "================ START ================\n";; flush stdout ;;
+
+#require "pa_ppx_unique.runtime";;
+#require "hashcons";;
+#require "ocamlgraph";;
+
+#load "test1_ast.cmo";;
+#load "test1_variants.cmo";;
+#load "test1_migrate.cmo";;
+#load "test1_pa.cmo";;
+#load "test1_ag_ppo.cmo";;
+
+#print_length 10000 ;;
+#print_depth 10000 ;;
+open Test1_ag_ppo ;;
+open AG ;;
+open AG.Node ;;
+
+let pp_expr e =
+  let n = e.Pa_ppx_unique_runtime.Unique.id in
+  let e = Test1_migrate.FromUnique.expr e in
+  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test1_pa.expr Pprintf.empty_pc e))
+;;
+#install_printer pp_expr ;;
+
+let pp_prog e =
+  let n = e.Pa_ppx_unique_runtime.Unique.id in
+  let e = Test1_migrate.FromUnique.prog e in
+  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test1_pa.expr Pprintf.empty_pc e))
+;;
+#install_printer pp_prog ;;
+
+let prog0 = {| x := 1 ; x ; y := 2 ; x + y |} |> Stream.of_string |> Grammar.Entry.parse Test1_pa.prog_unique_eoi ;;
+
+(*
+#trace lookup_parent ;;
+#trace AG.compute_inherited_attribute ;;
+#trace AG.compute_synthesized_attribute ;;
+*)
+
+AG.evaluate prog0 ;;
+(*
+let attrs = AttrTable.mk() ;;
+let deps = let d = ref [] in (preprocess_prog attrs d prog0 ; !d) ;;
+let g = edges_to_graph deps ;;
+
+let visit (n : NodeAttr.t) = () ;;
+
+TSort.iter (compute_attribute attrs) g ;;
+*)
+(*
+;;; Local Variables: ***
+;;; mode:tuareg ***
+;;; End: ***
+
+*)
