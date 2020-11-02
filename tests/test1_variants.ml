@@ -24,3 +24,27 @@ module Unique = struct
   ; normal_module_name = OK
   }]
 end
+
+module Attibuted = struct
+  [%%import: Test1_ast.expr]
+  [@@deriving attributed {
+    attributed_module_name = AT
+  ; normal_module_name = OK
+  ; attributes = {
+      expr = {
+        inh_env = [%typ: (string * int) list]
+      ; syn_env = [%typ: (string * int) list]
+      ; value_ = [%typ: int]
+      }
+    ; prog = {
+        value_ = [%typ: int]
+      }
+    ; binop = {
+        oper = [%typ: int -> int -> int]
+      }
+    ; unop = {
+        oper = [%typ: int -> int]
+      }
+    }
+  }]
+end
