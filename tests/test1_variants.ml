@@ -25,7 +25,7 @@ module Unique = struct
   }]
 end
 
-module Attibuted = struct
+module Attributed = struct
   [%%import: Test1_ast.expr]
   [@@deriving attributed {
     attributed_module_name = AT
