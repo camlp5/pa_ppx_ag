@@ -26,7 +26,7 @@ module HT = struct
   ; attribution = {
       expr__INT = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
-        [%nterm 0].value_ := [%prim 1].intval
+        [%nterm 0].value_ := [%prim 1]
       )
     ; expr__BINOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
@@ -41,10 +41,10 @@ module HT = struct
       )
     ; expr__REF = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
-        [%nterm 0].value_ := List.assoc [%prim 1].stringval [%nterm 0].inh_env
+        [%nterm 0].value_ := List.assoc [%prim 1] [%nterm 0].inh_env
       )
     ; expr__ASSIGN = (
-        [%nterm 0].syn_env := ([%prim 1].stringval, [%nterm expr.(1)].value_) :: [%nterm expr.(1)].syn_env ;
+        [%nterm 0].syn_env := ([%prim 1], [%nterm expr.(1)].value_) :: [%nterm expr.(1)].syn_env ;
         [%nterm expr.(1)].inh_env := [%nterm 0].inh_env ;
         [%nterm 0].value_ := [%nterm expr.(1)].value_
       )
@@ -110,7 +110,7 @@ module REC = struct
   ; attribution = {
       expr__INT = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
-        [%nterm 0].value_ := [%prim 1].intval
+        [%nterm 0].value_ := [%prim 1]
       )
     ; expr__BINOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
@@ -125,10 +125,10 @@ module REC = struct
       )
     ; expr__REF = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
-        [%nterm 0].value_ := List.assoc [%prim 1].stringval [%nterm 0].inh_env
+        [%nterm 0].value_ := List.assoc [%prim 1] [%nterm 0].inh_env
       )
     ; expr__ASSIGN = (
-        [%nterm 0].syn_env := ([%prim 1].stringval, [%nterm expr.(1)].value_) :: [%nterm expr.(1)].syn_env ;
+        [%nterm 0].syn_env := ([%prim 1], [%nterm expr.(1)].value_) :: [%nterm expr.(1)].syn_env ;
         [%nterm expr.(1)].inh_env := [%nterm 0].inh_env ;
         [%nterm 0].value_ := [%nterm expr.(1)].value_
       )

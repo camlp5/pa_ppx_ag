@@ -259,8 +259,8 @@ value expr_to_attribute_reference e =
     (NR.CHILD None (int_of_string n), attrna)
   | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
     (NR.CHILD (Some tyname) (int_of_string n), attrna)
-  | <:expr< [%prim $int:n$;] . $lid:attrna$ >> ->
-    (NR.PRIM None (int_of_string n), attrna)
+  | <:expr< [%prim $int:n$;] >> ->
+    (NR.PRIM None (int_of_string n), "")
   | _ -> Ploc.raise (MLast.loc_of_expr e) (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
                                                           Pp_MLast.pp_expr e))
   ]

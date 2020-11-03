@@ -309,18 +309,12 @@ value compile_teqn_body p teqn =
   let fallback_migrate_expr = dt.migrate_expr in
   let migrate_expr dt e =
     match e with [
-      <:expr:< [%prim $int:absi$ ;] . intval >> ->
+      <:expr:< [%prim $int:absi$ ;] >> ->
       let v = lookup_var p (NR.PRIM None (int_of_string absi)) in
-      <:expr< ( $lid:v$ : int) >>
-    | <:expr:< [%prim $int:absi$ ;] . stringval >> ->
-      let v = lookup_var p (NR.PRIM None (int_of_string absi)) in
-      <:expr< ( $lid:v$ : string) >>
-    | <:expr:< [%prim int . ( $int:reli$ ) ;] . intval >> ->
+      <:expr< $lid:v$ >>
+    | <:expr:< [%prim int . ( $int:reli$ ) ;] >> ->
       let v = lookup_var p (NR.PRIM (Some "int") (int_of_string reli)) in
-      <:expr< ( $lid:v$ : int) >>
-    | <:expr:< [%prim string . ( $int:reli$ ) ;] . stringval >> ->
-      let v = lookup_var p (NR.PRIM (Some "string") (int_of_string reli)) in
-      <:expr< ( $lid:v$ : string) >>
+      <:expr< $lid:v$ >>
 
     | <:expr:< [%nterm 0 ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.PARENT None) in
