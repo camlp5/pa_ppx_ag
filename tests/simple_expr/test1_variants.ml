@@ -10,6 +10,7 @@ let prehash_list f l =
 let hash_list = prehash_list
 
 module Hashcons = struct
+  module _ = Test1_ast
   [%%import: Test1_ast.expr]
   [@@deriving hashcons {
     hashconsed_module_name = HC
@@ -18,6 +19,7 @@ module Hashcons = struct
 end
 
 module Unique = struct
+  module _ = Test1_ast
   [%%import: Test1_ast.expr]
   [@@deriving unique {
     uniqified_module_name = UN
@@ -26,6 +28,7 @@ module Unique = struct
 end
 
 module Attributed = struct
+  module _ = Test1_ast
   [%%import: Test1_ast.expr]
   [@@deriving attributed {
     attributed_module_name = AT

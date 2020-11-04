@@ -10,6 +10,7 @@ let _migrate_list subrw0 __dt__ l =
   List.map (subrw0 __dt__) l
 
 module OK = struct
+  module _ = Test1_variants
   [%%import: Test1_variants.Unique.OK.expr]
   [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -41,6 +42,7 @@ module OK = struct
 end
 
 module HC = struct
+  module _ = Test1_variants
   [%%import: Test1_variants.Hashcons.HC.expr]
   [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -96,6 +98,7 @@ module HC = struct
 end
 
 module Unique = struct
+  module _ = Test1_variants
   [%%import: Test1_variants.Unique.UN.expr]
   [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -151,7 +154,7 @@ module Unique = struct
 end
 
 module ToUnique = struct
-
+module _ = Test1_variants
 [%%import: Test1_variants.Unique.OK.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -212,7 +215,7 @@ let prog x = dt.migrate_prog dt x
 end
 
 module FromUnique = struct
-
+module _ = Test1_variants
 [%%import: Test1_variants.Unique.UN.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -273,6 +276,7 @@ let prog x = dt.migrate_prog dt x
 end
 
 module Attributed = struct
+  module _ = Test1_variants
   [%%import: Test1_variants.Attributed.AT.expr]
   [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -329,7 +333,7 @@ end
 
 
 module ToAttributed = struct
-
+module _ = Test1_variants
 [%%import: Test1_variants.Attributed.OK.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -390,7 +394,7 @@ let prog x = dt.migrate_prog dt x
 end
 
 module FromAttributed = struct
-
+module _ = Test1_variants
 [%%import: Test1_variants.Attributed.AT.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t

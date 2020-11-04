@@ -2,6 +2,7 @@
 (* test_ag.ml *)
 
 module HT = struct
+module _ = Test1_variants
 [%%import: Test1_variants.Unique.UN.expr]
   [@@deriving ag {
     module_name = AG
@@ -57,7 +58,7 @@ module HT = struct
     ; prog = (
         [%nterm 1].inh_env := [] ;
         [%nterm 0].value_ := [%nterm 1].value_ ;
-        assert True
+        condition "must be > 0" ([%nterm 0].value_ > 0)
       )
     ; unop__UPLUS = (
         [%nterm unop].oper := fun x -> x
@@ -85,7 +86,7 @@ module HT = struct
 end
 
 module REC = struct
-
+module _ = Test1_variants
 [%%import: Test1_variants.Attributed.AT.expr]
   [@@deriving ag {
     module_name = AG
@@ -141,7 +142,7 @@ module REC = struct
     ; prog = (
         [%nterm 1].inh_env := [] ;
         [%nterm 0].value_ := [%nterm 1].value_ ;
-        assert True
+        condition "must be > 0" ([%nterm 0].value_ > 0)
       )
     ; unop__UPLUS = (
         [%nterm unop].oper := fun x -> x

@@ -153,6 +153,7 @@ module AG = struct
   module Cond = struct
     type t = {
       loc : Ploc.t
+    ; cond_msg : option string
     ; body_nodes : list AR.t
     ; body_expr : MLast.expr
     }
@@ -164,11 +165,12 @@ module AG = struct
   module TCond = struct
     type t = {
       loc : Ploc.t
+    ; cond_msg : option string
     ; body_nodes : list TAR.t
     ; body_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "assert %a" PP_hum.expr x.body_expr) ;
+    value pp_hum pps x = Fmt.(pf pps "condition %a %a" (option Dump.string) x.cond_msg PP_hum.expr x.body_expr) ;
     value pp_top pps x = Fmt.(pf pps "#<tcond< %a >>" pp_hum x) ;
   end ;
 
@@ -213,9 +215,10 @@ module AG = struct
       }
       ;
     value typed_condition p cond =
-      let { Cond.loc = loc; body_nodes = body_nodes ; body_expr = body_expr } = cond in
+      let { Cond.loc = loc; cond_msg = cond_msg ; body_nodes = body_nodes ; body_expr = body_expr } = cond in
       {
         TCond.loc = loc
+      ; cond_msg = cond_msg
       ; body_nodes = List.map (typed_attribute p) body_nodes
       ; body_expr = body_expr
       }
@@ -292,11 +295,19 @@ value assignment_to_equation_or_condition e = match e with [
     ; lhs = expr_to_attribute_reference lhs
     ; rhs_nodes = extract_attribute_references rhs
     ; rhs_expr = rhs }
-  | <:expr:< assert $e$ >> ->
+  | <:expr:< condition $str:msg$ $e$ >> ->
     Right { 
       AG.Cond.loc = loc
+    ; cond_msg = Some msg
     ; body_nodes = extract_attribute_references e
     ; body_expr = e }
+  | <:expr:< condition $e$ >> ->
+    Right { 
+      AG.Cond.loc = loc
+    ; cond_msg = None
+    ; body_nodes = extract_attribute_references e
+    ; body_expr = e }
+
   | _ -> Ploc.raise (MLast.loc_of_expr e)
       (Failure Fmt.(str "assignment_to_equation_or_condition: neither assignment nor condition@ %a"
                       Pp_MLast.pp_expr e))
