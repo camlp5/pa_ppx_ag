@@ -17,8 +17,12 @@ module _ = Test1_variants
     ; prog = {
         value_ = [%typ: int]
       }
+    ; prog__PROG = {
+        condition = [%typ: bool]
+      }
     ; binop = {
         oper = [%typ: int -> int -> int]
+      ; rhs_must_be_nonzero = [%typ: bool]
       }
     ; unop = {
         oper = [%typ: int -> int]
@@ -33,7 +37,11 @@ module _ = Test1_variants
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
-        [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_
+        [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        condition "rhs must be nonzero"
+          (if [%nterm binop.(1)].rhs_must_be_nonzer then
+             0 <> [%nterm expr.(2)].value_
+           else True)
       )
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
@@ -55,7 +63,7 @@ module _ = Test1_variants
         [%nterm 0].syn_env := [%nterm 2].syn_env ;
         [%nterm 0].value_ := [%nterm 2].value_
       )
-    ; prog = (
+    ; prog__PROG = (
         [%nterm 1].inh_env := [] ;
         [%nterm 0].value_ := [%nterm 1].value_ ;
         condition "must be > 0" ([%nterm 0].value_ > 0)
@@ -68,18 +76,23 @@ module _ = Test1_variants
       )
     ; binop__PLUS = (
         [%nterm binop].oper := (+)
+      ; [%nterm binop].rhs_must_be_nonzero := False
       )
     ; binop__MINUS = (
         [%nterm binop].oper := (-)
+      ; [%nterm binop].rhs_must_be_nonzero := False
       )
     ; binop__STAR = (
         [%nterm binop].oper := fun a b -> a*b
+      ; [%nterm binop].rhs_must_be_nonzero := False
       )
     ; binop__SLASH = (
         [%nterm binop].oper := (/)
+      ; [%nterm binop].rhs_must_be_nonzero := True
       )
     ; binop__PERCENT = (
         [%nterm binop].oper := (mod)
+      ; [%nterm binop].rhs_must_be_nonzero := True
       )
     }
   }]
@@ -101,8 +114,12 @@ module _ = Test1_variants
     ; prog = {
         value_ = [%typ: int]
       }
+    ; prog__PROG = {
+        condition = [%typ: bool]
+      }
     ; binop = {
         oper = [%typ: int -> int -> int]
+      ; rhs_must_be_nonzero = [%typ: bool]
       }
     ; unop = {
         oper = [%typ: int -> int]
@@ -117,7 +134,11 @@ module _ = Test1_variants
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
-        [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_
+        [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        condition "rhs must be nonzero"
+          (if [%nterm binop.(1)].rhs_must_be_nonzer then
+             0 <> [%nterm expr.(2)].value_
+           else True)
       )
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
@@ -139,7 +160,7 @@ module _ = Test1_variants
         [%nterm 0].syn_env := [%nterm 2].syn_env ;
         [%nterm 0].value_ := [%nterm 2].value_
       )
-    ; prog = (
+    ; prog__PROG = (
         [%nterm 1].inh_env := [] ;
         [%nterm 0].value_ := [%nterm 1].value_ ;
         condition "must be > 0" ([%nterm 0].value_ > 0)
@@ -152,18 +173,23 @@ module _ = Test1_variants
       )
     ; binop__PLUS = (
         [%nterm binop].oper := (+)
+      ; [%nterm binop].rhs_must_be_nonzero := False
       )
     ; binop__MINUS = (
         [%nterm binop].oper := (-)
+      ; [%nterm binop].rhs_must_be_nonzero := False
       )
     ; binop__STAR = (
         [%nterm binop].oper := fun a b -> a*b
+      ; [%nterm binop].rhs_must_be_nonzero := False
       )
     ; binop__SLASH = (
         [%nterm binop].oper := (/)
+      ; [%nterm binop].rhs_must_be_nonzero := True
       )
     ; binop__PERCENT = (
         [%nterm binop].oper := (mod)
+      ; [%nterm binop].rhs_must_be_nonzero := True
       )
     }
   }]

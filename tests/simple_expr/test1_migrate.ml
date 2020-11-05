@@ -292,6 +292,7 @@ module Attributed = struct
           ; expr_node
           ; binop_node
           ; unop_node
+          ; prog__PROG_attributes
           ]
         }
       ]
@@ -301,6 +302,12 @@ module Attributed = struct
         ; dsttype = [%typ: 'b list]
         ; code = _migrate_list
         ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
+        }
+      ; migrate_option = {
+          srctype = [%typ: 'a option]
+        ; dsttype = [%typ: 'b option]
+        ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
+        ; code = (fun subrw __dt__ x -> Option.map (subrw __dt__) x)
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
@@ -331,7 +338,6 @@ module Attributed = struct
   ]
 end
 
-
 module ToAttributed = struct
 module _ = Test1_variants
 [%%import: Test1_variants.Attributed.OK.expr]
@@ -353,6 +359,9 @@ module _ = Test1_variants
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
         ; dsttype = [%typ: Test1_variants.Attributed.AT.prog_node]
+        ; code = (fun __dt__ -> function PROG x ->
+            Test1_variants.Attributed.AT.make_prog__PROG (__dt__.migrate_expr __dt__ x)
+          )
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
@@ -393,6 +402,7 @@ let prog x = dt.migrate_prog dt x
 
 end
 
+(*
 module FromAttributed = struct
 module _ = Test1_variants
 [%%import: Test1_variants.Attributed.AT.expr]
@@ -400,7 +410,13 @@ module _ = Test1_variants
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
     ; dispatchers = {
-        migrate_expr_node = {
+        migrate_option = {
+          srctype = [%typ: 'a option]
+        ; dsttype = [%typ: 'b option]
+        ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
+        ; code = (fun subrw __dt__ x -> Option.map (subrw __dt__) x)
+        }
+      ; migrate_expr_node = {
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test1_variants.Attributed.OK.expr_node]
         }
@@ -454,3 +470,4 @@ let prog x = dt.migrate_prog dt x
 
 end
 
+*)

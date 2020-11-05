@@ -35,7 +35,24 @@ module PP_hum = struct
   value patt_top pps x = Fmt.(pf pps "#<patt< %a >>" patt x) ;
 end
 ;
+
+type storage_mode_t = [ Hashtables | Records ] ;
+
 module AG = struct
+  module ProductionName = struct
+    type t = {
+      nonterm_name: string
+    ; case_name: option string
+    } ;
+    value pp_hum pps = fun [
+      {nonterm_name=nonterm_name; case_name = None} -> Fmt.(pf pps "%s__" nonterm_name)
+    | {nonterm_name=nonterm_name; case_name = Some case_name} -> Fmt.(pf pps "%s__%s" nonterm_name case_name)
+    ]
+    ;
+    value pp_top pps x = Fmt.(pf pps "#<pn< %a >>" pp_hum x) ;
+  end ;
+  module PN = ProductionName ;
+
   module NodeReference = struct
     type t = [
         PARENT of option string
@@ -78,8 +95,16 @@ module AG = struct
   end ;
   module NR = NodeReference ;
   module AR = struct
-    type t = (NR.t * string) ;
-    value pp_hum pps (nr, a) = Fmt.(pf pps "%a.%s" NR.pp_hum nr a) ;
+    type t = [
+      NT of NR.t and string
+    | PROD of PN.t and string
+    ]
+    ;
+    value pp_hum pps = fun [
+      NT nr a -> Fmt.(pf pps "%a.%s" NR.pp_hum nr a)
+    | PROD pn a -> Fmt.(pf pps "%a.%s" PN.pp_hum pn a)
+    ]
+    ;
     value pp_top pps x = Fmt.(pf pps "#<ar< %a >>" pp_hum x) ;
   end ;
 
@@ -108,24 +133,18 @@ module AG = struct
   ;
   module TNR = TypedNodeReference ;
   module TAR = struct
-    type t = (TNR.t * string) ;
-    value pp_hum pps (nr, a) = Fmt.(pf pps "%a.%s" TNR.pp_hum nr a) ;
-    value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
-  end ;
-
-  module ProductionName = struct
-    type t = {
-      nonterm_name: string
-    ; case_name: option string
-    } ;
-    value pp_hum pps = fun [
-      {nonterm_name=nonterm_name; case_name = None} -> Fmt.(pf pps "%s" nonterm_name)
-    | {nonterm_name=nonterm_name; case_name = Some case_name} -> Fmt.(pf pps "%s__%s" nonterm_name case_name)
+    type t = [
+      NT of TNR.t and string
+    | PROD of PN.t and string
     ]
     ;
-    value pp_top pps x = Fmt.(pf pps "#<pn< %a >>" pp_hum x) ;
+    value pp_hum pps = fun [
+      NT nr a -> Fmt.(pf pps "%a.%s" TNR.pp_hum nr a)
+    | PROD pn a -> Fmt.(pf pps "%a.%s" PN.pp_hum pn a)
+    ]
+    ;
+    value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
   end ;
-  module PN = ProductionName ;
 
   module AEQ = struct
     type t = {
@@ -135,7 +154,7 @@ module AG = struct
     ; rhs_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "%a.%s := %a" NR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
+    value pp_hum pps x = Fmt.(pf pps "%a := %a" AR.pp_hum x.lhs PP_hum.expr x.rhs_expr) ;
     value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" pp_hum x) ;
   end ;
 
@@ -147,7 +166,7 @@ module AG = struct
     ; rhs_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "%a.%s := %a" TNR.pp_hum (fst x.lhs) (snd x.lhs) PP_hum.expr x.rhs_expr) ;
+    value pp_hum pps x = Fmt.(pf pps "%a := %a" TAR.pp_hum x.lhs PP_hum.expr x.rhs_expr) ;
     value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" pp_hum x) ;
   end ;
   module Cond = struct
@@ -197,13 +216,16 @@ module AG = struct
              (list Cond.pp_hum) x.conditions
           ) ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
-    value typed_attribute p (nr, attrna) =
-      match List.assoc nr p.typed_node_names with [
-        x -> (x, attrna)
-      | exception Not_found ->
-        Ploc.raise p.loc (Failure Fmt.(str "attribute %a.%s could not be converted to its typed form"
-                                         NR.pp_hum nr attrna))
-      ]
+    value typed_attribute p = fun [
+      AR.NT nr attrna ->
+        match List.assoc nr p.typed_node_names with [
+          x -> TAR.NT x attrna
+        | exception Not_found ->
+          Ploc.raise p.loc (Failure Fmt.(str "attribute %a.%s could not be converted to its typed form"
+                                           NR.pp_hum nr attrna))
+        ]
+    | AR.PROD pn attrna -> TAR.PROD pn attrna
+    ]
     ;
     value typed_equation p aeq =
       let { AEQ.loc = loc; lhs = lhs ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
@@ -228,6 +250,7 @@ module AG = struct
 
   type t = {
     loc : Ploc.t
+  ; storage_mode : storage_mode_t
   ; axiom : string
   ; typed_attributes : list (string * (list (string * MLast.ctyp)))
   ; nonterminals : list string
@@ -236,8 +259,9 @@ module AG = struct
   ; productions : list (string * list P.t)
   }
   ;
-  value mk0 loc axiom nonterminals typed_attributes equations conditions = {
+  value mk0 loc storage_mode axiom nonterminals typed_attributes equations conditions = {
     loc = loc
+  ; storage_mode = storage_mode
   ; axiom = axiom
   ; nonterminals = nonterminals
   ; typed_attributes = typed_attributes
@@ -250,31 +274,33 @@ end ;
 
 module Demarshal = struct
 
-value expr_to_attribute_reference e =
+value expr_to_attribute_reference pn e =
   let open AG in
   let open AEQ in
   match e with [
     <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
-    (NR.PARENT (Some tyname), attrna)
+    AR.NT (NR.PARENT (Some tyname)) attrna
   | <:expr< [%nterm 0;] . $lid:attrna$ >> ->
-    (NR.PARENT None, attrna)
+    AR.NT (NR.PARENT None) attrna
   | <:expr< [%nterm $int:n$;] . $lid:attrna$ >> ->
-    (NR.CHILD None (int_of_string n), attrna)
+    AR.NT (NR.CHILD None (int_of_string n)) attrna
   | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
-    (NR.CHILD (Some tyname) (int_of_string n), attrna)
+    AR.NT (NR.CHILD (Some tyname) (int_of_string n)) attrna
   | <:expr< [%prim $int:n$;] >> ->
-    (NR.PRIM None (int_of_string n), "")
+    AR.NT (NR.PRIM None (int_of_string n)) ""
+  | <:expr< [%local $lid:attrna$;] >> ->
+    AR.PROD pn attrna
   | _ -> Ploc.raise (MLast.loc_of_expr e) (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
                                                           Pp_MLast.pp_expr e))
   ]
 ;
 
-value extract_attribute_references e =
+value extract_attribute_references pn e =
   let references = ref [] in
   let dt = Camlp5_migrate.make_dt () in
   let fallback_migrate_expr = dt.migrate_expr in
   let migrate_expr dt e =
-    try do { Std.push references (expr_to_attribute_reference e); e } 
+    try do { Std.push references (expr_to_attribute_reference pn e); e } 
     with _ -> fallback_migrate_expr dt e in
   let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in do {
     ignore(dt.migrate_expr dt e) ;
@@ -282,30 +308,30 @@ value extract_attribute_references e =
   }
 ;
 
-value assignment_to_equation_or_condition e = match e with [
+value assignment_to_equation_or_condition pn e = match e with [
     <:expr:< $lhs$ . val := $rhs$ >> ->
     Left {
       AG.AEQ.loc = loc
-    ; lhs = expr_to_attribute_reference lhs
-    ; rhs_nodes = extract_attribute_references rhs
+    ; lhs = expr_to_attribute_reference pn lhs
+    ; rhs_nodes = extract_attribute_references pn rhs
     ; rhs_expr = rhs }
   | <:expr:< $lhs$ := $rhs$ >> ->
     Left { 
       AG.AEQ.loc = loc
-    ; lhs = expr_to_attribute_reference lhs
-    ; rhs_nodes = extract_attribute_references rhs
+    ; lhs = expr_to_attribute_reference pn lhs
+    ; rhs_nodes = extract_attribute_references pn rhs
     ; rhs_expr = rhs }
   | <:expr:< condition $str:msg$ $e$ >> ->
     Right { 
       AG.Cond.loc = loc
     ; cond_msg = Some msg
-    ; body_nodes = extract_attribute_references e
+    ; body_nodes = extract_attribute_references pn e
     ; body_expr = e }
   | <:expr:< condition $e$ >> ->
     Right { 
       AG.Cond.loc = loc
     ; cond_msg = None
-    ; body_nodes = extract_attribute_references e
+    ; body_nodes = extract_attribute_references pn e
     ; body_expr = e }
 
   | _ -> Ploc.raise (MLast.loc_of_expr e)
@@ -314,14 +340,16 @@ value assignment_to_equation_or_condition e = match e with [
 ]
 ;
 
-value name_re = Pcre.regexp "^(.*)__((?:_?[^_])+_?)$" ;
+value name_re = Pcre.regexp "^(.*)__((?:_?[^_])+_?)?$" ;
 value parse_prodname loc s =
   let open AG in
   match Pcre.extract ~{rex=name_re} ~{pos=0} s with [
-    [|_;lhs;rhs|] ->
+    [|_;lhs;""|] ->
+    { PN.nonterm_name = lhs; case_name = None }
+  | [|_;lhs;rhs|] ->
     { PN.nonterm_name = lhs; case_name = Some rhs }
   | exception Not_found ->
-    { PN.nonterm_name = s ; case_name = None }
+    { PN.nonterm_name = s; case_name = None }
   ]
 ;
 
@@ -330,9 +358,9 @@ value extract_attribute_equations_and_conditions loc l : (list (AG.PN.t * (list 
     let prodname = parse_prodname loc prodname in
     match e with [
       <:expr< do { $list:l$ } >> ->
-      (prodname, List.map assignment_to_equation_or_condition l)
+      (prodname, List.map (assignment_to_equation_or_condition prodname) l)
     | <:expr< $_$ . val := $_$ >> ->
-      (prodname, [assignment_to_equation_or_condition e])
+      (prodname, [assignment_to_equation_or_condition prodname e])
     | _ -> Ploc.raise (MLast.loc_of_expr e)
         (Failure Fmt.(str "extract_attribute_equations_and_conditions (production %a): unrecognized@ %a"
                         AG.PN.pp_hum prodname Pp_MLast.pp_expr e))
@@ -453,14 +481,30 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
 value branch2production loc ag lhs_name b =
   let open AG in
   match b with [
-  <:constructor< $uid:ci$ of $list:tl$ $_algattrs:_$ >> ->
-    let p = tuple2production loc ag lhs_name ~{case_name=Some ci} tl in
-    { (p) with
-      patt = match p.P.patt with [
-        <:patt< ( $list:patl$ ) >> -> Patt.applist <:patt< $uid:ci$ >> patl
-      | p -> Patt.applist <:patt< $uid:ci$ >> [p]
-      ]
-    }
+    <:constructor:< $uid:ci$ of $list:tl$ $_algattrs:_$ >> as gc
+    when ag.storage_mode = Records && tl <> [] && List.mem_assoc (lhs_name^"__"^ci) ag.typed_attributes ->
+      let (last, tl) = sep_last tl in
+      let lastpatt = match last with [
+        <:ctyp< $lid:n$ >> when n = lhs_name^"__"^ci^"_attributes" -> <:patt< prod_attrs >>
+      | _ -> Ploc.raise loc
+               (Failure Fmt.(str "branch2production: unrecognizable last type:@ %a"
+                               Pp_MLast.pp_generic_constructor gc))
+      ] in
+      let p = tuple2production loc ag lhs_name ~{case_name=Some ci} tl in
+      { (p) with
+        patt = match p.P.patt with [
+          <:patt< ( $list:patl$ ) >> -> Patt.applist <:patt< $uid:ci$ >> (patl@[lastpatt])
+        | p -> Patt.applist <:patt< $uid:ci$ >> ([p]@[lastpatt])
+        ]
+      }
+    | <:constructor< $uid:ci$ of $list:tl$ $_algattrs:_$ >> ->
+      let p = tuple2production loc ag lhs_name ~{case_name=Some ci} tl in
+      { (p) with
+        patt = match p.P.patt with [
+          <:patt< ( $list:patl$ ) >> -> Patt.applist <:patt< $uid:ci$ >> patl
+        | p -> Patt.applist <:patt< $uid:ci$ >> [p]
+        ]
+      }
   ]
 ;
 
@@ -520,7 +564,7 @@ module AGOps = struct
       p
       |> defining_occurrences
       |> Std.filter (fun [
-          (TNR.CHILD _ _, _) -> True
+          TAR.NT (TNR.CHILD _ _) _ -> True
         | _ -> False
         ])
     ;
@@ -528,7 +572,8 @@ module AGOps = struct
       p
       |> defining_occurrences
       |> Std.filter (fun [
-          (TNR.PARENT _, _) -> True
+          TAR.NT (TNR.PARENT _) _ -> True
+        | TAR.PROD _ _ -> True
         | _ -> False
         ])
     ;
@@ -550,7 +595,7 @@ module AGOps = struct
       |> List.map POps.inherited_occurrences
       |> List.concat
       |> Std.filter (fun [
-          (TNR.CHILD n _, attrna') -> n = ntname && attrna = attrna'
+          TAR.NT (TNR.CHILD n _) attrna' -> n = ntname && attrna = attrna'
         | _ -> False
         ])
       |> ((<>) [])
@@ -561,7 +606,7 @@ module AGOps = struct
       |> List.map POps.synthesized_occurrences
       |> List.concat
       |> Std.filter (fun [
-          (TNR.PARENT n, attrna') -> n = ntname && attrna = attrna'
+          TAR.NT (TNR.PARENT n) attrna' -> n = ntname && attrna = attrna'
         | _ -> False
         ])
       |> ((<>) [])
@@ -574,8 +619,8 @@ module AGOps = struct
       |> List.map snd |> List.concat
       |> List.map POps.attribute_occurrences |> List.concat
       |> List.filter_map (fun [
-          (TNR.CHILD n _, attrna) when n = ntname -> Some attrna
-        | (TNR.PARENT n, attrna) when n = ntname -> Some attrna
+          TAR.NT (TNR.CHILD n _) attrna when n = ntname -> Some attrna
+        | TAR.NT (TNR.PARENT n) attrna when n = ntname -> Some attrna
         | _ -> None
         ])
       |> Std2.hash_uniq
@@ -586,7 +631,7 @@ module AGOps = struct
       |> List.map snd |> List.concat
       |> List.map POps.inherited_occurrences |> List.concat
       |> List.filter_map (fun [
-          (TNR.CHILD n _, attrna) when n = ntname -> Some attrna
+          TAR.NT (TNR.CHILD n _) attrna when n = ntname -> Some attrna
         | _ -> None
         ])
       |> Std2.hash_uniq
@@ -596,7 +641,7 @@ module AGOps = struct
       |> List.map snd |> List.concat
       |> List.map POps.synthesized_occurrences |> List.concat
       |> List.filter_map (fun [
-          (TNR.PARENT n, attrna) when n = ntname -> Some attrna
+          TAR.NT (TNR.PARENT n) attrna when n = ntname -> Some attrna
         | _ -> None
         ])
       |> Std2.hash_uniq
@@ -658,13 +703,28 @@ module AGOps = struct
       ))
   ;
 
+  value true_or_exn ~{exnf} x = if x then x else exnf() ;
+
   value complete m =
     let ag = m.NTOps.ag in
+    let loc = ag.loc in
     (ag.nonterminals |> List.for_all (fun nt ->
-      Std.same_members (NTOps._A m nt) (Std.union (NTOps._AI m nt) (NTOps._AS m nt)) &&
-      Std.same_members (NTOps._A m nt)
+         true_or_exn ~{exnf=fun () ->
+             Ploc.raise loc
+               (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (A(X) = { %a }) != (AI(X) = { %a }) union (AS(X) = { %a })"
+                               nt (list string) (NTOps._A m nt)
+                               (list string) (NTOps._AI m nt)
+                               (list string) (NTOps._AS m nt)))}
+           (Std.same_members (NTOps._A m nt) (Std.union (NTOps._AI m nt) (NTOps._AS m nt))) &&
+         true_or_exn ~{exnf=fun () ->
+             Ploc.raise loc
+               (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (A(X) = { %a }) != (declared_attributes(X) = { %a })"
+                               nt (list string) (NTOps._A m nt)
+                               (list string) (List.map fst (List.assoc nt ag.typed_attributes))
+                               ))}
+           (Std.same_members (NTOps._A m nt)
         (match List.assoc nt ag.typed_attributes with
-           [ l -> List.map fst l | exception Not_found -> assert False ])
+           [ l -> List.map fst l | exception Not_found -> assert False ]))
     ))
     && (ag.productions |> List.for_all
           (fun (_, pl) -> pl |> List.for_all (fun p ->
@@ -672,11 +732,11 @@ module AGOps = struct
                    match node with [
                      TNR.PARENT nt ->
                      let synthesized = NTOps._AS m nt in
-                     let occurrences = List.map (fun a -> (node, a)) synthesized in
+                     let occurrences = List.map (fun a -> TAR.NT node a) synthesized in
                      Std.subset occurrences (POps.defining_occurrences p)
                    | TNR.CHILD nt _ ->
                      let inherited = NTOps._AI m nt in
-                     let occurrences = List.map (fun a -> (node, a)) inherited in
+                     let occurrences = List.map (fun a -> TAR.NT node a) inherited in
                      Std.subset occurrences (POps.defining_occurrences p)
                    | TNR.PRIM _ _ -> True
                    ]

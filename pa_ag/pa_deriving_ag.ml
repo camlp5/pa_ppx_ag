@@ -65,6 +65,7 @@ value str_item_gen_ag name arg = fun [
     let rc = AGC.build_context loc arg tdl in
     let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules rc.AGC.storage_mode in
     let ag0 = AG.mk0 loc
+        rc.AGC.storage_mode
         rc.AGC.axiom
         (List.map fst rc.AGC.name2nodename)
         rc.AGC.typed_attributes
@@ -81,7 +82,7 @@ value str_item_gen_ag name arg = fun [
                   declare $list:[node_module_declaration memo
                                 ;attr_type_declaration memo
                                 ;nodeattr_type_declaration memo
-                                ;node_attribute_table_declaration rc.AGC.storage_mode memo
+                                ;node_attribute_table_declaration memo
                                 ;lookup_parent_declaration memo]$ end ;
                   module G = Graph.Persistent.Digraph.ConcreteBidirectional(NodeAttr) ;
                   value edges_to_graph l =

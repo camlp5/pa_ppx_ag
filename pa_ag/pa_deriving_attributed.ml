@@ -142,20 +142,43 @@ value separate_bindings l =
   (List.rev ml, List.rev vl)
 ;
 
+value make_attribute_initializer loc name attributes =
+  let lel = attributes |> List.map (fun (aname, _) ->
+    (<:patt< $lid:name^"__"^aname$ >>, <:expr< None >>)) in
+  <:expr< { $list:lel$ } >>
+;
+
+value to_expr loc v = <:expr< $lid:v$ >> ;
+
 value generate_attributed_constructor ctxt rc (name, td) =
   let loc = loc_of_type_decl td in
   if uv td.tdPrm <> [] || not (List.mem_assoc name rc.typed_attributes) then <:str_item< declare end >> else
-  let attributes = match List.assoc name rc.typed_attributes with [
-    x -> x
-    | exception Not_found -> assert False
-    ] in
-  let attribute_initializer =
-    let lel = attributes |> List.map (fun (aname, _) ->
-        (<:patt< $lid:name^"__"^aname$ >>, <:expr< None >>)) in
-    <:expr< { $list:lel$ } >> in
+  let attributes = List.assoc name rc.typed_attributes in
+  let attribute_initializer = make_attribute_initializer loc name attributes in
   let consname = constructor_name rc name in
-  <:str_item< value $lid:consname$ x =
-              Pa_ppx_ag_runtime.Attributes.attributed ~{attributes = $attribute_initializer$} x >>
+  let top_cons =
+    <:str_item< value $lid:consname$ x =
+                Pa_ppx_ag_runtime.Attributes.attributed ~{attributes = $attribute_initializer$} x >> in
+  let prod_cons_list = match td.tdDef with [
+    <:ctyp:< $_$ == [ $list:branches$ ] >> | <:ctyp:< [ $list:branches$ ] >> ->
+      branches |> List.map (fun [
+        <:constructor:< $uid:ci$ of $list:tl$ $algattrs:_$ >> ->
+          if List.mem_assoc (name^"__"^ci) rc.typed_attributes then
+            let attributes = List.assoc (name^"__"^ci) rc.typed_attributes in
+            let attribute_initializer = make_attribute_initializer loc (name^"__"^ci) attributes in
+            let consname = constructor_name rc (name^"__"^ci) in
+            let argvars = List.mapi (fun i _ -> Printf.sprintf "v_%d" i) tl in
+            let consbody = Expr.applist <:expr< $uid:ci$ >> (List.map (to_expr loc) argvars) in
+            let consbody = <:expr< $consbody$ $attribute_initializer$ >> in
+            let consexp = List.fold_right
+                (fun v rhs -> <:expr< fun $lid:v$ -> $rhs$ >>)
+                argvars consbody in
+            [<:str_item< value $lid:consname$ = $consexp$ >>]
+          else
+            []
+      ]) |> List.concat
+  ] in
+  <:str_item< declare $list:[top_cons]@prod_cons_list$ end >>
 ;
 
 end
@@ -163,14 +186,24 @@ end
 
 
 value make_twolevel_type_decl ctxt rc ~{preserve_manifest} ~{skip_attributed} td =
+  let open Ag_types in
+  let open AG.PN in
   let loc = loc_of_type_decl td in
   let name = td.tdNam |> uv |> snd |> uv in
   let (skip_attributed, attributes) =
     if skip_attributed then (True, []) else
-    match List.assoc name rc.AC.typed_attributes with [
-      x -> (False, x)
-
-    | exception Not_found -> (True, [])
+      match List.assoc name rc.AC.typed_attributes with [
+        x -> (False, x)
+      | exception Not_found ->
+        match List.find_opt (fun (name', _) ->
+          let pn = Demarshal.parse_prodname loc name' in
+          name = pn.nonterm_name) rc.AC.typed_attributes with [
+          None -> (True, [])
+        | Some (name',_) ->
+          Ploc.raise loc
+            (Failure Fmt.(str "make_twolevel_type_decl: skipping attribution of type %s but production %s is attributed"
+                            name name'))
+        ]
     ] in
   let data_name = name^"_node" in
   let tyargs =
@@ -196,15 +229,44 @@ value make_twolevel_type_decl ctxt rc ~{preserve_manifest} ~{skip_attributed} td
       ;<:type_decl< $lid:attr_type_name$ = $attr_type$ >>
       ] in
 
+  let prod_tdl = ref [] in
+  let data_tdDef =
+    let tdDef = match td.tdDef with [
+      <:ctyp< $_$ == $t$ >> when not preserve_manifest -> t
+    | t -> t
+    ] in
+    if skip_attributed then tdDef else
+    match tdDef with [
+      <:ctyp:< [ $list:branches$ ] >> ->
+        let branches = branches |> List.map (fun [
+              <:constructor:< $uid:ci$ of $list:tl$ $algattrs:algattrs$ >> as gc ->
+                if List.mem_assoc (name^"__"^ci) rc.AC.typed_attributes then
+                  let al = List.assoc (name^"__"^ci) rc.AC.typed_attributes in
+                  let prod_attr_type_name = name^"__"^ci^"_attributes" in
+                  let ltl = al |> List.map (fun (aname, ty) ->
+                      (loc, name^"__"^ci^"__"^aname, True, <:ctyp< option $ty$ >>, <:vala< [] >>)) in
+                  let prod_attr_type = <:ctyp< $lid:prod_attr_type_name$ >> in
+                  let prod_attr_type_tdDef = <:ctyp< { $list:ltl$ } >> in do {
+                    Std.push prod_tdl <:type_decl< $lid:prod_attr_type_name$ = $prod_attr_type_tdDef$ >> ;
+                    <:constructor< $uid:ci$ of $list:tl@[prod_attr_type]$ $algattrs:algattrs$ >>
+                  }
+                else gc
+              ]) in
+        <:ctyp< [ $list:branches$ ] >>
+      | ty ->
+        Ploc.raise (MLast.loc_of_ctyp ty)
+          (Failure Fmt.(str "Internal Error constructing data_tdDef for %s:@ ty = %a"
+                          name Pp_MLast.pp_ctyp ty))
+
+    ] in
+
   [ { (td) with
       tdNam =
         let n = <:vala< data_name >> in
         <:vala< (loc, n) >>
-      ; tdDef = match td.tdDef with [
-          <:ctyp< $_$ == $t$ >> when not preserve_manifest -> t
-        | t -> t
-        ]
+      ; tdDef = data_tdDef
     } ]@
+  prod_tdl.val@
   wrapped_type_decls
 ;
 

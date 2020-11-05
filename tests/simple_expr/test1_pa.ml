@@ -36,12 +36,12 @@ EXTEND
   ]
   ;
 
-  prog_eoi: [ [ x = expr; EOI -> x ] ];
+  prog_eoi: [ [ x = expr; EOI -> PROG x ] ];
 (*
-  prog_hashcons_eoi: [ [ x = expr; EOI -> Test1_migrate.ToHC.prog x ] ];
+  prog_hashcons_eoi: [ [ x = prog_eoi -> Test1_migrate.ToHC.prog x ] ];
 *)
-  prog_unique_eoi: [ [ x = expr; EOI -> Test1_migrate.ToUnique.prog x ] ];
-  prog_attributed_eoi: [ [ x = expr; EOI -> Test1_migrate.ToAttributed.prog x ] ];
+  prog_unique_eoi: [ [ x = prog_eoi -> Test1_migrate.ToUnique.prog x ] ];
+  prog_attributed_eoi: [ [ x = prog_eoi -> Test1_migrate.ToAttributed.prog x ] ];
 
 END;
 
