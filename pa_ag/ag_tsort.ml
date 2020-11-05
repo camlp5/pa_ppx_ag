@@ -54,6 +54,10 @@ value nonterminal_hashtable_declaration memo (name, attributes) =
   ]
 ;
 
+value disambiguated_attribute_name name attrna =
+ Printf.sprintf "%s__%s" name attrna
+;
+
 value attributes_type_declaration memo (name, attributes) =
   let open AGOps.NTOps in
   let open AG in
@@ -66,23 +70,28 @@ value attributes_type_declaration memo (name, attributes) =
 
   | (Records, {PN.nonterm_name=nt; case_name = None}) ->
     let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
-    let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)] in
+    let dis_parent = disambiguated_attribute_name name "parent" in
+    let ltl = [(loc, dis_parent, False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)] in
     Some <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
 
   | (Hashtables, {PN.nonterm_name=nt; case_name = Some _}) ->
     let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
     let ltl = attributes |> List.map (fun (aname, aty) ->
         let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
-        (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
+        let dis_aname = disambiguated_attribute_name name aname in
+        (MLast.loc_of_ctyp aty, dis_aname, False, ht_ty, <:vala< [] >>)) in
     Some <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
 
       | (Hashtables, {PN.nonterm_name=nt; case_name = None}) -> 
         let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
         let ltl = attributes |> List.map (fun (aname, aty) ->
             let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
-            (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
+            let dis_aname = disambiguated_attribute_name name aname in
+            (MLast.loc_of_ctyp aty, dis_aname, False, ht_ty, <:vala< [] >>)) in
         
-        let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
+        let ltl =
+          let dis_parent = disambiguated_attribute_name name "parent" in
+          [(loc, dis_parent, False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
         Some <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
   ]
 ;
@@ -113,18 +122,22 @@ value attribute_table_constructor_entry memo (name, al) =
     (Records, {PN.nonterm_name=nt; case_name = Some _}) -> None
 
   | (Records, {PN.nonterm_name=nt; case_name = None}) ->
-    let lel = [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
+    let dis_parent = disambiguated_attribute_name name "parent" in
+    let lel = [(<:patt< $lid:dis_parent$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
     Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
 
   | (Hashtables, {PN.nonterm_name=nt; case_name = None}) ->
     let lel = al |> List.map (fun (aname, _) ->
-        (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
-    let lel = lel @ [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
+        let dis_aname = disambiguated_attribute_name name aname in
+        (<:patt< $lid:dis_aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
+    let dis_parent = disambiguated_attribute_name name "parent" in
+    let lel = lel @ [(<:patt< $lid:dis_parent$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
     Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
 
   | (Hashtables, {PN.nonterm_name=nt; case_name = Some _}) ->
     let lel = al |> List.map (fun (aname, _) ->
-        (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
+        let dis_aname = disambiguated_attribute_name name aname in
+        (<:patt< $lid:dis_aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
     Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
   ]
 ;
@@ -149,20 +162,21 @@ value parent_accessor_bindings memo (name, attributes) =
   let loc = ag.loc in
   let smode = ag.storage_mode in
   let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules smode in
+  let dis_parent = disambiguated_attribute_name name "parent" in
   match Demarshal.parse_prodname loc name with [
     {PN.case_name = Some _} -> []
   | {PN.nonterm_name=nt; PN.case_name = None} ->
     [(<:patt< $lid:parent_accessor_name nt$ >>,
       <:expr< fun attrs -> fun node ->
-                  $uid:node_hash_module nt$ . find attrs . $lid:nt$ . parent node >>,
+                  $uid:node_hash_module nt$ . find attrs . $lid:nt$ . $lid:dis_parent$ node >>,
       <:vala< [] >>) ;
      (<:patt< $lid:parent_setter_name nt$ >>,
       <:expr< fun attrs -> fun node -> fun p ->
-                  $uid:node_hash_module nt$ . add attrs . $lid:nt$ . parent node p >>,
+                  $uid:node_hash_module nt$ . add attrs . $lid:nt$ . $lid:dis_parent$ node p >>,
       <:vala< [] >>) ;
      (<:patt< $lid:parent_isset_name nt$ >>,
       <:expr< fun attrs -> fun node ->
-                  $uid:node_hash_module nt$ . mem attrs . $lid:nt$ . parent node >>,
+                  $uid:node_hash_module nt$ . mem attrs . $lid:nt$ . $lid:dis_parent$ node >>,
       <:vala< [] >>)]
   ]
 ;
@@ -177,11 +191,12 @@ value attr_accessor_bindings memo (name, attributes) =
   let pn = Demarshal.parse_prodname loc name in
   let nt = pn.PN.nonterm_name in
   attributes |> List.concat_map (fun (attrna, _) ->
+      let dis_attrna = disambiguated_attribute_name name attrna in
       [(<:patt< $lid:attr_accessor_name name attrna$ >>,
         match smode with [
           Hashtables ->
           <:expr< fun attrs -> fun node ->
-                  $uid:node_hash_module nt$ . find attrs . $lid:name$ . $lid:attrna$ node >>
+                  $uid:node_hash_module nt$ . find attrs . $lid:name$ . $lid:dis_attrna$ node >>
         | Records ->
           <:expr< fun attrs -> fun node ->
                   match node.attributes. $lid:attr_accessor_name name attrna$ with [
@@ -193,7 +208,7 @@ value attr_accessor_bindings memo (name, attributes) =
         match smode with [ 
           Hashtables ->
           <:expr< fun attrs -> fun node -> fun v ->
-                  $uid:node_hash_module nt$ . add attrs . $lid:name$ . $lid:attrna$ node v >>
+                  $uid:node_hash_module nt$ . add attrs . $lid:name$ . $lid:dis_attrna$ node v >>
         | Records ->
           <:expr< fun attrs -> fun node -> fun v ->
                   node.attributes. $lid:attr_accessor_name name attrna$ := Some v >>
@@ -203,7 +218,7 @@ value attr_accessor_bindings memo (name, attributes) =
         match smode with [
           Hashtables ->
           <:expr< fun attrs -> fun node ->
-                  $uid:node_hash_module nt$ . mem attrs . $lid:name$ . $lid:attrna$ node >>
+                  $uid:node_hash_module nt$ . mem attrs . $lid:name$ . $lid:dis_attrna$ node >>
         | Records ->
           <:expr< fun attrs -> fun node ->
                   node.attributes. $lid:attr_accessor_name name attrna$ <> None >>
