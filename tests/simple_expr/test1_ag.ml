@@ -41,7 +41,7 @@ module _ = Test1_variants
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzer then
              0 <> [%nterm expr.(2)].value_
-           else True)
+           else true)
       )
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
@@ -76,23 +76,23 @@ module _ = Test1_variants
       )
     ; binop__PLUS = (
         [%nterm binop].oper := (+)
-      ; [%nterm binop].rhs_must_be_nonzero := False
+      ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__MINUS = (
         [%nterm binop].oper := (-)
-      ; [%nterm binop].rhs_must_be_nonzero := False
+      ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__STAR = (
-        [%nterm binop].oper := fun a b -> a*b
-      ; [%nterm binop].rhs_must_be_nonzero := False
+        [%nterm binop].oper := (fun a b -> a*b)
+      ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
         [%nterm binop].oper := (/)
-      ; [%nterm binop].rhs_must_be_nonzero := True
+      ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
         [%nterm binop].oper := (mod)
-      ; [%nterm binop].rhs_must_be_nonzero := True
+      ; [%nterm binop].rhs_must_be_nonzero := true
       )
     }
   }]
@@ -138,7 +138,7 @@ module _ = Test1_variants
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzer then
              0 <> [%nterm expr.(2)].value_
-           else True)
+           else true)
       )
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
@@ -173,25 +173,24 @@ module _ = Test1_variants
       )
     ; binop__PLUS = (
         [%nterm binop].oper := (+)
-      ; [%nterm binop].rhs_must_be_nonzero := False
+      ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__MINUS = (
         [%nterm binop].oper := (-)
-      ; [%nterm binop].rhs_must_be_nonzero := False
+      ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__STAR = (
-        [%nterm binop].oper := fun a b -> a*b
-      ; [%nterm binop].rhs_must_be_nonzero := False
+        [%nterm binop].oper := (fun a b -> a*b)
+      ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
         [%nterm binop].oper := (/)
-      ; [%nterm binop].rhs_must_be_nonzero := True
+      ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
         [%nterm binop].oper := (mod)
-      ; [%nterm binop].rhs_must_be_nonzero := True
+      ; [%nterm binop].rhs_must_be_nonzero := true
       )
     }
   }]
 end
-            
