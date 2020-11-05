@@ -34,6 +34,108 @@ fun [
 ]
 ;
 
+value nonterminal_hashtable_declaration memo (name, attributes) =
+  let open AGOps.NTOps in
+  let open AG in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let smode = ag.storage_mode in
+  let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules smode in
+  match Demarshal.parse_prodname loc name with [
+    {PN.nonterm_name=nt; case_name = None} ->
+    Some (Reloc.str_item (fun _ -> Ploc.dummy) 0
+            <:str_item< module $uid:node_hash_module nt$ = Hashtbl.Make(struct
+                               type t = $lid:nt$ ;
+                               open $wrapper_module_module_expr$ ;
+                               value equal a b = a.id = b.id ;
+                               value hash x = x.id ;
+                             end) >>)
+  | {PN.case_name = Some _} -> None
+  ]
+;
+
+value attributes_type_declaration memo (name, attributes) =
+  let open AGOps.NTOps in
+  let open AG in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let smode = ag.storage_mode in
+  let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules smode in
+  match smode with [
+    Records -> None
+  | Hashtables ->
+    match Demarshal.parse_prodname loc name with [
+      {PN.nonterm_name=nt; case_name = Some _} ->
+        let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
+        let ltl = attributes |> List.map (fun (aname, aty) ->
+            let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
+            (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
+        Some <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
+
+      | {PN.nonterm_name=nt; case_name = None} -> 
+          let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
+          let ltl = attributes |> List.map (fun (aname, aty) ->
+              let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
+              (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>)) in
+
+          let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
+          Some <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
+    ]
+  ]
+;
+
+value master_attribute_type_declaration memo =
+  let open AGOps.NTOps in
+  let open AG in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let smode = ag.storage_mode in
+  let ltl = ag.typed_attributes |> List.map (fun (name, _) ->
+      let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
+      (loc, name, False, <:ctyp< $lid:attr_type_name$ >>, <:vala< [] >>)
+    ) in
+  <:str_item< type attributes_t = { $list:ltl$ } >>
+;
+
+value attribute_table_constructor_entry memo (name, al) =
+  let open AGOps.NTOps in
+  let open AG in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let smode = ag.storage_mode in
+  match (smode, Demarshal.parse_prodname loc name) with [
+    (Records, {PN.nonterm_name=nt; case_name = Some _}) -> None
+
+  | (Records, {PN.nonterm_name=nt; case_name = None}) ->
+    let lel = [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
+    Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
+
+  | (Hashtables, {PN.nonterm_name=nt; case_name = None}) ->
+    let lel = al |> List.map (fun (aname, _) ->
+        (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
+    let lel = lel @ [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
+    Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
+
+  | (Hashtables, {PN.nonterm_name=nt; case_name = Some _}) ->
+    let lel = al |> List.map (fun (aname, _) ->
+        (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
+    Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
+  ]
+;
+
+value master_attribute_constructor_declaration memo =
+  let open AGOps.NTOps in
+  let open AG in
+  let ag = memo.ag in
+  let loc = ag.loc in
+  let smode = ag.storage_mode in
+  let lel = ag.typed_attributes |> List.filter_map (attribute_table_constructor_entry memo) in do {
+    assert (lel <> []) ;
+    Reloc.str_item (fun _ -> Ploc.dummy) 0
+      <:str_item< value mk () = { $list:lel$ } >>
+  }
+;
+
 value node_attribute_table_declaration memo =
   let open AGOps.NTOps in
   let open AG in
@@ -42,41 +144,10 @@ value node_attribute_table_declaration memo =
   let smode = ag.storage_mode in
   let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules smode in
   let l =
-    (ag.typed_attributes |> List.map (fun (nt,_) ->
-         Reloc.str_item (fun _ -> Ploc.dummy) 0
-           <:str_item< module $uid:node_hash_module nt$ = Hashtbl.Make(struct
-                         type t = $lid:nt$ ;
-                         open $wrapper_module_module_expr$ ;
-                         value equal a b = a.id = b.id ;
-                         value hash x = x.id ;
-                       end) >>
-       ))@
-    (ag.typed_attributes |> List.map (fun (nt, attrs) ->
-         let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" nt in
-         let ltl = match smode with [
-           Hashtables -> attrs |> List.map (fun (aname, aty) ->
-             let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
-             (MLast.loc_of_ctyp aty, aname, False, ht_ty, <:vala< [] >>))
-         | Records -> []
-         ] in
-         let ltl = [(loc, "parent",False, <:ctyp< $uid:node_hash_module nt$ . t (Node.t * int) >>, <:vala< [] >>)::ltl] in
-         <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
-       ))@
-    [let ltl = ag.typed_attributes |> List.map (fun (nt, _) ->
-         let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" nt in
-         (loc, nt, False, <:ctyp< $lid:attr_type_name$ >>, <:vala< [] >>)
-       ) in
-     <:str_item< type attributes_t = { $list:ltl$ } >>]@
-    [let lel = ag.typed_attributes |> List.map (fun (nt, al) ->
-         let lel = match smode with [
-           Hashtables -> al |> List.map (fun (aname, _) ->
-             (<:patt< $lid:aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>))
-         | Records -> []
-         ] in
-         let lel = lel @ [(<:patt< parent >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)] in
-         (<:patt< $lid:nt$ >>, <:expr< { $list:lel$ } >>)) in
-     Reloc.str_item (fun _ -> Ploc.dummy) 0
-       <:str_item< value mk () = { $list:lel$ } >>]@
+    (ag.typed_attributes |> List.filter_map (nonterminal_hashtable_declaration memo))@
+    (ag.typed_attributes |> List.filter_map (attributes_type_declaration memo))@
+    [master_attribute_type_declaration memo]@
+    [master_attribute_constructor_declaration memo]@
     [let parent_accessor_bindings = ag.typed_attributes |> List.map (fun (nt, _) ->
          [(<:patt< $lid:parent_accessor_name nt$ >>,
           <:expr< fun attrs -> fun node ->
