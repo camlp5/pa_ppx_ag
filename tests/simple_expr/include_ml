@@ -164,8 +164,9 @@ open Ag_types ;;
 #trace Ag_tsort.compile_teqn_body ;;
 #trace Ag_tsort.lookup_var ;;
 #trace Ag_tsort.lookup_tnr ;;
-*)
 #trace Ag_tsort.typed_equation_to_deps;;
+*)
+#trace Ag_tsort.condition_branch ;;
 
 open Ag_types.AG ;;
 open NR ;;
