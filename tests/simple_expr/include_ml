@@ -159,12 +159,13 @@ open Ag_types ;;
 #trace AGOps.POps.defining_occurrences ;;
 #trace AGOps.POps.inherited_occurrences ;;
 #trace AGOps.POps.synthesized_occurrences ;;
-*)
 #trace Demarshal.expr_to_attribute_reference ;;
 #trace AGOps.NTOps.mk_memo ;;
 #trace Ag_tsort.compile_teqn_body ;;
 #trace Ag_tsort.lookup_var ;;
 #trace Ag_tsort.lookup_tnr ;;
+*)
+#trace Ag_tsort.typed_equation_to_deps;;
 
 open Ag_types.AG ;;
 open NR ;;

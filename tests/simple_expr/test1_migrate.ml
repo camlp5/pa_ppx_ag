@@ -292,6 +292,7 @@ module Attributed = struct
           ; expr_node
           ; binop_node
           ; unop_node
+          ; expr__BINOP_attributes
           ; prog__PROG_attributes
           ]
         }
@@ -348,6 +349,13 @@ module _ = Test1_variants
         migrate_expr_node = {
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test1_variants.Attributed.AT.expr_node]
+        ; custom_branches_code = (function
+              BINOP (bop, x, y) ->
+              Test1_variants.Attributed.AT.make_expr__BINOP
+                (__dt__.migrate_binop __dt__ bop)
+                (__dt__.migrate_expr __dt__ x)
+                (__dt__.migrate_expr __dt__ y)
+          )
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
@@ -402,7 +410,6 @@ let prog x = dt.migrate_prog dt x
 
 end
 
-(*
 module FromAttributed = struct
 module _ = Test1_variants
 [%%import: Test1_variants.Attributed.AT.expr]
@@ -419,6 +426,13 @@ module _ = Test1_variants
       ; migrate_expr_node = {
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test1_variants.Attributed.OK.expr_node]
+        ; custom_branches_code = (function
+              BINOP (bop, x, y, _) ->
+              Test1_variants.Attributed.OK.BINOP
+                (__dt__.migrate_binop __dt__ bop,
+                 __dt__.migrate_expr __dt__ x,
+                 __dt__.migrate_expr __dt__ y)
+          )
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
@@ -430,6 +444,10 @@ module _ = Test1_variants
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
         ; dsttype = [%typ: Test1_variants.Attributed.OK.prog_node]
+        ; custom_branches_code = (function
+              PROG (e, _) ->
+              Test1_variants.Attributed.OK.PROG (__dt__.migrate_expr __dt__ e)
+          )
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
@@ -469,5 +487,3 @@ let expr x = dt.migrate_expr dt x
 let prog x = dt.migrate_prog dt x
 
 end
-
-*)

@@ -6,6 +6,8 @@ open MLast;
 open Pcaml;
 open Test1_ast ;
 
+value expr = Grammar.Entry.create gram "expr";
+value prog = Grammar.Entry.create gram "prog";
 value prog_eoi = Grammar.Entry.create gram "prog_eoi";
 (*
 value prog_hashcons_eoi = Grammar.Entry.create gram "prog_hashcons_eoi";
@@ -14,7 +16,7 @@ value prog_unique_eoi = Grammar.Entry.create gram "prog_unique_eoi";
 value prog_attributed_eoi = Grammar.Entry.create gram "prog_attributed_eoi";
 
 EXTEND
-  GLOBAL: prog_eoi (* prog_hashcons_eoi *) prog_unique_eoi prog_attributed_eoi;
+  GLOBAL: expr prog prog_eoi (* prog_hashcons_eoi *) prog_unique_eoi prog_attributed_eoi;
 
   expr: [
     [ e1 = expr ; ";" ; e2 = expr -> SEQ e1 e2 ]
@@ -35,8 +37,9 @@ EXTEND
     ]
   ]
   ;
+  prog: [ [ x = expr; EOI -> PROG x ] ];
 
-  prog_eoi: [ [ x = expr; EOI -> PROG x ] ];
+  prog_eoi: [ [ x = prog; EOI -> x ] ];
 (*
   prog_hashcons_eoi: [ [ x = prog_eoi -> Test1_migrate.ToHC.prog x ] ];
 *)
@@ -45,10 +48,14 @@ EXTEND
 
 END;
 
+module Pr = struct
 value pr_expr = Eprinter.make "expr";
 value expr = Eprinter.apply pr_expr;
+value pr_prog = Eprinter.make "prog";
+value prog = Eprinter.apply pr_prog;
 
 EXTEND_PRINTER
+  pr_prog: [ [ PROG e -> pprintf pc "%p" expr e ] ] ;
   pr_expr:
     [ "semi"
       [ SEQ e1 e2 -> pprintf pc "%p; %p" curr e1 next e2 ]
@@ -73,3 +80,5 @@ EXTEND_PRINTER
       ]
     ] ;
 END;
+end
+;

@@ -13,7 +13,12 @@ open Ag_types ;
 
 value node_hash_module nt = Printf.sprintf "HTAttr_%s" nt ;
 value node_constructor nt = Printf.sprintf "Node_%s" nt ;
-value attr_constructor attrna = Printf.sprintf "Attr_%s" attrna ;
+value attr_constructor ?{prodname} attrna =
+  match prodname with [
+    None -> Printf.sprintf "Attr_%s" attrna
+  | Some name -> Printf.sprintf "Attr_%s__%s" name attrna
+  ]
+;
 value preprocess_fname nt = Printf.sprintf "preprocess_%s" nt ;
 value parent_accessor_name nt = Printf.sprintf "%s__parent" nt ;
 value parent_setter_name nt = Printf.sprintf "%s__set_parent" nt ;
@@ -293,13 +298,20 @@ value attr_type_declaration memo =
   let loc = ag.loc in
   let branches =
     ag.typed_attributes
-    |> List.map (fun (nt, al) -> al)
+    |> List.map (fun (name, al) ->
+        match Demarshal.parse_prodname loc name with [
+          {PN.case_name=None} -> al |> List.map (fun (a,_) -> (None, a))
+        | {PN.case_name=Some _} -> al |> List.map (fun (a,_) -> (Some name, a))
+        ])
     |> List.concat
-    |> List.map fst
     |> Std2.hash_uniq
     |> List.sort Stdlib.compare
-    |> List.map (fun attrna ->
-        (loc, <:vala< attr_constructor attrna >>, <:vala< [] >>, <:vala< None >>, <:vala< [] >>)) in
+    |> List.map (fun [
+        (None, attrna) ->
+        (loc, <:vala< attr_constructor attrna >>, <:vala< [] >>, <:vala< None >>, <:vala< [] >>)
+      | (Some prodname, attrna) ->
+        (loc, <:vala< attr_constructor ~{prodname=prodname} attrna >>, <:vala< [] >>, <:vala< None >>, <:vala< [] >>)
+      ]) in
   <:str_item< type attrname_t = [ $list:branches$ ] >>
 ;
 
@@ -350,6 +362,20 @@ value typed_equation_to_deps taeq =
   ]
 ;
 
+value typed_condition_to_deps tcond =
+  let open AG in
+  let open TCond in
+  match tcond.lhs with [
+    TAR.NT _ _ -> assert False
+  | _ -> 
+    tcond.body_nodes
+    |> Std.filter (fun [
+        (TAR.NT (TNR.PRIM _ _) _) -> False
+      | _ -> True ])
+    |> List.map (fun r -> (r, tcond.lhs))
+  ]
+;
+
 value actual_dep_function_declarations memo =
   let open AGOps.NTOps in
   let open AG in
@@ -357,10 +383,15 @@ value actual_dep_function_declarations memo =
   let loc = ag.loc in
   (ag.productions |> List.map (fun (nt, pl) ->
        let branches = pl |> List.map (fun p ->
-           let deps = p.P.typed_equations |> List.map typed_equation_to_deps |> List.concat in
+           let deps =
+             (p.P.typed_equations |> List.concat_map typed_equation_to_deps)@
+             (p.P.typed_conditions |> List.concat_map typed_condition_to_deps)
+           in
            let deps = Std2.hash_uniq deps in
            let aref_to_exp = fun [
-             TAR.NT (TNR.PARENT tyname) aname -> <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
+             TAR.NT (TNR.PARENT tyname) aname ->
+             <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
+
            | TAR.NT ((TNR.CHILD tyname i) as nr) aname ->
               let v = match List.assoc nr p.P.rev_patt_var_to_noderef with [
                 x -> x
@@ -369,6 +400,10 @@ value actual_dep_function_declarations memo =
                   (Failure "actual_dep_function_declarations: cannot map attribute-ref back to variable")
               ] in
               <:expr< (Node . $uid:node_constructor tyname$ $lid:v$, $uid:attr_constructor aname$) >>
+
+           | TAR.PROD pn aname ->
+             <:expr< (Node . $uid:node_constructor nt$ lhs, $uid:attr_constructor ~{prodname=PN.unparse pn} aname$) >>
+
            | _ -> assert False
            ] in
            let deps = List.map (fun (a, b) -> (aref_to_exp a, aref_to_exp b)) deps in

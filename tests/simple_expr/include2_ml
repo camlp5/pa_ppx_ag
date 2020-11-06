@@ -131,6 +131,7 @@ let pp_patt ty = Fmt.(pf stdout "#<patt< %a >>" Pa_ppx_base.Pp_MLast.pp_patt ty)
 print_string "================ START ================\n";; flush stdout ;;
 
 #require "pa_ppx_unique.runtime";;
+#require "pa_ppx_ag.runtime";;
 #require "hashcons";;
 #require "ocamlgraph";;
 
@@ -142,21 +143,21 @@ print_string "================ START ================\n";; flush stdout ;;
 
 #print_length 10000 ;;
 #print_depth 10000 ;;
-open Test1_ag_ppo ;;
+open Test1_ag_ppo.HT ;;
 open AG ;;
 open AG.Node ;;
 
 let pp_expr e =
   let n = e.Pa_ppx_unique_runtime.Unique.id in
   let e = Test1_migrate.FromUnique.expr e in
-  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test1_pa.expr Pprintf.empty_pc e))
+  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test1_pa.Pr.expr Pprintf.empty_pc e))
 ;;
 #install_printer pp_expr ;;
 
 let pp_prog e =
   let n = e.Pa_ppx_unique_runtime.Unique.id in
   let e = Test1_migrate.FromUnique.prog e in
-  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test1_pa.expr Pprintf.empty_pc e))
+  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test1_pa.Pr.prog Pprintf.empty_pc e))
 ;;
 #install_printer pp_prog ;;
 

@@ -39,6 +39,9 @@ module Attributed = struct
       ; syn_env = [%typ: (string * int) list]
       ; value_ = [%typ: int]
       }
+    ; expr__BINOP = {
+        condition = [%typ: bool]
+      }
     ; prog = {
         value_ = [%typ: int]
       }

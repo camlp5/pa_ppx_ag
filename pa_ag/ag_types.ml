@@ -50,6 +50,11 @@ module AG = struct
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<pn< %a >>" pp_hum x) ;
+    value unparse = fun [
+      {nonterm_name=nt; case_name=None} -> nt
+    | {nonterm_name=nt; case_name=Some s} -> nt^"__"^s
+    ]
+    ;
   end ;
   module PN = ProductionName ;
 
@@ -173,6 +178,7 @@ module AG = struct
     type t = {
       loc : Ploc.t
     ; cond_msg : option string
+    ; lhs : AR.t
     ; body_nodes : list AR.t
     ; body_expr : MLast.expr
     }
@@ -185,6 +191,7 @@ module AG = struct
     type t = {
       loc : Ploc.t
     ; cond_msg : option string
+    ; lhs : TAR.t
     ; body_nodes : list TAR.t
     ; body_expr : MLast.expr
     }
@@ -237,9 +244,10 @@ module AG = struct
       }
       ;
     value typed_condition p cond =
-      let { Cond.loc = loc; cond_msg = cond_msg ; body_nodes = body_nodes ; body_expr = body_expr } = cond in
+      let { Cond.loc = loc; lhs = lhs ; cond_msg = cond_msg ; body_nodes = body_nodes ; body_expr = body_expr } = cond in
       {
         TCond.loc = loc
+      ; lhs = typed_attribute p lhs
       ; cond_msg = cond_msg
       ; body_nodes = List.map (typed_attribute p) body_nodes
       ; body_expr = body_expr
@@ -325,12 +333,14 @@ value assignment_to_equation_or_condition pn e = match e with [
     Right { 
       AG.Cond.loc = loc
     ; cond_msg = Some msg
+    ; lhs = AG.AR.PROD pn "condition"
     ; body_nodes = extract_attribute_references pn e
     ; body_expr = e }
   | <:expr:< condition $e$ >> ->
     Right { 
       AG.Cond.loc = loc
     ; cond_msg = None
+    ; lhs = AG.AR.PROD pn "condition"
     ; body_nodes = extract_attribute_references pn e
     ; body_expr = e }
 
@@ -691,8 +701,73 @@ module AGOps = struct
 
   end ;
 
+
+  (** an AG is well-formed2 if every attribute reference in all equations
+      and conditions is declared in the typed attributes *)
+
+  value typed_attribute_exists typed_attributes (nt, attrna) =
+    List.mem_assoc nt typed_attributes &&
+    let attrs = List.assoc nt typed_attributes in
+    List.mem_assoc attrna attrs
+  ;
+
+  value well_formed_aref typed_attributes =
+    let open AG in
+    let open TAR in
+    let open TNR in
+    let open PN in
+    fun [
+      NT (PRIM _ _) "" -> True
+    | NT (PARENT nt) attrna -> typed_attribute_exists typed_attributes (nt, attrna)
+    | NT (CHILD nt _) attrna -> typed_attribute_exists typed_attributes (nt, attrna)
+    | PROD pn attrna -> typed_attribute_exists typed_attributes (PN.unparse pn, attrna)
+    | _ -> False
+    ]
+  ;
+
+  value true_or_exn ~{exnf} x = if x then x else exnf() ;
+
+  value well_formed_equation0 typed_attributes pn teq =
+    let open AG.TAEQ in
+    well_formed_aref typed_attributes teq.lhs &&
+    List.for_all (well_formed_aref typed_attributes) teq.rhs_nodes
+  ;
+
+  value well_formed_equation typed_attributes pn teq =
+    let open AG.TAEQ in
+    true_or_exn ~{exnf=fun () ->
+        Ploc.raise teq.loc (Failure Fmt.(str "not a well-formed equation in production %a: %a"
+                                           PN.pp_hum pn
+                                           TAEQ.pp_hum teq))}
+      (well_formed_equation0 typed_attributes pn teq)
+  ;
+
+  value well_formed_condition0 typed_attributes pn tcond =
+    let open AG.TCond in
+    well_formed_aref typed_attributes tcond.lhs &&
+    List.for_all (well_formed_aref typed_attributes) tcond.body_nodes
+  ;
+
+  value well_formed_condition typed_attributes pn tcond =
+    let open AG.TCond in
+    true_or_exn ~{exnf=fun () ->
+        Ploc.raise tcond.loc (Failure Fmt.(str "not a well-formed condition in production %a: %a"
+                                             PN.pp_hum pn
+                                             TCond.pp_hum tcond))}
+      (well_formed_condition0 typed_attributes pn tcond)
+  ;
+
+  value well_formed2 m =
+    let ag = m.NTOps.ag in
+    (ag.productions |> List.for_all (fun (nt, pl) -> pl |> List.for_all (fun p ->
+         p.P.typed_equations |> List.for_all (well_formed_equation ag.typed_attributes p.P.name) &&
+         p.P.typed_conditions |> List.for_all (well_formed_condition ag.typed_attributes p.P.name)
+       )))
+  ;
+
   value well_formed m =
     let ag = m.NTOps.ag in
+    (well_formed2 m) &&
     (ag.nonterminals |> List.for_all (fun nt ->
         [] = Std.intersect (NTOps._AI m nt) (NTOps._AS m nt)
     ))
@@ -702,8 +777,6 @@ module AGOps = struct
           )
       ))
   ;
-
-  value true_or_exn ~{exnf} x = if x then x else exnf() ;
 
   value complete m =
     let ag = m.NTOps.ag in

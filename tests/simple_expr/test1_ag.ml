@@ -14,6 +14,9 @@ module _ = Test1_variants
       ; syn_env = [%typ: (string * int) list]
       ; value_ = [%typ: int]
       }
+    ; expr__BINOP = {
+        condition = [%typ: bool]
+      }
     ; prog = {
         value_ = [%typ: int]
       }
@@ -39,7 +42,7 @@ module _ = Test1_variants
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
         [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
-          (if [%nterm binop.(1)].rhs_must_be_nonzer then
+          (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
            else true)
       )
@@ -111,6 +114,9 @@ module _ = Test1_variants
       ; syn_env = [%typ: (string * int) list]
       ; value_ = [%typ: int]
       }
+    ; expr__BINOP = {
+        condition = [%typ: bool]
+      }
     ; prog = {
         value_ = [%typ: int]
       }
@@ -136,7 +142,7 @@ module _ = Test1_variants
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
         [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
-          (if [%nterm binop.(1)].rhs_must_be_nonzer then
+          (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
            else true)
       )
