@@ -719,15 +719,29 @@ value attribute_function memo =
             <:patt< (Node. $uid:node_constructor nt$ _, $uid:attr_constructor attrna$) >>))
     |> List.concat
   in
+  let prod_patts =
+    ag.productions |> List.concat_map (fun (nt, pl) -> pl |> List.concat_map (fun p ->
+        p |> AGOps.POps.defining_occurrences |> List.filter_map (fun [
+            (TAR.PROD pn attrna) -> Some (pn, attrna)
+          | _ -> None
+          ])
+      ))
+    |> List.map (fun (pn, attrna) ->
+        let nt = pn.PN.nonterm_name in
+        let prodname = PN.unparse pn in
+        <:patt< (Node. $uid:node_constructor nt$ _, $uid:attr_constructor ~{prodname=prodname} attrna$) >>
+      ) in
 
   let inh_branches = inh_patts |> List.map (fun p ->
       (<:patt< ( $p$ as aref ) >>, <:vala< None >>, <:expr< compute_inherited_attribute attrs aref >>)) in
   let syn_branches = syn_patts |> List.map (fun p ->
       (<:patt< ( $p$ as aref ) >>, <:vala< None >>, <:expr< compute_synthesized_attribute attrs aref >>)) in
+  let prod_branches = prod_patts |> List.map (fun p ->
+      (<:patt< ( $p$ as aref ) >>, <:vala< None >>, <:expr< compute_synthesized_attribute attrs aref >>)) in
 
   (<:patt< compute_attribute >>,
    Reloc.expr (fun _ -> Ploc.dummy) 0
-   <:expr< fun attrs -> fun [ $list:inh_branches@syn_branches$ ] >>, <:vala< [] >>)
+   <:expr< fun attrs -> fun [ $list:inh_branches@syn_branches@prod_branches$ ] >>, <:vala< [] >>)
 ;
 
 (** evaluate the AG on the argument tree.

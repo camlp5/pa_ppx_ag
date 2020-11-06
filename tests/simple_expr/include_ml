@@ -165,8 +165,9 @@ open Ag_types ;;
 #trace Ag_tsort.lookup_var ;;
 #trace Ag_tsort.lookup_tnr ;;
 #trace Ag_tsort.typed_equation_to_deps;;
+#trace Ag_types.AGOps.POps.defining_occurrences ;;
 *)
-#trace Ag_tsort.condition_branch ;;
+#trace Ag_tsort.attribute_function ;;
 
 open Ag_types.AG ;;
 open NR ;;

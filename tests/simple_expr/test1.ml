@@ -15,11 +15,13 @@ let pa_prog_attributed s =
 
 let test_hashtables ctxt =
   assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> HT.AG.evaluate)
-; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> HT.AG.evaluate)
+; assert_raises (Failure "must be > 0")
+    (fun () -> {| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> HT.AG.evaluate)
 
 let test_records ctxt =
   assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_attributed |> REC.AG.evaluate)
-; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> REC.AG.evaluate)
+; assert_raises (Failure "must be > 0")
+    (fun () -> {| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> REC.AG.evaluate)
  
 
 let suite = "test1" >::: [

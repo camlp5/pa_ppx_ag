@@ -568,7 +568,9 @@ module AGOps = struct
       |> List.concat ;
 
     value defining_occurrences p =
-      List.map (fun teq -> teq.TAEQ.lhs) p.P.typed_equations ;
+      (List.map (fun teq -> teq.TAEQ.lhs) p.P.typed_equations)@
+      (if p.P.typed_conditions <> [] then [(List.hd p.P.typed_conditions).TCond.lhs] else [])
+    ;
 
     value inherited_occurrences p =
       p
@@ -589,38 +591,16 @@ module AGOps = struct
     ;
 
     value direct_reference_graph p =
-      p.P.typed_equations
-      |> List.map (fun teq ->
-        let open TAEQ in
-        List.map (fun rhs_ar -> (rhs_ar, teq.lhs)) teq.rhs_nodes)
-      |> List.concat
+      (p.P.typed_equations
+       |> List.concat_map (fun teq ->
+           let open TAEQ in
+           List.map (fun rhs_ar -> (rhs_ar, teq.lhs)) teq.rhs_nodes))@
+      (p.P.typed_conditions
+       |> List.concat_map (fun tcond ->
+           let open TCond in
+           List.map (fun rhs_ar -> (rhs_ar, tcond.lhs)) tcond.body_nodes))
     ;
 
-  end ;
-
-  module AOps = struct
-    value is_inherited ag (ntname, attrna) =
-      ntname
-      |> productions ag
-      |> List.map POps.inherited_occurrences
-      |> List.concat
-      |> Std.filter (fun [
-          TAR.NT (TNR.CHILD n _) attrna' -> n = ntname && attrna = attrna'
-        | _ -> False
-        ])
-      |> ((<>) [])
-    ;
-    value is_synthesized ag (ntname,attrna) =
-      ntname
-      |> productions ag
-      |> List.map POps.synthesized_occurrences
-      |> List.concat
-      |> Std.filter (fun [
-          TAR.NT (TNR.PARENT n) attrna' -> n = ntname && attrna = attrna'
-        | _ -> False
-        ])
-      |> ((<>) [])
-    ;
   end ;
 
   module NTOps = struct
