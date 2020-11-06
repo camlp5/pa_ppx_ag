@@ -68,8 +68,7 @@ module _ = Test1_variants
       )
     ; prog__PROG = (
         [%nterm 1].inh_env := [] ;
-        [%nterm 0].value_ := [%nterm 1].value_ ;
-        condition "must be > 0" ([%nterm 0].value_ > 0)
+        [%nterm 0].value_ := [%nterm 1].value_
       )
     ; unop__UPLUS = (
         [%nterm unop].oper := fun x -> x
@@ -90,7 +89,7 @@ module _ = Test1_variants
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
-        [%nterm binop].oper := (/)
+        [%nterm binop].oper := (fun a b -> if b = 0 then 0 else a / b)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
@@ -168,8 +167,7 @@ module _ = Test1_variants
       )
     ; prog__PROG = (
         [%nterm 1].inh_env := [] ;
-        [%nterm 0].value_ := [%nterm 1].value_ ;
-        condition "must be > 0" ([%nterm 0].value_ > 0)
+        [%nterm 0].value_ := [%nterm 1].value_
       )
     ; unop__UPLUS = (
         [%nterm unop].oper := fun x -> x
@@ -190,7 +188,7 @@ module _ = Test1_variants
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
-        [%nterm binop].oper := (/)
+        [%nterm binop].oper := (fun a b -> if b = 0 then 0 else a / b)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
