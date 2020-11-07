@@ -214,6 +214,7 @@ value attr_accessor_bindings memo (name, attributes) =
                   ] >>
         ],
           <:vala< [] >>) ;
+
        (<:patt< $lid:attr_setter_name name attrna$ >>,
         match smode with [ 
           Hashtables ->
@@ -464,7 +465,7 @@ value lookup_abs_childnum p nr = match List.assoc (lookup_var p nr) p.AG.P.patt_
   x -> x | exception Not_found -> assert False
 ]
 ;
-value compile_teqn_tcond_body p body =
+value compile_teqn_tcond_body ag p body =
   let open AG in
   let open P in
   let open TAEQ in
@@ -498,6 +499,10 @@ value compile_teqn_tcond_body p body =
       let v = lookup_var p (NR.CHILD (Some cnt) (int_of_string reli)) in
       <:expr< ( AttrTable. $lid:attr_accessor_name cnt attrna$ attrs $lid:v$  ) >>
 
+    | <:expr:< [%local $lid:attrna$ ;] >> ->
+      let lhs = match ag.storage_mode with [ Hashtables -> <:expr< lhs >> | Records -> <:expr< prod_attrs >> ] in
+      <:expr< ( AttrTable. $lid:attr_accessor_name (PN.unparse p.P.name) attrna$ attrs $lhs$  ) >>
+
     | e -> fallback_migrate_expr dt e
     ] in
   let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
@@ -517,7 +522,7 @@ value compile_teqn_tcond_body p body =
    attribute table.
 
 *)
-value synthesized_attribute_branch p teqn = do {
+value synthesized_attribute_branch ag p teqn = do {
   let open AG in
   let open P in
   let open TAEQ in
@@ -536,12 +541,42 @@ value synthesized_attribute_branch p teqn = do {
         Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
       | TAR.NT (PARENT dnt) dattr ->
         Some <:expr< assert (AttrTable. $lid:attr_isset_name nt dattr$ attrs lhs) >>
+      | TAR.PROD dpn dattr ->
+        let lhs = match ag.storage_mode with [ Hashtables -> <:expr< lhs >> | Records -> <:expr< prod_attrs >> ] in
+        Some <:expr< assert (AttrTable. $lid:attr_isset_name (PN.unparse dpn) dattr$ attrs $lhs$) >>
       | TAR.NT (PRIM _ _) _ -> None
       ]) in
-    let body = compile_teqn_tcond_body p teqn.rhs_expr in
+    let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
     let set_lhs = <:expr< AttrTable. $lid:attr_setter_name nt attrna$ attrs lhs $body$ >> in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     Some (patt, <:vala< None >>, <:expr< let parent = lhs in do { $list:l$ } >>)
+
+  | TAR.PROD pn attrna ->
+    let prodname = PN.unparse pn in 
+    let nt = pn.PN.nonterm_name in
+    let attrcons = attr_constructor ~{prodname=prodname} attrna in
+    let ntcons = node_constructor nt in
+    let nthash = node_hash_module nt in
+    let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
+    let check_lhs_unset = <:expr< assert (not (AttrTable. $lid:attr_isset_name prodname attrna$ attrs prod_lhs)) >> in
+    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
+        TAR.NT ((CHILD dnt _) as dnr) dattr ->
+        let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
+      | TAR.NT (PARENT dnt) dattr ->
+        Some <:expr< assert (AttrTable. $lid:attr_isset_name nt dattr$ attrs lhs) >>
+      | TAR.NT (PRIM _ _) _ -> None
+      ]) in
+    let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
+    let set_lhs = <:expr< AttrTable. $lid:attr_setter_name prodname attrna$ attrs prod_lhs $body$ >> in
+    let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
+    let e = <:expr< do { $list:l$ } >> in
+    let e = match ag.storage_mode with [
+      Hashtables -> <:expr< let prod_lhs = lhs in $e$ >>
+    | Records -> <:expr< let prod_lhs = prod_attrs in $e$ >>
+    ] in
+    let e = <:expr< let parent = lhs in $e$ >> in
+    Some (patt, <:vala< None >>, e)
   | _ -> None
   ]
 }
@@ -570,7 +605,7 @@ value condition_branch_body ag p tcond = do {
           Some <:expr< assert (AttrTable. $lid:attr_isset_name nt dattr$ attrs lhs) >>
         | TAR.NT (PRIM _ _) _ -> None
         ]) in
-      let body = compile_teqn_tcond_body p tcond.body_expr in
+      let body = compile_teqn_tcond_body ag p tcond.body_expr in
       let the_condition =
         let msg = match tcond.cond_msg with [ None -> "condition check failed" | Some msg -> msg ] in
         <:expr< if not ($body$) then failwith $str:msg$ else () >> in
@@ -615,7 +650,7 @@ value synthesized_attribute_function memo =
   let loc = ag.loc in
   let attr_branches = 
     ag.productions |> List.concat_map (fun (nt, pl) -> pl |> List.concat_map (fun p ->
-        p.typed_equations |> List.filter_map (synthesized_attribute_branch p)
+        p.typed_equations |> List.filter_map (synthesized_attribute_branch ag p)
       )) in
   let cond_branches =
     ag.productions |> List.concat_map (fun (nt, pl) -> pl |> List.filter_map (fun p ->
@@ -642,7 +677,7 @@ value synthesized_attribute_function memo =
    attribute table.
 
 *)
-value inherited_attribute_branch p teqn = do {
+value inherited_attribute_branch ag p teqn = do {
   let open AG in
   let open P in
   let open TAEQ in
@@ -668,12 +703,12 @@ value inherited_attribute_branch p teqn = do {
         Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs parent) >>
       | TAR.NT (PRIM _ _) _ -> None
       ]) in
-    let body = compile_teqn_tcond_body p teqn.rhs_expr in
+    let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
     let set_lhs = <:expr< AttrTable. $lid:attr_setter_name cnt cattrna$ attrs lhs $body$ >> in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     Some (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
 
-  | TAR.NT (PARENT _) _ | TAR.NT (PRIM _ _) _ -> None
+  | TAR.PROD _ _ | TAR.NT (PARENT _) _ | TAR.NT (PRIM _ _) _ -> None
   ]
 }
 ;
@@ -688,7 +723,7 @@ value inherited_attribute_function memo =
   let loc = ag.loc in
   let branches = 
     ag.productions |> List.map (fun (nt, pl) -> pl |> List.map (fun p ->
-        p.typed_equations |> List.filter_map (inherited_attribute_branch p)
+        p.typed_equations |> List.filter_map (inherited_attribute_branch ag p)
       ))
     |> List.concat |> List.concat in
   (<:patt< compute_inherited_attribute >>,

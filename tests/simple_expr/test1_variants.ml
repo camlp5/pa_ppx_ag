@@ -41,6 +41,7 @@ module Attributed = struct
       }
     ; expr__BINOP = {
         condition = [%typ: bool]
+      ; result = [%typ: int]
       }
     ; prog = {
         value_ = [%typ: int]

@@ -9,6 +9,9 @@ let migration_error feature =
 let _migrate_list subrw0 __dt__ l =
   List.map (subrw0 __dt__) l
 
+let _migrate_option subrw0 __dt__ x =
+  Option.map (subrw0 __dt__) x
+
 module OK = struct
   module _ = Test1_variants
   [%%import: Test1_variants.Unique.OK.expr]
@@ -308,7 +311,7 @@ module Attributed = struct
           srctype = [%typ: 'a option]
         ; dsttype = [%typ: 'b option]
         ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
-        ; code = (fun subrw __dt__ x -> Option.map (subrw __dt__) x)
+        ; code = _migrate_option
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
@@ -421,7 +424,7 @@ module _ = Test1_variants
           srctype = [%typ: 'a option]
         ; dsttype = [%typ: 'b option]
         ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
-        ; code = (fun subrw __dt__ x -> Option.map (subrw __dt__) x)
+        ; code = _migrate_option
         }
       ; migrate_expr_node = {
           srctype = [%typ: expr_node]

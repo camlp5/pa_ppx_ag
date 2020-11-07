@@ -16,6 +16,7 @@ module _ = Test1_variants
       }
     ; expr__BINOP = {
         condition = [%typ: bool]
+      ; result = [%typ: int]
       }
     ; prog = {
         value_ = [%typ: int]
@@ -40,7 +41,8 @@ module _ = Test1_variants
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
-        [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        [%nterm expr].value_ := [%local result] ;
+        [%local result] := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
@@ -115,6 +117,7 @@ module _ = Test1_variants
       }
     ; expr__BINOP = {
         condition = [%typ: bool]
+      ; result = [%typ: int]
       }
     ; prog = {
         value_ = [%typ: int]
@@ -139,7 +142,8 @@ module _ = Test1_variants
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
-        [%nterm expr].value_ := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        [%nterm expr].value_ := [%local result] ;
+        [%local result] := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
