@@ -509,6 +509,51 @@ value compile_teqn_tcond_body ag p body =
   dt.migrate_expr dt body
 ;
 
+value attr_isset_expression loc ag p =
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  fun [
+    TAR.NT (PARENT nt) attrna ->
+    <:expr< AttrTable. $lid:attr_isset_name nt attrna$ attrs lhs >>
+
+  | TAR.NT ((CHILD dnt _) as dnr) dattr ->
+    let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+    <:expr< AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$ >>
+
+  | TAR.PROD dpn dattr ->
+    let lhs = match ag.storage_mode with [ Hashtables -> <:expr< lhs >> | Records -> <:expr< prod_attrs >> ] in
+    <:expr< AttrTable. $lid:attr_isset_name (PN.unparse dpn) dattr$ attrs $lhs$ >>
+
+  | ar -> Ploc.raise loc (Failure Fmt.(str "INTERNAL ERROR: attr_isset_expression:@ %a"
+                                         TAR.pp_hum ar))
+  ]
+;
+
+value attr_setter_expression loc ag p tar rhs =
+  let open AG in
+  let open P in
+  let open TAEQ in
+  let open TNR in
+  match tar with [
+    TAR.NT (PARENT nt) attrna ->
+      <:expr< AttrTable. $lid:attr_setter_name nt attrna$ attrs lhs $rhs$ >>
+
+  | TAR.PROD pn attrna ->
+    let prodname = PN.unparse pn in 
+    let e = <:expr< AttrTable. $lid:attr_setter_name prodname attrna$ attrs prod_lhs $rhs$ >> in
+    match ag.storage_mode with [
+      Hashtables -> <:expr< let prod_lhs = lhs in $e$ >>
+    | Records -> <:expr< let prod_lhs = prod_attrs in $e$ >>
+    ]
+
+  | TAR.NT (CHILD cnt childnum) cattrna ->
+    <:expr< AttrTable. $lid:attr_setter_name cnt cattrna$ attrs lhs $rhs$ >>
+
+  ]
+;
+
 (** generate synthesized-attribute branches
 
     (1) args are noderef+attrname
@@ -534,20 +579,15 @@ value synthesized_attribute_branch ag p teqn = do {
     let ntcons = node_constructor nt in
     let nthash = node_hash_module nt in
     let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-    let check_lhs_unset = <:expr< assert (not (AttrTable. $lid:attr_isset_name nt attrna$ attrs lhs)) >> in
-    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
-        TAR.NT ((CHILD dnt _) as dnr) dattr ->
-        let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
-        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
-      | TAR.NT (PARENT dnt) dattr ->
-        Some <:expr< assert (AttrTable. $lid:attr_isset_name nt dattr$ attrs lhs) >>
-      | TAR.PROD dpn dattr ->
-        let lhs = match ag.storage_mode with [ Hashtables -> <:expr< lhs >> | Records -> <:expr< prod_attrs >> ] in
-        Some <:expr< assert (AttrTable. $lid:attr_isset_name (PN.unparse dpn) dattr$ attrs $lhs$) >>
+    let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p teqn.lhs$) >> in
+    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun tar -> match tar with [
+        TAR.NT (CHILD _ _| PARENT _) _ | TAR.PROD _ _ ->
+        Some <:expr< assert $attr_isset_expression loc ag p tar$ >>
+
       | TAR.NT (PRIM _ _) _ -> None
       ]) in
     let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
-    let set_lhs = <:expr< AttrTable. $lid:attr_setter_name nt attrna$ attrs lhs $body$ >> in
+    let set_lhs = attr_setter_expression loc ag p teqn.lhs body in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     Some (patt, <:vala< None >>, <:expr< let parent = lhs in do { $list:l$ } >>)
 
@@ -558,23 +598,17 @@ value synthesized_attribute_branch ag p teqn = do {
     let ntcons = node_constructor nt in
     let nthash = node_hash_module nt in
     let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-    let check_lhs_unset = <:expr< assert (not (AttrTable. $lid:attr_isset_name prodname attrna$ attrs prod_lhs)) >> in
-    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
-        TAR.NT ((CHILD dnt _) as dnr) dattr ->
-        let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
-        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
-      | TAR.NT (PARENT dnt) dattr ->
-        Some <:expr< assert (AttrTable. $lid:attr_isset_name nt dattr$ attrs lhs) >>
+    let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p teqn.lhs$) >> in
+    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun tar -> match tar with [
+        TAR.NT (CHILD _ _ | PARENT _) _ ->
+        Some <:expr< assert $attr_isset_expression loc ag p tar$ >>
+
       | TAR.NT (PRIM _ _) _ -> None
       ]) in
     let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
-    let set_lhs = <:expr< AttrTable. $lid:attr_setter_name prodname attrna$ attrs prod_lhs $body$ >> in
+    let set_lhs = attr_setter_expression loc ag p teqn.lhs body in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     let e = <:expr< do { $list:l$ } >> in
-    let e = match ag.storage_mode with [
-      Hashtables -> <:expr< let prod_lhs = lhs in $e$ >>
-    | Records -> <:expr< let prod_lhs = prod_attrs in $e$ >>
-    ] in
     let e = <:expr< let parent = lhs in $e$ >> in
     Some (patt, <:vala< None >>, e)
   | _ -> None
@@ -597,12 +631,10 @@ value condition_branch_body ag p tcond = do {
       let ntcons = node_constructor nt in
       let nthash = node_hash_module nt in
       let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-      let check_deps_set = tcond.body_nodes |> List.filter_map (fun [
-          TAR.NT ((CHILD dnt _) as dnr) dattr ->
-          let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
-          Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
-        | TAR.NT (PARENT dnt) dattr ->
-          Some <:expr< assert (AttrTable. $lid:attr_isset_name nt dattr$ attrs lhs) >>
+      let check_deps_set = tcond.body_nodes |> List.filter_map (fun tar -> match tar with [
+          TAR.NT (CHILD _ _ | PARENT _) _ ->
+          Some <:expr< assert $attr_isset_expression loc ag p tar$ >>
+
         | TAR.NT (PRIM _ _) _ -> None
         ]) in
       let body = compile_teqn_tcond_body ag p tcond.body_expr in
@@ -629,12 +661,13 @@ value condition_branch ag p = do {
   let prodname = PN.unparse pn in 
   let nt = pn.PN.nonterm_name in
   let attrna = "condition" in
+  let tar = TAR.PROD pn attrna in
   let attrcons = attr_constructor ~{prodname=prodname} attrna in
   let ntcons = node_constructor nt in
 
   let lhs = match ag.storage_mode with [ Hashtables -> <:expr< lhs >> | Records -> <:expr< prod_attrs >> ] in
-  let check_lhs_unset = <:expr< assert (not (AttrTable. $lid:attr_isset_name prodname attrna$ attrs $lhs$)) >> in
-  let set_lhs = <:expr< AttrTable. $lid:attr_setter_name prodname attrna$ attrs $lhs$ True >> in
+  let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p tar$) >> in
+  let set_lhs = attr_setter_expression loc ag p tar <:expr< True >> in
   let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
   Some (patt, <:vala< None >>, <:expr< let parent = lhs in do { $list:[check_lhs_unset]@condl@[set_lhs]$ } >>)
 }
@@ -694,17 +727,15 @@ value inherited_attribute_branch ag p teqn = do {
     let pnthash = node_hash_module pnt in
     let patt = <:patt< (Node . $uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int abs_childnum$,
                         Node . $uid:cntcons$ lhs, $uid:cattrcons$) >> in
-    let check_lhs_unset = <:expr< assert (not (AttrTable. $lid:attr_isset_name cnt cattrna$ attrs lhs)) >> in
-    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun [
-        TAR.NT ((CHILD dnt _) as dnr) dattr ->
-        let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
-        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$) >>
-      | TAR.NT (PARENT dnt) dattr ->
-        Some <:expr< assert (AttrTable. $lid:attr_isset_name dnt dattr$ attrs parent) >>
+    let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p teqn.lhs$) >> in
+    let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun tar -> match tar with [
+        TAR.NT (CHILD _ _ | PARENT _) _ ->
+        Some <:expr< assert $attr_isset_expression loc ag p tar$ >>
+
       | TAR.NT (PRIM _ _) _ -> None
       ]) in
     let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
-    let set_lhs = <:expr< AttrTable. $lid:attr_setter_name cnt cattrna$ attrs lhs $body$ >> in
+    let set_lhs = attr_setter_expression loc ag p teqn.lhs body in
     let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
     Some (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
 
