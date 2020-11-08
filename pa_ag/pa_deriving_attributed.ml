@@ -33,8 +33,8 @@ open Pa_ppx_params.Runtime ;
 module AC = struct
 
 type t = {
-  optional : bool
-; plugin_name : string
+  optional : bool [@default False;]
+; plugin_name : string [@default "attributed";]
 ; normal_module_name : uident
 ; attributed_module_name : uident
 ; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
@@ -150,7 +150,7 @@ value make_attribute_initializer loc name attributes =
 
 value to_expr loc v = <:expr< $lid:v$ >> ;
 
-value generate_attributed_constructor ctxt rc (name, td) =
+value generate_attributed_constructor rc (name, td) =
   let loc = loc_of_type_decl td in
   if uv td.tdPrm <> [] || not (List.mem_assoc name rc.typed_attributes) then <:str_item< declare end >> else
   let attributes = List.assoc name rc.typed_attributes in
@@ -185,7 +185,7 @@ end
 ;
 
 
-value make_twolevel_type_decl ctxt rc ~{preserve_manifest} ~{skip_attributed} td =
+value make_twolevel_type_decl rc ~{preserve_manifest} ~{skip_attributed} td =
   let open Ag_types in
   let open AG.PN in
   let loc = loc_of_type_decl td in
@@ -270,32 +270,30 @@ value make_twolevel_type_decl ctxt rc ~{preserve_manifest} ~{skip_attributed} td
   wrapped_type_decls
 ;
 
-value normal_type_decl ctxt rc td =
+value normal_type_decl rc td =
   let skip_attributed = True in
   let preserve_manifest = True in
-  make_twolevel_type_decl ctxt rc ~{preserve_manifest=preserve_manifest} ~{skip_attributed=skip_attributed} td
+  make_twolevel_type_decl rc ~{preserve_manifest=preserve_manifest} ~{skip_attributed=skip_attributed} td
 ;
 
-value attributed_type_decl ctxt rc td =
+value attributed_type_decl rc td =
   let preserve_manifest = False in
-  make_twolevel_type_decl ctxt rc ~{preserve_manifest=preserve_manifest} ~{skip_attributed=False} td
+  make_twolevel_type_decl rc ~{preserve_manifest=preserve_manifest} ~{skip_attributed=False} td
 ;
 
-value str_item_gen_attributed name arg = fun [
-  <:str_item:< type $_flag:_$ $list:tdl$ >> ->
-    let rc = AC.build_context loc arg tdl in
-    let new_tdl =
-      tdl
-      |> List.map (attributed_type_decl arg rc)
-      |> List.concat
-      |> List.map AC.strip_deriving_attributes in
-    let normal_tdl =
-      tdl
-      |> List.map (normal_type_decl arg rc)
-      |> List.concat
-      |> List.map AC.strip_deriving_attributes in
-    let attributed_constructors = List.map (AC.generate_attributed_constructor arg rc) rc.AC.type_decls in
-      <:str_item< declare
+value str_item_generate_attributed loc rc tdl =
+  let new_tdl =
+    tdl
+    |> List.map (attributed_type_decl rc)
+    |> List.concat
+    |> List.map AC.strip_deriving_attributes in
+  let normal_tdl =
+    tdl
+    |> List.map (normal_type_decl rc)
+    |> List.concat
+    |> List.map AC.strip_deriving_attributes in
+  let attributed_constructors = List.map (AC.generate_attributed_constructor rc) rc.AC.type_decls in
+  let aa_st = <:str_item< declare
                   module $uid:rc.normal_module_name$ = struct
                   type $list:normal_tdl$ ;
                   end ;
@@ -304,7 +302,16 @@ value str_item_gen_attributed name arg = fun [
                   type $list:new_tdl$ ;
                   declare $list:attributed_constructors$ end ;
                   end ;
-                end>>
+                end >> in
+  (aa_st, normal_tdl, new_tdl)
+;
+
+value str_item_gen_attributed name arg = fun [
+  <:str_item:< type $_flag:_$ $list:tdl$ >> ->
+    let rc = AC.build_context loc arg tdl in
+    let (aa_st, _, _) = str_item_generate_attributed loc rc tdl in
+    aa_st
+
 | _ -> assert False ]
 ;
 

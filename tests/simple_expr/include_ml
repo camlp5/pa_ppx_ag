@@ -172,6 +172,7 @@ open Ag_types ;;
 open Ag_types.AG ;;
 open NR ;;
 open AEQ ;;
+#trace Ag_types.Demarshal.productions ;;
 "test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;

@@ -53,10 +53,25 @@ type t = {
   };]
 ;
 
-value build_context loc ctxt tdl =
-  let type_decls = List.map (fun (MLast.{tdNam=tdNam} as td) ->
+value build_type_decls tdl =
+  tdl |> List.map (fun (MLast.{tdNam=tdNam} as td) ->
       (tdNam |> uv |> snd |> uv, td)
-    ) tdl in
+    )
+;
+
+value update_type_decls rc tdl =
+  let type_decls = build_type_decls tdl in
+  let name2nodename = Demarshal.compute_name2nodename type_decls in
+  let rev_name2nodename = List.map (fun (a,b) -> (b,a)) name2nodename in
+  { (rc) with
+    type_decls = type_decls
+  ; name2nodename = name2nodename
+  ; rev_name2nodename = rev_name2nodename
+  }
+;
+
+value build_context loc ctxt tdl =
+  let type_decls = build_type_decls tdl in
   let optarg =
     let l = List.map (fun (k, e) -> (<:patt< $lid:k$ >>, e)) (Ctxt.options ctxt) in
     <:expr< { $list:l$ } >> in
@@ -66,9 +81,30 @@ value build_context loc ctxt tdl =
 end;
 module AGC = AGContext ;
 
+value str_item_gen_decorated loc rc tdl =
+  let open Pa_deriving_unique in
+  let open Pa_deriving_attributed in
+  match rc.AGC.attribution_model with [
+    Some (AGC.Unique uu) ->
+    let (uu_st, normal_tdl, new_tdl) = str_item_generate_unique loc uu tdl in
+    let rc = AGC.update_type_decls rc new_tdl in
+    (rc, uu_st,
+     <:str_item< open $uid:uu.UC.uniqified_module_name$ >>)
+  | Some (AGC.Attributed aa) ->
+    let aa = { (aa) with AC.typed_attributes = rc.AGC.typed_attributes } in
+    let (aa_st, normal_tdl, new_tdl) = str_item_generate_attributed loc aa tdl in
+    let rc = AGC.update_type_decls rc new_tdl in
+    (rc, aa_st,
+     <:str_item< open $uid:aa.AC.attributed_module_name$ >>)
+  | None ->
+    (rc, <:str_item< declare end >>,
+     <:str_item< declare end >>)
+  ]
+;
 value str_item_gen_ag name arg = fun [
-  <:str_item:< type $_flag:_$ $list:tdl$ >> ->
+  <:str_item:< type $_flag:_$ $list:tdl$ >> as st ->
     let rc = AGC.build_context loc arg tdl in
+    let (rc, uu_st, uu_open_st) = str_item_gen_decorated loc rc tdl in
     let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules rc.AGC.storage_mode in
     let ag0 = AG.mk0 loc
         rc.AGC.storage_mode
@@ -82,8 +118,12 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;
       assert (AGOps.locally_acyclic memo) ;
-      <:str_item< module $uid:rc.AGC.module_name$ = struct
+      <:str_item< 
+                declare
+                  $stri:uu_st$ ;
+                  module $uid:rc.AGC.module_name$ = struct
                   open Pa_ppx_utils ;
+                  $stri:uu_open_st$ ;
                   open $wrapper_module_module_expr$ ;
                   declare $list:[node_module_declaration memo
                                 ;attr_type_declaration memo
@@ -100,7 +140,9 @@ value str_item_gen_ag name arg = fun [
                               ]$ ;
                   value $list:[attribute_function memo]$ ;
                   value $list:[eval_function memo]$ ;
-                  end >>
+                  end ;
+                end
+      >>
     }
 | _ -> assert False ]
 ;
@@ -110,6 +152,7 @@ Pa_deriving.(Registry.add PI.{
 ; alternates = []
 ; options = ["optional"
             ; "axiom"
+            ; "attribution_model"
             ; "storage_mode"
             ; "attributes"
             ; "attribution"
