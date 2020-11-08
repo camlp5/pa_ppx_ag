@@ -18,25 +18,14 @@ value debug = Pa_passthru.debug ;
 module AGContext = struct
 
 open Pa_ppx_params.Runtime ;
-(*
+
 type storage_mode_t = Ag_types.storage_mode_t == [ Hashtables | Records ] [@@deriving params;] ;
-*)
-value demarshal_raw_storage_mode loc = fun [
-    "Hashtables" -> Hashtables
-  | "Records" -> Records
-  | s -> Ploc.raise loc (Failure Fmt.(str "demarshal_raw_storage_mode: unrecognized mode %s (must be either Hashtables or Records)" s))
-]
-;
 
 type t = {
   optional : bool
 ; plugin_name : string
 ; module_name : uident
-; raw_storage_mode: uident [@name storage_mode;]
-; storage_mode : storage_mode_t [@computed demarshal_raw_storage_mode loc raw_storage_mode;]
-(*
 ; storage_mode : storage_mode_t
-*)
 ; axiom : lident
 ; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
 ; raw_attribution: (alist lident expr) [@name attribution;]
