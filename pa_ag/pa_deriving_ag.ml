@@ -21,11 +21,23 @@ open Pa_ppx_params.Runtime ;
 
 type storage_mode_t = Ag_types.storage_mode_t == [ Hashtables | Records ] [@@deriving params;] ;
 
+type unique_params_t = Pa_deriving_unique.UC.t ;
+value params_unique_params_t arg = Pa_deriving_unique.UC.params [] arg ;
+type attributed_params_t = Pa_deriving_attributed.AC.t ;
+value params_attributed_params_t arg = Pa_deriving_attributed.AC.params [] arg ;
+
+type attribution_model_t = [
+    Unique of unique_params_t
+  | Attributed of attributed_params_t
+] [@@deriving params;]
+;
+
 type t = {
   optional : bool
 ; plugin_name : string
 ; module_name : uident
 ; storage_mode : storage_mode_t
+; attribution_model : option attribution_model_t
 ; axiom : lident
 ; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
 ; raw_attribution: (alist lident expr) [@name attribution;]

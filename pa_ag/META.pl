@@ -16,15 +16,15 @@ description = "pa_ppx_ag deriver"
     archive(native) = "pa_ppx_ag_runtime.cmx"
   )
 
-  requires(toploop) = "camlp5,pa_ppx.deriving_plugins.show,pa_ppx.params_runtime"
+  requires(toploop) = "camlp5,pa_ppx.deriving_plugins.show,pa_ppx.params_runtime,pa_ppx_unique"
   archive(toploop) = "camlp5_migrate.cmo ag_types.cmo ag_tsort.cmo pa_deriving_attributed.cmo pa_deriving_ag.cmo"
 
-    requires(syntax,preprocessor) = "camlp5,pa_ppx.deriving_plugins.show,pa_ppx.params_runtime"
+    requires(syntax,preprocessor) = "camlp5,pa_ppx.deriving_plugins.show,pa_ppx.params_runtime,pa_ppx_unique"
     archive(syntax,preprocessor,-native) = "camlp5_migrate.cmo ag_types.cmo ag_tsort.cmo pa_deriving_attributed.cmo pa_deriving_ag.cmo"
     archive(syntax,preprocessor,native) = "camlp5_migrate.cmx ag_types.cmx ag_tsort.cmx pa_deriving_attributed.cmx pa_deriving_ag.cmx"
 
   package "link" (
-  requires(byte) = "camlp5,pa_ppx.deriving_plugins.show.link,pa_ppx.params_runtime"
+  requires(byte) = "camlp5,pa_ppx.deriving_plugins.show.link,pa_ppx.params_runtime,pa_ppx_unique.link"
   archive(byte) = "camlp5_migrate.cmo ag_types.cmo ag_tsort.cmo pa_deriving_attributed.cmo pa_deriving_ag.cmo"
   )
 

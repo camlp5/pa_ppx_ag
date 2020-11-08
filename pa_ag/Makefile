@@ -13,10 +13,10 @@ OCAMLFIND=$(LAUNCH) ocamlfind
 NOT_OCAMLFIND=$(LAUNCH) not-ocamlfind
 MKCAMLP5=$(LAUNCH) mkcamlp5
 IMPORT_PACKAGES := $(PACKAGES),pa_ppx.deriving,pa_ppx.deriving_plugins.show,pa_ppx.base,pa_ppx.unmatched_vala
-PACKAGES := $(IMPORT_PACKAGES),pa_ppx.deriving_plugins.params
+PACKAGES := $(IMPORT_PACKAGES),pa_ppx.deriving_plugins.params,pa_ppx_unique.link
 
 ML=\
-	camlp5_migrate.ml ag_types.ml ag_tsort.ml pa_deriving_ag.ml pa_deriving_attributed.ml pa_ppx_ag_runtime.ml \
+	camlp5_migrate.ml ag_types.ml ag_tsort.ml pa_deriving_attributed.ml pa_deriving_ag.ml pa_ppx_ag_runtime.ml
 
 CMO := $(ML:.ml=.cmo)
 CMI := $(ML:.ml=.cmi)
