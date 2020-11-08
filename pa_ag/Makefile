@@ -12,7 +12,8 @@ LAUNCH=env TOP=$(TOP) $(TOP)/tools/LAUNCH
 OCAMLFIND=$(LAUNCH) ocamlfind
 NOT_OCAMLFIND=$(LAUNCH) not-ocamlfind
 MKCAMLP5=$(LAUNCH) mkcamlp5
-PACKAGES := $(PACKAGES),pa_ppx.deriving,pa_ppx.deriving_plugins.show,pa_ppx.base,pa_ppx.unmatched_vala,pa_ppx.deriving_plugins.params
+IMPORT_PACKAGES := $(PACKAGES),pa_ppx.deriving,pa_ppx.deriving_plugins.show,pa_ppx.base,pa_ppx.unmatched_vala
+PACKAGES := $(IMPORT_PACKAGES),pa_ppx.deriving_plugins.params
 
 ML=\
 	camlp5_migrate.ml ag_types.ml ag_tsort.ml pa_deriving_ag.ml pa_deriving_attributed.ml pa_ppx_ag_runtime.ml \
@@ -46,12 +47,12 @@ clean::
 
 IMPORT_OCAMLCFLAGS += -ppopt -pa_import-package -ppopt camlp5
 camlp5_migrate.cmo: camlp5_migrate.ml
-	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.import,pa_ppx_migrate,camlp5.pr_o -syntax camlp5o $< > $@.ppo.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $@.ppo.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $<
+	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate,camlp5.pr_o -syntax camlp5o $< > $@.ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $@.ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $<
 
 camlp5_migrate.cmx: camlp5_migrate.ml
-	$(OCAMLFIND) ocamlopt $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $<
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $<
 
 EXTERNAL := $(shell $(OCAMLFIND) query -predicates byte -format '%m' $(PACKAGES) | grep local-install)
 $(CMO) $(CMI) $(CMX): $(EXTERNAL)

@@ -516,7 +516,7 @@ value attr_isset_expression loc ag p =
   let open TNR in
   fun [
     TAR.NT (PARENT nt) attrna ->
-    <:expr< AttrTable. $lid:attr_isset_name nt attrna$ attrs lhs >>
+    <:expr< AttrTable. $lid:attr_isset_name nt attrna$ attrs parent >>
 
   | TAR.NT ((CHILD dnt _) as dnr) dattr ->
     let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in

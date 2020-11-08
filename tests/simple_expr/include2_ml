@@ -161,13 +161,13 @@ let pp_prog e =
 ;;
 #install_printer pp_prog ;;
 
+let pp_attributes_t (t : AG.AttrTable.attributes_t) = Fmt.(pf stdout "#<attributes>") ;;
+#install_printer pp_attributes_t ;;
+
 let prog0 = {| x := 1 ; x ; y := 2 ; x + y |} |> Stream.of_string |> Grammar.Entry.parse Test1_pa.prog_unique_eoi ;;
 
-(*
-#trace lookup_parent ;;
-#trace AG.compute_inherited_attribute ;;
-#trace AG.compute_synthesized_attribute ;;
-*)
+#trace AG.AttrTable.expr__isset_inh_env ;;
+#trace AG.AttrTable.expr__set_inh_env ;;
 
 #trace compute_attribute ;;
 AG.evaluate prog0 ;;
