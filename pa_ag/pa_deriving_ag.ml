@@ -63,7 +63,7 @@ type t = {
 *)
 ; raw_attribution: (alist lident expr) [@name attribution;]
 ; equations: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
-; conditions: (alist AG.PN.t (list AG.Cond.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
+; conditions: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
 ; name2nodename : (alist lident lident) [@computed Demarshal.compute_name2nodename type_decls;]
 ; rev_name2nodename : (alist lident lident) [@computed List.map (fun (a,b) -> (b,a)) name2nodename;]
 ; type_decls : list (string * MLast.type_decl) [@computed type_decls;]

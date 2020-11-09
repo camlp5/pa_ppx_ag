@@ -376,20 +376,6 @@ value typed_equation_to_deps taeq =
   ]
 ;
 
-value typed_condition_to_deps tcond =
-  let open AG in
-  let open TCond in
-  match tcond.lhs with [
-    TAR.NT _ _ -> assert False
-  | _ -> 
-    tcond.body_nodes
-    |> Std.filter (fun [
-        (TAR.NT (TNR.PRIM _ _) _) -> False
-      | _ -> True ])
-    |> List.map (fun r -> (r, tcond.lhs))
-  ]
-;
-
 value actual_dep_function_declarations memo =
   let open AGOps.NTOps in
   let open AG in
@@ -399,7 +385,7 @@ value actual_dep_function_declarations memo =
        let branches = pl |> List.map (fun p ->
            let deps =
              (p.P.typed_equations |> List.concat_map typed_equation_to_deps)@
-             (p.P.typed_conditions |> List.concat_map typed_condition_to_deps)
+             (p.P.typed_conditions |> List.concat_map typed_equation_to_deps)
            in
            let deps = Std2.hash_uniq deps in
            let aref_to_exp = fun [
@@ -621,7 +607,7 @@ value synthesized_attribute_branch ag p teqn = do {
 value condition_branch_body ag p tcond = do {
   let open AG in
   let open P in
-  let open TCond in
+  let open TAEQ in
   let open TNR in
   let loc = tcond.loc in
   match tcond.lhs with [
@@ -633,15 +619,15 @@ value condition_branch_body ag p tcond = do {
       let ntcons = node_constructor nt in
       let nthash = node_hash_module nt in
       let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-      let check_deps_set = tcond.body_nodes |> List.filter_map (fun tar -> match tar with [
+      let check_deps_set = tcond.rhs_nodes |> List.filter_map (fun tar -> match tar with [
           TAR.NT (CHILD _ _ | PARENT _) _ ->
           Some <:expr< assert $attr_isset_expression loc ag p tar$ >>
 
         | TAR.NT (PRIM _ _) _ -> None
         ]) in
-      let body = compile_teqn_tcond_body ag p tcond.body_expr in
+      let body = compile_teqn_tcond_body ag p tcond.rhs_expr in
       let the_condition =
-        let msg = match tcond.cond_msg with [ None -> "condition check failed" | Some msg -> msg ] in
+        let msg = match tcond.msg with [ None -> "condition check failed" | Some msg -> msg ] in
         <:expr< if not ($body$) then failwith $str:msg$ else () >> in
       let l = check_deps_set@[the_condition] in
       <:expr< let parent = lhs in do { $list:l$ } >>
@@ -654,7 +640,7 @@ value condition_branch_body ag p tcond = do {
 value condition_branch ag p = do {
   let open AG in
   let open P in
-  let open TCond in
+  let open TAEQ in
   let loc = p.P.loc in
   if p.typed_conditions = [] then None
   else
