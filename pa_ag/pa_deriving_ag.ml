@@ -32,6 +32,21 @@ type attribution_model_t = [
 ] [@@deriving params;]
 ;
 
+value compute_typed_attributed loc attribute_types node_attributes production_attributes =
+  let attr2type homename aname =
+    match List.assoc aname attribute_types with [
+      x -> x
+    | exception Not_found ->
+      Ploc.raise loc
+        (Failure Fmt.(str "compute_typed_attributed: attribute %s.%s has no declared type"
+                        homename aname ))
+    ] in
+  (node_attributes |> List.map (fun (nt, attrs) ->
+    (nt, attrs |> List.map (fun aname -> (aname, attr2type nt aname)))))@
+  (production_attributes |> List.map (fun (pname, attrs) ->
+       (pname, attrs |> List.map (fun aname -> (aname, attr2type pname aname)))))
+;
+
 type t = {
   optional : bool
 ; plugin_name : string
@@ -39,7 +54,11 @@ type t = {
 ; storage_mode : storage_mode_t
 ; attribution_model : option attribution_model_t
 ; axiom : lident
-; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
+; attribute_types : (alist lident ctyp) [@name attribute_types;]
+; node_attributes : (alist lident (list lident))
+; production_attributes : (alist lident (list lident))
+; typed_attributes : (alist lident (alist lident ctyp))
+      [@computed compute_typed_attributed loc attribute_types node_attributes production_attributes;]
 ; raw_attribution: (alist lident expr) [@name attribution;]
 ; equations: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
 ; conditions: (alist AG.PN.t (list AG.Cond.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
@@ -154,7 +173,9 @@ Pa_deriving.(Registry.add PI.{
             ; "axiom"
             ; "attribution_model"
             ; "storage_mode"
-            ; "attributes"
+            ; "attribute_types"
+            ; "node_attributes"
+            ; "production_attributes"
             ; "attribution"
             ; "module_name"]
 ; default_options = let loc = Ploc.dummy in [

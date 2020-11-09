@@ -8,29 +8,25 @@ module _ = Test1_variants
     module_name = AG
   ; storage_mode = Hashtables
   ; axiom = prog
-  ; attributes = {
-      expr = {
-        inh_env = [%typ: (string * int) list]
-      ; syn_env = [%typ: (string * int) list]
-      ; value_ = [%typ: int]
-      }
-    ; expr__BINOP = {
-        condition = [%typ: bool]
-      ; result = [%typ: int]
-      }
-    ; prog = {
-        value_ = [%typ: int]
-      }
-    ; prog__PROG = {
-        condition = [%typ: bool]
-      }
-    ; binop = {
-        oper = [%typ: int -> int -> int]
-      ; rhs_must_be_nonzero = [%typ: bool]
-      }
-    ; unop = {
-        oper = [%typ: int -> int]
-      }
+  ; attribute_types = {
+      bin_oper = [%typ: int -> int -> int]
+    ; condition = [%typ: bool]
+    ; inh_env = [%typ: (string * int) list]
+    ; result = [%typ: int]
+    ; rhs_must_be_nonzero = [%typ: bool]
+    ; syn_env = [%typ: (string * int) list]
+    ; un_oper = [%typ: int -> int]
+    ; value_ = [%typ: int]
+    }
+  ; node_attributes = {
+      expr = [inh_env; syn_env; value_]
+    ; prog = [value_]
+    ; binop = [bin_oper;rhs_must_be_nonzero]
+    ; unop = [un_oper]
+    }
+  ; production_attributes = {
+      expr__BINOP = [condition; result]
+    ; prog__PROG = [condition]
     }
   ; attribution = {
       expr__INT = (
@@ -42,7 +38,7 @@ module _ = Test1_variants
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
         [%nterm expr].value_ := [%local result] ;
-        [%local result] := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        [%local result] := [%nterm binop.(1)].bin_oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
@@ -51,7 +47,7 @@ module _ = Test1_variants
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr].syn_env := [%nterm expr.(1)].syn_env ;
-        [%nterm expr].value_ := [%nterm unop.(1)].oper [%nterm expr.(1)].value_
+        [%nterm expr].value_ := [%nterm unop.(1)].un_oper [%nterm expr.(1)].value_
       )
     ; expr__REF = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
@@ -73,29 +69,29 @@ module _ = Test1_variants
         [%nterm 0].value_ := [%nterm 1].value_
       )
     ; unop__UPLUS = (
-        [%nterm unop].oper := fun x -> x
+        [%nterm unop].un_oper := fun x -> x
       )
     ; unop__UMINUS = (
-        [%nterm unop].oper := fun x -> (- x)
+        [%nterm unop].un_oper := fun x -> (- x)
       )
     ; binop__PLUS = (
-        [%nterm binop].oper := (+)
+        [%nterm binop].bin_oper := (+)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__MINUS = (
-        [%nterm binop].oper := (-)
+        [%nterm binop].bin_oper := (-)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__STAR = (
-        [%nterm binop].oper := (fun a b -> a*b)
+        [%nterm binop].bin_oper := (fun a b -> a*b)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
-        [%nterm binop].oper := (fun a b -> if b = 0 then 0 else a / b)
+        [%nterm binop].bin_oper := (fun a b -> if b = 0 then 0 else a / b)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
-        [%nterm binop].oper := (mod)
+        [%nterm binop].bin_oper := (mod)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     }
@@ -114,29 +110,25 @@ module _ = Test1_ast
       }
   ; storage_mode = Hashtables
   ; axiom = prog
-  ; attributes = {
-      expr = {
-        inh_env = [%typ: (string * int) list]
-      ; syn_env = [%typ: (string * int) list]
-      ; value_ = [%typ: int]
-      }
-    ; expr__BINOP = {
-        condition = [%typ: bool]
-      ; result = [%typ: int]
-      }
-    ; prog = {
-        value_ = [%typ: int]
-      }
-    ; prog__PROG = {
-        condition = [%typ: bool]
-      }
-    ; binop = {
-        oper = [%typ: int -> int -> int]
-      ; rhs_must_be_nonzero = [%typ: bool]
-      }
-    ; unop = {
-        oper = [%typ: int -> int]
-      }
+  ; attribute_types = {
+      bin_oper = [%typ: int -> int -> int]
+    ; condition = [%typ: bool]
+    ; inh_env = [%typ: (string * int) list]
+    ; result = [%typ: int]
+    ; rhs_must_be_nonzero = [%typ: bool]
+    ; syn_env = [%typ: (string * int) list]
+    ; un_oper = [%typ: int -> int]
+    ; value_ = [%typ: int]
+    }
+  ; node_attributes = {
+      expr = [inh_env; syn_env; value_]
+    ; prog = [value_]
+    ; binop = [bin_oper;rhs_must_be_nonzero]
+    ; unop = [un_oper]
+    }
+  ; production_attributes = {
+      expr__BINOP = [condition; result]
+    ; prog__PROG = [condition]
     }
   ; attribution = {
       expr__INT = (
@@ -148,7 +140,7 @@ module _ = Test1_ast
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
         [%nterm expr].value_ := [%local result] ;
-        [%local result] := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        [%local result] := [%nterm binop.(1)].bin_oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
@@ -157,7 +149,7 @@ module _ = Test1_ast
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr].syn_env := [%nterm expr.(1)].syn_env ;
-        [%nterm expr].value_ := [%nterm unop.(1)].oper [%nterm expr.(1)].value_
+        [%nterm expr].value_ := [%nterm unop.(1)].un_oper [%nterm expr.(1)].value_
       )
     ; expr__REF = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
@@ -179,29 +171,29 @@ module _ = Test1_ast
         [%nterm 0].value_ := [%nterm 1].value_
       )
     ; unop__UPLUS = (
-        [%nterm unop].oper := fun x -> x
+        [%nterm unop].un_oper := fun x -> x
       )
     ; unop__UMINUS = (
-        [%nterm unop].oper := fun x -> (- x)
+        [%nterm unop].un_oper := fun x -> (- x)
       )
     ; binop__PLUS = (
-        [%nterm binop].oper := (+)
+        [%nterm binop].bin_oper := (+)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__MINUS = (
-        [%nterm binop].oper := (-)
+        [%nterm binop].bin_oper := (-)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__STAR = (
-        [%nterm binop].oper := (fun a b -> a*b)
+        [%nterm binop].bin_oper := (fun a b -> a*b)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
-        [%nterm binop].oper := (fun a b -> if b = 0 then 0 else a / b)
+        [%nterm binop].bin_oper := (fun a b -> if b = 0 then 0 else a / b)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
-        [%nterm binop].oper := (mod)
+        [%nterm binop].bin_oper := (mod)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     }
@@ -215,29 +207,25 @@ module _ = Test1_variants
     module_name = AG
   ; storage_mode = Records
   ; axiom = prog
-  ; attributes = {
-      expr = {
-        inh_env = [%typ: (string * int) list]
-      ; syn_env = [%typ: (string * int) list]
-      ; value_ = [%typ: int]
-      }
-    ; expr__BINOP = {
-        condition = [%typ: bool]
-      ; result = [%typ: int]
-      }
-    ; prog = {
-        value_ = [%typ: int]
-      }
-    ; prog__PROG = {
-        condition = [%typ: bool]
-      }
-    ; binop = {
-        oper = [%typ: int -> int -> int]
-      ; rhs_must_be_nonzero = [%typ: bool]
-      }
-    ; unop = {
-        oper = [%typ: int -> int]
-      }
+  ; attribute_types = {
+      bin_oper = [%typ: int -> int -> int]
+    ; condition = [%typ: bool]
+    ; inh_env = [%typ: (string * int) list]
+    ; result = [%typ: int]
+    ; rhs_must_be_nonzero = [%typ: bool]
+    ; syn_env = [%typ: (string * int) list]
+    ; un_oper = [%typ: int -> int]
+    ; value_ = [%typ: int]
+    }
+  ; node_attributes = {
+      expr = [inh_env; syn_env; value_]
+    ; prog = [value_]
+    ; binop = [bin_oper;rhs_must_be_nonzero]
+    ; unop = [un_oper]
+    }
+  ; production_attributes = {
+      expr__BINOP = [condition; result]
+    ; prog__PROG = [condition]
     }
   ; attribution = {
       expr__INT = (
@@ -249,7 +237,7 @@ module _ = Test1_variants
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
         [%nterm expr].value_ := [%local result] ;
-        [%local result] := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        [%local result] := [%nterm binop.(1)].bin_oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
@@ -258,7 +246,7 @@ module _ = Test1_variants
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr].syn_env := [%nterm expr.(1)].syn_env ;
-        [%nterm expr].value_ := [%nterm unop.(1)].oper [%nterm expr.(1)].value_
+        [%nterm expr].value_ := [%nterm unop.(1)].un_oper [%nterm expr.(1)].value_
       )
     ; expr__REF = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
@@ -280,29 +268,29 @@ module _ = Test1_variants
         [%nterm 0].value_ := [%nterm 1].value_
       )
     ; unop__UPLUS = (
-        [%nterm unop].oper := fun x -> x
+        [%nterm unop].un_oper := fun x -> x
       )
     ; unop__UMINUS = (
-        [%nterm unop].oper := fun x -> (- x)
+        [%nterm unop].un_oper := fun x -> (- x)
       )
     ; binop__PLUS = (
-        [%nterm binop].oper := (+)
+        [%nterm binop].bin_oper := (+)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__MINUS = (
-        [%nterm binop].oper := (-)
+        [%nterm binop].bin_oper := (-)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__STAR = (
-        [%nterm binop].oper := (fun a b -> a*b)
+        [%nterm binop].bin_oper := (fun a b -> a*b)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
-        [%nterm binop].oper := (fun a b -> if b = 0 then 0 else a / b)
+        [%nterm binop].bin_oper := (fun a b -> if b = 0 then 0 else a / b)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
-        [%nterm binop].oper := (mod)
+        [%nterm binop].bin_oper := (mod)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     }
@@ -321,29 +309,25 @@ module _ = Test1_ast
   }
   ; storage_mode = Records
   ; axiom = prog
-  ; attributes = {
-      expr = {
-        inh_env = [%typ: (string * int) list]
-      ; syn_env = [%typ: (string * int) list]
-      ; value_ = [%typ: int]
-      }
-    ; expr__BINOP = {
-        condition = [%typ: bool]
-      ; result = [%typ: int]
-      }
-    ; prog = {
-        value_ = [%typ: int]
-      }
-    ; prog__PROG = {
-        condition = [%typ: bool]
-      }
-    ; binop = {
-        oper = [%typ: int -> int -> int]
-      ; rhs_must_be_nonzero = [%typ: bool]
-      }
-    ; unop = {
-        oper = [%typ: int -> int]
-      }
+  ; attribute_types = {
+      bin_oper = [%typ: int -> int -> int]
+    ; condition = [%typ: bool]
+    ; inh_env = [%typ: (string * int) list]
+    ; result = [%typ: int]
+    ; rhs_must_be_nonzero = [%typ: bool]
+    ; syn_env = [%typ: (string * int) list]
+    ; un_oper = [%typ: int -> int]
+    ; value_ = [%typ: int]
+    }
+  ; node_attributes = {
+      expr = [inh_env; syn_env; value_]
+    ; prog = [value_]
+    ; binop = [bin_oper;rhs_must_be_nonzero]
+    ; unop = [un_oper]
+    }
+  ; production_attributes = {
+      expr__BINOP = [condition; result]
+    ; prog__PROG = [condition]
     }
   ; attribution = {
       expr__INT = (
@@ -355,7 +339,7 @@ module _ = Test1_ast
         [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env ;
         [%nterm expr].syn_env := [%nterm expr.(2)].syn_env ;
         [%nterm expr].value_ := [%local result] ;
-        [%local result] := [%nterm binop.(1)].oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
+        [%local result] := [%nterm binop.(1)].bin_oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_ ;
         condition "rhs must be nonzero"
           (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
@@ -364,7 +348,7 @@ module _ = Test1_ast
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env ;
         [%nterm expr].syn_env := [%nterm expr.(1)].syn_env ;
-        [%nterm expr].value_ := [%nterm unop.(1)].oper [%nterm expr.(1)].value_
+        [%nterm expr].value_ := [%nterm unop.(1)].un_oper [%nterm expr.(1)].value_
       )
     ; expr__REF = (
         [%nterm 0].syn_env := [%nterm 0].inh_env ;
@@ -386,29 +370,29 @@ module _ = Test1_ast
         [%nterm 0].value_ := [%nterm 1].value_
       )
     ; unop__UPLUS = (
-        [%nterm unop].oper := fun x -> x
+        [%nterm unop].un_oper := fun x -> x
       )
     ; unop__UMINUS = (
-        [%nterm unop].oper := fun x -> (- x)
+        [%nterm unop].un_oper := fun x -> (- x)
       )
     ; binop__PLUS = (
-        [%nterm binop].oper := (+)
+        [%nterm binop].bin_oper := (+)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__MINUS = (
-        [%nterm binop].oper := (-)
+        [%nterm binop].bin_oper := (-)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__STAR = (
-        [%nterm binop].oper := (fun a b -> a*b)
+        [%nterm binop].bin_oper := (fun a b -> a*b)
       ; [%nterm binop].rhs_must_be_nonzero := false
       )
     ; binop__SLASH = (
-        [%nterm binop].oper := (fun a b -> if b = 0 then 0 else a / b)
+        [%nterm binop].bin_oper := (fun a b -> if b = 0 then 0 else a / b)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     ; binop__PERCENT = (
-        [%nterm binop].oper := (mod)
+        [%nterm binop].bin_oper := (mod)
       ; [%nterm binop].rhs_must_be_nonzero := true
       )
     }

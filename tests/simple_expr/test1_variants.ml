@@ -50,11 +50,11 @@ module Attributed = struct
         condition = [%typ: bool]
       }
     ; binop = {
-        oper = [%typ: int -> int -> int]
+        bin_oper = [%typ: int -> int -> int]
       ; rhs_must_be_nonzero = [%typ: bool]
       }
     ; unop = {
-        oper = [%typ: int -> int]
+        un_oper = [%typ: int -> int]
       }
     }
   }]
