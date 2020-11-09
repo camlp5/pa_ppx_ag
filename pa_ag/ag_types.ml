@@ -260,19 +260,25 @@ module AG = struct
     loc : Ploc.t
   ; storage_mode : storage_mode_t
   ; axiom : string
-  ; typed_attributes : list (string * (list (string * MLast.ctyp)))
+  ; attribute_types : list (string * ctyp)
+  ; node_attributes : list (string * (list string))
+  ; production_attributes : list (string * (list string))
   ; nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
   ; conditions : list (PN.t * (list Cond.t))
   ; productions : list (string * list P.t)
   }
   ;
-  value mk0 loc storage_mode axiom nonterminals typed_attributes equations conditions = {
+  value mk0 loc storage_mode axiom nonterminals
+    (attribute_types, node_attributes, production_attributes)
+    equations conditions = {
     loc = loc
   ; storage_mode = storage_mode
   ; axiom = axiom
   ; nonterminals = nonterminals
-  ; typed_attributes = typed_attributes
+  ; attribute_types = attribute_types
+  ; node_attributes = node_attributes
+  ; production_attributes = production_attributes
   ; equations = equations
   ; conditions = conditions
   ; productions = []
@@ -492,7 +498,7 @@ value branch2production loc ag lhs_name b =
   let open AG in
   match b with [
     <:constructor:< $uid:ci$ of $list:tl$ $_algattrs:_$ >> as gc
-    when ag.storage_mode = Records && tl <> [] && List.mem_assoc (lhs_name^"__"^ci) ag.typed_attributes ->
+    when ag.storage_mode = Records && tl <> [] && List.mem_assoc (lhs_name^"__"^ci) ag.production_attributes ->
       let (last, tl) = sep_last tl in
       let lastpatt = match last with [
         <:ctyp< $lid:n$ >> when n = lhs_name^"__"^ci^"_attributes" -> <:patt< prod_attrs >>
@@ -685,41 +691,41 @@ module AGOps = struct
   (** an AG is well-formed2 if every attribute reference in all equations
       and conditions is declared in the typed attributes *)
 
-  value typed_attribute_exists typed_attributes (nt, attrna) =
-    List.mem_assoc nt typed_attributes &&
-    let attrs = List.assoc nt typed_attributes in
-    List.mem_assoc attrna attrs
+  value attribute_exists attributes (nt, attrna) =
+    List.mem_assoc nt attributes &&
+    let attrs = List.assoc nt attributes in
+    List.mem attrna attrs
   ;
 
-  value well_formed_aref typed_attributes =
+  value well_formed_aref ag =
     let open AG in
     let open TAR in
     let open TNR in
     let open PN in
     fun [
       NT (PRIM _ _) "" -> True
-    | NT (PARENT nt) attrna -> typed_attribute_exists typed_attributes (nt, attrna)
-    | NT (CHILD nt _) attrna -> typed_attribute_exists typed_attributes (nt, attrna)
-    | PROD pn attrna -> typed_attribute_exists typed_attributes (PN.unparse pn, attrna)
+    | NT (PARENT nt) attrna -> attribute_exists ag.node_attributes (nt, attrna)
+    | NT (CHILD nt _) attrna -> attribute_exists ag.node_attributes (nt, attrna)
+    | PROD pn attrna -> attribute_exists ag.production_attributes (PN.unparse pn, attrna)
     | _ -> False
     ]
   ;
 
   value true_or_exn ~{exnf} x = if x then x else exnf() ;
 
-  value well_formed_equation0 typed_attributes pn teq =
+  value well_formed_equation0 ag pn teq =
     let open AG.TAEQ in
-    well_formed_aref typed_attributes teq.lhs &&
-    List.for_all (well_formed_aref typed_attributes) teq.rhs_nodes
+    well_formed_aref ag teq.lhs &&
+    List.for_all (well_formed_aref ag) teq.rhs_nodes
   ;
 
-  value well_formed_equation typed_attributes pn teq =
+  value well_formed_equation ag pn teq =
     let open AG.TAEQ in
     true_or_exn ~{exnf=fun () ->
         Ploc.raise teq.loc (Failure Fmt.(str "not a well-formed equation in production %a: %a"
                                            PN.pp_hum pn
                                            TAEQ.pp_hum teq))}
-      (well_formed_equation0 typed_attributes pn teq)
+      (well_formed_equation0 ag pn teq)
   ;
 
   value well_formed_condition0 typed_attributes pn tcond =
@@ -740,8 +746,8 @@ module AGOps = struct
   value well_formed2 m =
     let ag = m.NTOps.ag in
     (ag.productions |> List.for_all (fun (nt, pl) -> pl |> List.for_all (fun p ->
-         p.P.typed_equations |> List.for_all (well_formed_equation ag.typed_attributes p.P.name) &&
-         p.P.typed_conditions |> List.for_all (well_formed_condition ag.typed_attributes p.P.name)
+         p.P.typed_equations |> List.for_all (well_formed_equation ag p.P.name) &&
+         p.P.typed_conditions |> List.for_all (well_formed_condition ag p.P.name)
        )))
   ;
 
@@ -773,11 +779,11 @@ module AGOps = struct
              Ploc.raise loc
                (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (A(X) = { %a }) != (declared_attributes(X) = { %a })"
                                nt (list string) (NTOps._A m nt)
-                               (list string) (List.map fst (List.assoc nt ag.typed_attributes))
+                               (list string) (List.assoc nt ag.node_attributes)
                                ))}
            (Std.same_members (NTOps._A m nt)
-        (match List.assoc nt ag.typed_attributes with
-           [ l -> List.map fst l | exception Not_found -> assert False ]))
+        (match List.assoc nt ag.node_attributes with
+           [ l -> l | exception Not_found -> assert False ]))
     ))
     && (ag.productions |> List.for_all
           (fun (_, pl) -> pl |> List.for_all (fun p ->

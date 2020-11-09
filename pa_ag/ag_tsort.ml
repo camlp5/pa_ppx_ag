@@ -63,7 +63,7 @@ value disambiguated_attribute_name name attrna =
  Printf.sprintf "%s__%s" name attrna
 ;
 
-value attributes_type_declaration memo (name, attributes) =
+value attributes_type_declaration memo (name, attribute_names) =
   let open AGOps.NTOps in
   let open AG in
   let ag = memo.ag in
@@ -81,7 +81,8 @@ value attributes_type_declaration memo (name, attributes) =
 
   | (Hashtables, {PN.nonterm_name=nt; case_name = Some _}) ->
     let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
-    let ltl = attributes |> List.map (fun (aname, aty) ->
+    let ltl = attribute_names |> List.map (fun aname ->
+        let aty = List.assoc aname ag.attribute_types in
         let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
         let dis_aname = disambiguated_attribute_name name aname in
         (MLast.loc_of_ctyp aty, dis_aname, False, ht_ty, <:vala< [] >>)) in
@@ -89,7 +90,8 @@ value attributes_type_declaration memo (name, attributes) =
 
       | (Hashtables, {PN.nonterm_name=nt; case_name = None}) -> 
         let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
-        let ltl = attributes |> List.map (fun (aname, aty) ->
+        let ltl = attribute_names |> List.map (fun aname ->
+            let aty = List.assoc aname ag.attribute_types in
             let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
             let dis_aname = disambiguated_attribute_name name aname in
             (MLast.loc_of_ctyp aty, dis_aname, False, ht_ty, <:vala< [] >>)) in
@@ -107,7 +109,7 @@ value master_attribute_type_declaration memo =
   let ag = memo.ag in
   let loc = ag.loc in
   let smode = ag.storage_mode in
-  let ltl = ag.typed_attributes |> List.filter_map (fun (name, _) ->
+  let ltl = (ag.node_attributes@ag.production_attributes) |> List.filter_map (fun (name, _) ->
       match (smode, Demarshal.parse_prodname loc name) with [
         (Records, {PN.case_name=Some _}) -> None
       | (Records, {PN.case_name=None}) | (Hashtables, _) ->
@@ -132,7 +134,7 @@ value attribute_table_constructor_entry memo (name, al) =
     Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
 
   | (Hashtables, {PN.nonterm_name=nt; case_name = None}) ->
-    let lel = al |> List.map (fun (aname, _) ->
+    let lel = al |> List.map (fun aname ->
         let dis_aname = disambiguated_attribute_name name aname in
         (<:patt< $lid:dis_aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
     let dis_parent = disambiguated_attribute_name name "parent" in
@@ -140,7 +142,7 @@ value attribute_table_constructor_entry memo (name, al) =
     Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
 
   | (Hashtables, {PN.nonterm_name=nt; case_name = Some _}) ->
-    let lel = al |> List.map (fun (aname, _) ->
+    let lel = al |> List.map (fun aname ->
         let dis_aname = disambiguated_attribute_name name aname in
         (<:patt< $lid:dis_aname$ >>, <:expr< $uid:node_hash_module nt$ . create 23 >>)) in
     Some (<:patt< $lid:name$ >>, <:expr< { $list:lel$ } >>)
@@ -153,14 +155,14 @@ value master_attribute_constructor_declaration memo =
   let ag = memo.ag in
   let loc = ag.loc in
   let smode = ag.storage_mode in
-  let lel = ag.typed_attributes |> List.filter_map (attribute_table_constructor_entry memo) in do {
+  let lel = (ag.node_attributes@ag.production_attributes) |> List.filter_map (attribute_table_constructor_entry memo) in do {
     assert (lel <> []) ;
     Reloc.str_item (fun _ -> Ploc.dummy) 0
       <:str_item< value mk () = { $list:lel$ } >>
   }
 ;
 
-value parent_accessor_bindings memo (name, attributes) =
+value parent_accessor_bindings memo (name, _) =
   let open AGOps.NTOps in
   let open AG in
   let ag = memo.ag in
@@ -186,7 +188,7 @@ value parent_accessor_bindings memo (name, attributes) =
   ]
 ;
 
-value attr_accessor_bindings memo (name, attributes) =
+value attr_accessor_bindings memo (name, attribute_names) =
   let open AGOps.NTOps in
   let open AG in
   let ag = memo.ag in
@@ -195,7 +197,7 @@ value attr_accessor_bindings memo (name, attributes) =
   let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules smode in
   let pn = Demarshal.parse_prodname loc name in
   let nt = pn.PN.nonterm_name in
-  attributes |> List.concat_map (fun (attrna, _) ->
+  attribute_names |> List.concat_map (fun attrna ->
       let dis_attrna = disambiguated_attribute_name name attrna in
       [(<:patt< $lid:attr_accessor_name name attrna$ >>,
         match smode with [
@@ -252,12 +254,12 @@ value node_attribute_table_declaration memo =
   let smode = ag.storage_mode in
   let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules smode in
   let l =
-    (ag.typed_attributes |> List.filter_map (nonterminal_hashtable_declaration memo))@
-    (ag.typed_attributes |> List.filter_map (attributes_type_declaration memo))@
+    (ag.node_attributes |> List.filter_map (nonterminal_hashtable_declaration memo))@
+    ((ag.node_attributes@ag.production_attributes) |> List.filter_map (attributes_type_declaration memo))@
     [master_attribute_type_declaration memo]@
     [master_attribute_constructor_declaration memo]@
-    [let parent_accessor_bindings = ag.typed_attributes |> List.concat_map (parent_accessor_bindings memo) in
-     let attr_accessor_bindings = ag.typed_attributes |> List.concat_map (attr_accessor_bindings memo) in
+    [let parent_accessor_bindings = ag.node_attributes |> List.concat_map (parent_accessor_bindings memo) in
+     let attr_accessor_bindings = (ag.node_attributes@ag.production_attributes) |> List.concat_map (attr_accessor_bindings memo) in
      <:str_item< value $list:parent_accessor_bindings@attr_accessor_bindings$ >>
     ] in
   Reloc.str_item (fun _ -> Ploc.dummy) 0
@@ -309,11 +311,11 @@ value attr_type_declaration memo =
   let ag = memo.ag in
   let loc = ag.loc in
   let branches =
-    ag.typed_attributes
+    (ag.node_attributes@ag.production_attributes)
     |> List.map (fun (name, al) ->
         match Demarshal.parse_prodname loc name with [
-          {PN.case_name=None} -> al |> List.map (fun (a,_) -> (None, a))
-        | {PN.case_name=Some _} -> al |> List.map (fun (a,_) -> (Some name, a))
+          {PN.case_name=None} -> al |> List.map (fun a -> (None, a))
+        | {PN.case_name=Some _} -> al |> List.map (fun a -> (Some name, a))
         ])
     |> List.concat
     |> Std2.hash_uniq

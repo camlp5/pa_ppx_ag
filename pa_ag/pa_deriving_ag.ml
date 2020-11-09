@@ -32,13 +32,13 @@ type attribution_model_t = [
 ] [@@deriving params;]
 ;
 
-value compute_typed_attributed loc attribute_types node_attributes production_attributes =
+value compute_typed_attributes loc attribute_types node_attributes production_attributes =
   let attr2type homename aname =
     match List.assoc aname attribute_types with [
       x -> x
     | exception Not_found ->
       Ploc.raise loc
-        (Failure Fmt.(str "compute_typed_attributed: attribute %s.%s has no declared type"
+        (Failure Fmt.(str "compute_typed_attributes: attribute %s.%s has no declared type"
                         homename aname ))
     ] in
   (node_attributes |> List.map (fun (nt, attrs) ->
@@ -57,8 +57,10 @@ type t = {
 ; attribute_types : (alist lident ctyp) [@name attribute_types;]
 ; node_attributes : (alist lident (list lident))
 ; production_attributes : (alist lident (list lident))
+(*
 ; typed_attributes : (alist lident (alist lident ctyp))
-      [@computed compute_typed_attributed loc attribute_types node_attributes production_attributes;]
+      [@computed compute_typed_attributes loc attribute_types node_attributes production_attributes;]
+*)
 ; raw_attribution: (alist lident expr) [@name attribution;]
 ; equations: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
 ; conditions: (alist AG.PN.t (list AG.Cond.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
@@ -70,6 +72,10 @@ type t = {
       t = [ type_decls ]
     }
   };]
+;
+
+value compute_typed_attributes2 loc rc =
+  compute_typed_attributes loc rc.attribute_types rc.node_attributes rc.production_attributes
 ;
 
 value build_type_decls tdl =
@@ -110,7 +116,8 @@ value str_item_gen_decorated loc rc tdl =
     (rc, uu_st,
      <:str_item< open $uid:uu.UC.uniqified_module_name$ >>)
   | Some (AGC.Attributed aa) ->
-    let aa = { (aa) with AC.typed_attributes = rc.AGC.typed_attributes } in
+    let typed_attributes = AGC.compute_typed_attributes2 loc rc in
+    let aa = { (aa) with AC.typed_attributes = typed_attributes } in
     let (aa_st, normal_tdl, new_tdl) = str_item_generate_attributed loc aa tdl in
     let rc = AGC.update_type_decls rc new_tdl in
     (rc, aa_st,
@@ -129,7 +136,7 @@ value str_item_gen_ag name arg = fun [
         rc.AGC.storage_mode
         rc.AGC.axiom
         (List.map fst rc.AGC.name2nodename)
-        rc.AGC.typed_attributes
+        (rc.AGC.attribute_types, rc.AGC.node_attributes, rc.AGC.production_attributes)
         rc.AGC.equations
         rc.AGC.conditions in
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
