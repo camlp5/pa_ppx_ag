@@ -64,9 +64,11 @@ depend::
 	echo "$(CMO): $(EXTERNAL)" > .depend.NEW
 	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) -package $(PACKAGES) -syntax camlp5o \
 	test1_ast.ml test1_variants.ml test1_migrate.ml test1_ag.ml test1.ml \
+	test2_ag.ml test2_migrate.ml test2.ml \
 	>> .depend.NEW
 	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r \
 	test1_pa.ml \
+	test2_pa.ml \
 	>> .depend.NEW
 	mv .depend.NEW .depend
 

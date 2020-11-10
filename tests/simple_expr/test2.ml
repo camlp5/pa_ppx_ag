@@ -9,11 +9,8 @@ let pa_prog_attributed s =
   |> Grammar.Entry.parse Test2_pa.prog_attributed_eoi
 
 let test_records ctxt =
-  assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_attributed |> AG.evaluate)
-; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> AG.evaluate)
-; assert_raises (Failure "rhs must be nonzero")
-    (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_attributed |> AG.evaluate)
- 
+  assert_equal 3 ({| x + y |} |> pa_prog_attributed |> AG.evaluate)
+; assert_equal 5 ({| 1 + w |} |> pa_prog_attributed |> AG.evaluate)
 
 let suite = "test2" >::: [
     "test_records"           >:: test_records

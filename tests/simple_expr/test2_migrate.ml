@@ -27,8 +27,6 @@ module OK = struct
         ; types = [
             prog
           ; expr
-          ; binop
-          ; unop
           ]
         }
       ]
@@ -59,9 +57,7 @@ module Attributed = struct
         ; types = [
             prog_node
           ; expr_node
-          ; binop_node
-          ; unop_node
-          ; expr__BINOP_attributes
+          ; expr__PLUS_attributes
           ; prog__PROG_attributes
           ]
         }
@@ -91,18 +87,6 @@ module Attributed = struct
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
             Test2_ag.AT.make_prog (migrate_prog_node __dt__ node)
         }
-      ; migrate_binop = {
-          srctype = [%typ: binop]
-        ; dsttype = [%typ: binop]
-        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
-            Test2_ag.AT.make_binop (migrate_binop_node __dt__ node)
-        }
-      ; migrate_unop = {
-          srctype = [%typ: unop]
-        ; dsttype = [%typ: unop]
-        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
-            Test2_ag.AT.make_unop (migrate_unop_node __dt__ node)
-        }
       }
     }
   ]
@@ -112,10 +96,6 @@ module ToAttributed = struct
 module _ = Test2_ag
 type expr = expr_node
 and expr_node = [%import: Test2_ag.expr]
-and unop = unop_node
-and unop_node = [%import: Test2_ag.unop]
-and binop = binop_node
-and binop_node = [%import: Test2_ag.binop]
 and prog = prog_node
 and prog_node = [%import: Test2_ag.prog]
 [@@deriving migrate
@@ -126,9 +106,8 @@ and prog_node = [%import: Test2_ag.prog]
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test2_ag.AT.expr_node]
         ; custom_branches_code = (function
-              BINOP (bop, x, y) ->
-              Test2_ag.AT.make_expr__BINOP
-                (__dt__.migrate_binop __dt__ bop)
+              PLUS (x, y) ->
+              Test2_ag.AT.make_expr__PLUS
                 (__dt__.migrate_expr __dt__ x)
                 (__dt__.migrate_expr __dt__ y)
           )
@@ -152,28 +131,6 @@ and prog_node = [%import: Test2_ag.prog]
         ; dsttype = [%typ: Test2_ag.AT.prog]
         ; code = (fun __dt__ x ->
             Test2_ag.AT.make_prog (__dt__.migrate_prog_node __dt__ x)
-          )
-        }
-      ; migrate_binop_node = {
-          srctype = [%typ: binop_node]
-        ; dsttype = [%typ: Test2_ag.AT.binop_node]
-        }
-      ; migrate_binop = {
-          srctype = [%typ: binop]
-        ; dsttype = [%typ: Test2_ag.AT.binop]
-        ; code = (fun __dt__ x ->
-            Test2_ag.AT.make_binop (__dt__.migrate_binop_node __dt__ x)
-          )
-        }
-      ; migrate_unop_node = {
-          srctype = [%typ: unop_node]
-        ; dsttype = [%typ: Test2_ag.AT.unop_node]
-        }
-      ; migrate_unop = {
-          srctype = [%typ: unop]
-        ; dsttype = [%typ: Test2_ag.AT.unop]
-        ; code = (fun __dt__ x ->
-            Test2_ag.AT.make_unop (__dt__.migrate_unop_node __dt__ x)
           )
         }
       }
@@ -203,10 +160,9 @@ module _ = Test2_ag
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test2_ag.expr]
         ; custom_branches_code = (function
-              BINOP (bop, x, y, _) ->
-              Test2_ag.BINOP
-                (__dt__.migrate_binop __dt__ bop,
-                 __dt__.migrate_expr __dt__ x,
+              PLUS (x, y, _) ->
+              Test2_ag.PLUS
+                (__dt__.migrate_expr __dt__ x,
                  __dt__.migrate_expr __dt__ y)
           )
         }
@@ -230,28 +186,6 @@ module _ = Test2_ag
         ; dsttype = [%typ: Test2_ag.prog]
         ; code = (fun __dt__ x ->
             __dt__.migrate_prog_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
-          )
-        }
-      ; migrate_binop_node = {
-          srctype = [%typ: binop_node]
-        ; dsttype = [%typ: Test2_ag.binop]
-        }
-      ; migrate_binop = {
-          srctype = [%typ: binop]
-        ; dsttype = [%typ: Test2_ag.binop]
-        ; code = (fun __dt__ x ->
-            __dt__.migrate_binop_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
-          )
-        }
-      ; migrate_unop_node = {
-          srctype = [%typ: unop_node]
-        ; dsttype = [%typ: Test2_ag.unop]
-        }
-      ; migrate_unop = {
-          srctype = [%typ: unop]
-        ; dsttype = [%typ: Test2_ag.unop]
-        ; code = (fun __dt__ x ->
-            __dt__.migrate_unop_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
       }
