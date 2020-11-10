@@ -83,18 +83,18 @@ value attributes_type_declaration memo (name, attribute_names) =
     let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
     let ltl = attribute_names |> List.map (fun aname ->
         let aty = List.assoc aname ag.attribute_types in
-        let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
+        let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty.AT.ty$ >> in
         let dis_aname = disambiguated_attribute_name name aname in
-        (MLast.loc_of_ctyp aty, dis_aname, False, ht_ty, <:vala< [] >>)) in
+        (MLast.loc_of_ctyp aty.AT.ty, dis_aname, False, ht_ty, <:vala< [] >>)) in
     Some <:str_item< type $lid:attr_type_name$ = { $list:ltl$ } >>
 
       | (Hashtables, {PN.nonterm_name=nt; case_name = None}) -> 
         let attr_type_name = Printf.sprintf "%s_hashed_attributes_t" name in
         let ltl = attribute_names |> List.map (fun aname ->
             let aty = List.assoc aname ag.attribute_types in
-            let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty$ >> in
+            let ht_ty = <:ctyp< $uid:node_hash_module nt$ . t $aty.AT.ty$ >> in
             let dis_aname = disambiguated_attribute_name name aname in
-            (MLast.loc_of_ctyp aty, dis_aname, False, ht_ty, <:vala< [] >>)) in
+            (MLast.loc_of_ctyp aty.AT.ty, dis_aname, False, ht_ty, <:vala< [] >>)) in
         
         let ltl =
           let dis_parent = disambiguated_attribute_name name "parent" in

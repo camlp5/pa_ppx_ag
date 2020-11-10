@@ -35,7 +35,7 @@ module AC = struct
 type t = {
   optional : bool [@default False;]
 ; plugin_name : string [@default "attributed";]
-; normal_module_name : uident
+; normal_module_name : option uident
 ; attributed_module_name : uident
 ; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
 ; type_decls : list (string * MLast.type_decl) [@computed type_decls;]
@@ -185,7 +185,7 @@ end
 ;
 
 
-value make_twolevel_type_decl rc ~{preserve_manifest} ~{skip_attributed} td =
+value make_twolevel_type_decl rc ~{with_manifest} ~{skip_attributed} td =
   let open Ag_types in
   let open AG.PN in
   let loc = loc_of_type_decl td in
@@ -232,7 +232,12 @@ value make_twolevel_type_decl rc ~{preserve_manifest} ~{skip_attributed} td =
   let prod_tdl = ref [] in
   let data_tdDef =
     let tdDef = match td.tdDef with [
-      <:ctyp< $_$ == $t$ >> when not preserve_manifest -> t
+      <:ctyp< $_$ == $t$ >> when not with_manifest -> t
+    | <:ctyp< $_$ == $t$ >> when with_manifest -> td.tdDef
+    | t when is_generative_type t && with_manifest ->
+      Ploc.raise (loc_of_type_decl td)
+        (Failure Fmt.(str "cannot generate requested \"normal\" type declaration b/c original type is not manifest: %s"
+                        name))
     | t -> t
     ] in
     if skip_attributed then tdDef else
@@ -272,13 +277,13 @@ value make_twolevel_type_decl rc ~{preserve_manifest} ~{skip_attributed} td =
 
 value normal_type_decl rc td =
   let skip_attributed = True in
-  let preserve_manifest = True in
-  make_twolevel_type_decl rc ~{preserve_manifest=preserve_manifest} ~{skip_attributed=skip_attributed} td
+  let with_manifest = True in
+  make_twolevel_type_decl rc ~{with_manifest=with_manifest} ~{skip_attributed=skip_attributed} td
 ;
 
 value attributed_type_decl rc td =
-  let preserve_manifest = False in
-  make_twolevel_type_decl rc ~{preserve_manifest=preserve_manifest} ~{skip_attributed=False} td
+  let with_manifest = False in
+  make_twolevel_type_decl rc ~{with_manifest=with_manifest} ~{skip_attributed=False} td
 ;
 
 value str_item_generate_attributed loc rc tdl =
@@ -287,16 +292,22 @@ value str_item_generate_attributed loc rc tdl =
     |> List.map (attributed_type_decl rc)
     |> List.concat
     |> List.map AC.strip_deriving_attributes in
-  let normal_tdl =
-    tdl
-    |> List.map (normal_type_decl rc)
-    |> List.concat
-    |> List.map AC.strip_deriving_attributes in
+  let (normal_tdl, normal_module) = match rc.normal_module_name with [
+    None -> (tdl, <:str_item< declare end >>)
+  | Some normname ->
+    let normal_tdl =
+      tdl
+      |> List.map (normal_type_decl rc)
+      |> List.concat
+      |> List.map AC.strip_deriving_attributes in
+    (normal_tdl,
+     <:str_item< module $uid:normname$ = struct
+                  type $list:normal_tdl$ ;
+                  end >>)
+  ] in
   let attributed_constructors = List.map (AC.generate_attributed_constructor rc) rc.AC.type_decls in
   let aa_st = <:str_item< declare
-                  module $uid:rc.normal_module_name$ = struct
-                  type $list:normal_tdl$ ;
-                  end ;
+                  $stri:normal_module$ ;
                   module $uid:rc.attributed_module_name$ = struct
                   open Pa_ppx_ag_runtime.Attributes ;
                   type $list:new_tdl$ ;
@@ -319,9 +330,7 @@ Pa_deriving.(Registry.add PI.{
   name = "attributed"
 ; alternates = []
 ; options = ["optional";"plugin_name";"normal_module_name";"attributed_module_name";"attributes"]
-; default_options = let loc = Ploc.dummy in [
-    ("optional", <:expr< False >>)
-  ]
+; default_options = []
 ; alg_attributes = []
 ; expr_extensions = []
 ; ctyp_extensions = []

@@ -111,13 +111,14 @@ value str_item_gen_decorated loc rc tdl =
   let open Pa_deriving_attributed in
   match rc.AGC.attribution_model with [
     Some (AGC.Unique uu) ->
+    let uu = { (uu) with UC.type_decls = rc.AGC.type_decls } in
     let (uu_st, normal_tdl, new_tdl) = str_item_generate_unique loc uu tdl in
     let rc = AGC.update_type_decls rc new_tdl in
     (rc, uu_st,
      <:str_item< open $uid:uu.UC.uniqified_module_name$ >>)
   | Some (AGC.Attributed aa) ->
     let typed_attributes = AGC.compute_typed_attributes2 loc rc in
-    let aa = { (aa) with AC.typed_attributes = typed_attributes } in
+    let aa = { (aa) with AC.typed_attributes = typed_attributes; type_decls = rc.AGC.type_decls } in
     let (aa_st, normal_tdl, new_tdl) = str_item_generate_attributed loc aa tdl in
     let rc = AGC.update_type_decls rc new_tdl in
     (rc, aa_st,

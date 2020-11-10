@@ -103,6 +103,7 @@ module AG = struct
     type t = [
       NT of NR.t and string
     | PROD of PN.t and string
+    | CHAIN of PN.t and string
     ]
     ;
     value pp_hum pps = fun [
@@ -162,10 +163,25 @@ module AG = struct
     ; rhs_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "%a := %a%a" AR.pp_hum x.lhs PP_hum.expr x.rhs_expr
-                             (option (wrap_comment Dump.string)) x.msg) ;
-    value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" pp_hum x) ;
+    value pp_hum ?{is_condition=False} pps x =
+      if is_condition then do {
+        assert (match x.lhs with [ AR.PROD _ "condition" -> True | _ -> False ]) ;
+        Fmt.(pf pps "assert %a %a"
+               (option Dump.string) x.msg
+               PP_hum.expr x.rhs_expr) ;
+      }
+      else
+        Fmt.(pf pps "%a := %a%a" AR.pp_hum x.lhs PP_hum.expr x.rhs_expr
+               (option (wrap_comment Dump.string)) x.msg) ;
+    value pp_top ?{is_condition=False} pps x = Fmt.(pf pps "#<aeq< %a >>" (pp_hum ~{is_condition=is_condition}) x) ;
   end ;
+
+  type production_action_t = [
+      Equation of AEQ.t
+    | Condition of AEQ.t
+    | Chainstart of AEQ.t
+  ]
+  ;
 
   module TAEQ = struct
     type t = {
@@ -176,9 +192,18 @@ module AG = struct
     ; rhs_expr : MLast.expr
     }
     ;
-    value pp_hum pps x = Fmt.(pf pps "%a := %a%a" TAR.pp_hum x.lhs PP_hum.expr x.rhs_expr
-                                (option (wrap_comment Dump.string)) x.msg) ;
-    value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" pp_hum x) ;
+    value pp_hum ?{is_condition=False} pps x =
+      if is_condition then do {
+        assert (match x.lhs with [ TAR.PROD _ "condition" -> True | _ -> False ]) ;
+        Fmt.(pf pps "assert %a %a"
+               (option (wrap_comment Dump.string)) x.msg
+               PP_hum.expr x.rhs_expr
+            )
+      }
+      else
+        Fmt.(pf pps "%a := %a%a" TAR.pp_hum x.lhs PP_hum.expr x.rhs_expr
+               (option (wrap_comment Dump.string)) x.msg) ;
+    value pp_top ?{is_condition=False} pps x = Fmt.(pf pps "#<taeq< %a >>" (pp_hum ~{is_condition=is_condition}) x) ;
   end ;
 
   module Production = struct
@@ -228,11 +253,24 @@ module AG = struct
   end ;
   module P = Production ;
 
+  module AttributeType = struct
+    type t = {
+      ty : ctyp
+    ; is_chain : bool
+    }
+    ;
+    value mk = fun [
+      <:ctyp< $ty$ [@chain] >> -> { ty = ty ; is_chain = True }
+    | ty -> { ty = ty ; is_chain = True }
+    ]
+    ;
+  end;
+  module AT = AttributeType ;
   type t = {
     loc : Ploc.t
   ; storage_mode : storage_mode_t
   ; axiom : string
-  ; attribute_types : list (string * ctyp)
+  ; attribute_types : list (string * AT.t)
   ; node_attributes : list (string * (list string))
   ; production_attributes : list (string * (list string))
   ; nonterminals : list string
@@ -248,7 +286,7 @@ module AG = struct
   ; storage_mode = storage_mode
   ; axiom = axiom
   ; nonterminals = nonterminals
-  ; attribute_types = attribute_types
+  ; attribute_types = attribute_types |> List.map (fun (ana, aty) -> (ana, AT.mk aty))
   ; node_attributes = node_attributes
   ; production_attributes = production_attributes
   ; equations = equations
@@ -691,7 +729,7 @@ module AGOps = struct
     true_or_exn ~{exnf=fun () ->
         Ploc.raise teq.loc (Failure Fmt.(str "not a well-formed equation in production %a: %a"
                                            PN.pp_hum pn
-                                           TAEQ.pp_hum teq))}
+                                           (TAEQ.pp_hum ~{is_condition=False}) teq))}
       (well_formed_equation0 ag pn teq)
   ;
 
@@ -706,7 +744,7 @@ module AGOps = struct
     true_or_exn ~{exnf=fun () ->
         Ploc.raise tcond.loc (Failure Fmt.(str "not a well-formed condition in production %a: %a"
                                              PN.pp_hum pn
-                                             TAEQ.pp_hum tcond))}
+                                             (TAEQ.pp_hum ~{is_condition=True}) tcond))}
       (well_formed_condition0 typed_attributes pn tcond)
   ;
 

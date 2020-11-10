@@ -20,10 +20,11 @@ IMPORT_OCAMLCFLAGS = -ppopt -pa_import-package -ppopt camlp5
 IMPORT_OCAMLCFLAGS += -ppopt -pa_import-I -ppopt .
 
 TESTS= \
-	test1.byte \
+	test1.byte test2.byte \
 
 ML=\
-	test1_ast.ml test1_variants.ml test1_migrate.ml test1_pa.ml test1_ag.ml test1.ml
+	test1_ast.ml test1_variants.ml test1_migrate.ml test1_pa.ml test1_ag.ml test1.ml \
+	test2_ag.ml test2_pa.ml test2_migrate.ml test2.ml
 
 
 CMO := $(ML:.ml=.cmo)
@@ -42,6 +43,14 @@ test1.byte: test1_ast.cmo test1_variants.cmo test1_migrate.cmo test1_pa.cmo test
 	-linkpkg -linkall -syntax camlp5o $^ -o $@
 
 test1.opt: test1_ast.cmx test1_variants.cmx test1_migrate.cmx test1_pa.cmx test1_ag.cmx test1.cmx
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES),camlp5.pa_o.link \
+	-linkpkg -linkall -syntax camlp5o $^ -o $@
+
+test2.byte: test2_ag.cmo test2_migrate.cmo test2_pa.cmo test2.cmo
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) -package $(PACKAGES),camlp5.pa_o.link \
+	-linkpkg -linkall -syntax camlp5o $^ -o $@
+
+test2.opt: test2_ag.cmx test2_migrate.cmx test2_pa.cmx test2.cmx
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES),camlp5.pa_o.link \
 	-linkpkg -linkall -syntax camlp5o $^ -o $@
 
@@ -67,6 +76,12 @@ test1_pa.cmo: test1_pa.ml
 	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
 
 test1_pa.cmx: test1_pa.ml
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
+
+test2_pa.cmo: test2_pa.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
+
+test2_pa.cmx: test2_pa.ml
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
 
 .ml.cmo:
