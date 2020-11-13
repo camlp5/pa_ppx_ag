@@ -64,16 +64,33 @@ module AG = struct
       | CHILD of option string and int
       | PRIM of option string and int
       ] ;
-  value pp_hum pps = fun [
-    PARENT (Some name) -> Fmt.(pf pps "[%%nterm %s ;]" name)
-  | PARENT None -> Fmt.(pf pps "[%%nterm 0 ;]")
+  value pp_hum ~{is_chainstart} pps = fun [
+    PARENT (Some name) -> do {
+      assert (not is_chainstart) 
+    ; Fmt.(pf pps "[%%nterm %s ;]" name)
+    }
+  | PARENT None -> do {
+      assert (not is_chainstart) 
+    ; Fmt.(pf pps "[%%nterm 0 ;]")
+    }
+
+  | CHILD (Some name) i when is_chainstart -> Fmt.(pf pps "[%%chainstart %s.(%d) ;]" name i)
+  | CHILD None i when is_chainstart -> Fmt.(pf pps "[%%chainstart %d ;]" i)
+
   | CHILD (Some name) i -> Fmt.(pf pps "[%%nterm %s.(%d) ;]" name i)
   | CHILD None i -> Fmt.(pf pps "[%%nterm %d ;]" i)
-  | PRIM (Some name) i -> Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
-  | PRIM None i -> Fmt.(pf pps "[%%nterm %d ;]" i)
+
+  | PRIM (Some name) i -> do {
+      assert (not is_chainstart) 
+    ; Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
+    }
+  | PRIM None i -> do {
+      assert (not is_chainstart) 
+    ; Fmt.(pf pps "[%%nterm %d ;]" i)
+    }
   ]
   ;
-  value pp_top pps x = Fmt.(pf pps "#<nr< %a >>" pp_hum x) ;
+  value pp_top pps x = Fmt.(pf pps "#<nr< %a >>" (pp_hum ~{is_chainstart=False}) x) ;
 
   value to_patt loc = fun [
     PARENT (Some name) -> <:patt< [%nterm $lid:name$ ;] >>
@@ -103,12 +120,14 @@ module AG = struct
     type t = [
       NT of NR.t and string
     | PROD of PN.t and string
-    | CHAIN of PN.t and string
+    | CHAINSTART of PN.t and NR.t and string
     ]
     ;
-    value pp_hum pps = fun [
-      NT nr a -> Fmt.(pf pps "%a.%s" NR.pp_hum nr a)
+    value rec pp_hum pps = fun [
+      NT nr a -> Fmt.(pf pps "%a.%s" (NR.pp_hum ~{is_chainstart=False}) nr a)
     | PROD pn a -> Fmt.(pf pps "%a.%s" PN.pp_hum pn a)
+    | CHAINSTART pn nr a ->
+      Fmt.(pf pps "(* @%a *)%a.%s" PN.pp_hum pn (NR.pp_hum ~{is_chainstart=True}) nr a)
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<ar< %a >>" pp_hum x) ;
@@ -120,13 +139,22 @@ module AG = struct
       | CHILD of string and int
       | PRIM of string and int
       ] ;
-    value pp_hum pps = fun [
-      PARENT name -> Fmt.(pf pps "[%%nterm %s ;]" name)
+    value pp_hum ~{is_chainstart} pps = fun [
+      PARENT name -> do {
+        assert (not is_chainstart) 
+      ; Fmt.(pf pps "[%%nterm %s ;]" name)
+      }
+
+    | CHILD name i when is_chainstart -> Fmt.(pf pps "[%%chainstart %s.(%d) ;]" name i)
     | CHILD name i -> Fmt.(pf pps "[%%nterm %s.(%d) ;]" name i)
-    | PRIM name i -> Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
+
+    | PRIM name i -> do {
+        assert (not is_chainstart) 
+      ; Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
+      }
     ]
     ;
-    value pp_top pps x = Fmt.(pf pps "#<tnr< %a >>" pp_hum x) ;
+    value pp_top pps x = Fmt.(pf pps "#<tnr< %a >>" (pp_hum ~{is_chainstart=False}) x) ;
     value to_nr = fun [
       PARENT name -> NR.PARENT (Some name)
     | CHILD name i -> NR.CHILD (Some name) i
@@ -142,11 +170,14 @@ module AG = struct
     type t = [
       NT of TNR.t and string
     | PROD of PN.t and string
+    | CHAINSTART of PN.t and TNR.t and string
     ]
     ;
     value pp_hum pps = fun [
-      NT nr a -> Fmt.(pf pps "%a.%s" TNR.pp_hum nr a)
+      NT nr a -> Fmt.(pf pps "%a.%s" (TNR.pp_hum ~{is_chainstart=False}) nr a)
     | PROD pn a -> Fmt.(pf pps "%a.%s" PN.pp_hum pn a)
+    | CHAINSTART pn nr a ->
+      Fmt.(pf pps "(* @%a *)%a.%s" PN.pp_hum pn (TNR.pp_hum ~{is_chainstart=True}) nr a)
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
@@ -173,7 +204,7 @@ module AG = struct
       else
         Fmt.(pf pps "%a := %a%a" AR.pp_hum x.lhs PP_hum.expr x.rhs_expr
                (option (wrap_comment Dump.string)) x.msg) ;
-    value pp_top ?{is_condition=False} pps x = Fmt.(pf pps "#<aeq< %a >>" (pp_hum ~{is_condition=is_condition}) x) ;
+    value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
   end ;
 
   type production_action_t = [
@@ -203,7 +234,7 @@ module AG = struct
       else
         Fmt.(pf pps "%a := %a%a" TAR.pp_hum x.lhs PP_hum.expr x.rhs_expr
                (option (wrap_comment Dump.string)) x.msg) ;
-    value pp_top ?{is_condition=False} pps x = Fmt.(pf pps "#<taeq< %a >>" (pp_hum ~{is_condition=is_condition}) x) ;
+    value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
   end ;
 
   module Production = struct
@@ -221,6 +252,7 @@ module AG = struct
     ; rev_patt_var_to_noderef : list (TNR.t * string)
     ; patt_var_to_childnum : list (string * int)
     } ;
+    value lhs p = p.name.PN.nonterm_name ;
     value pp_hum pps x =
       Fmt.(pf pps "%a : %a\n%a@ %a"
              PN.pp_hum x.name
@@ -229,15 +261,20 @@ module AG = struct
              (list AEQ.pp_hum) x.conditions
           ) ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
-    value typed_attribute p = fun [
-      AR.NT nr attrna ->
+    value typed_attribute p =
+      let lookup_nr ~{is_chainstart} nr =
         match List.assoc nr p.typed_node_names with [
-          x -> TAR.NT x attrna
+          x -> x
         | exception Not_found ->
-          Ploc.raise p.loc (Failure Fmt.(str "attribute %a.%s could not be converted to its typed form"
-                                           NR.pp_hum nr attrna))
-        ]
+          Ploc.raise p.loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
+                                           (NR.pp_hum ~{is_chainstart}) nr))
+        ] in
+      fun [
+      (AR.NT nr attrna) as ar ->
+      TAR.NT (lookup_nr ~{is_chainstart=False} nr) attrna
     | AR.PROD pn attrna -> TAR.PROD pn attrna
+    | AR.CHAINSTART pn nr attrna ->
+      TAR.CHAINSTART pn (lookup_nr ~{is_chainstart=True} nr) attrna
     ]
     ;
     value typed_equation p aeq =
@@ -261,7 +298,7 @@ module AG = struct
     ;
     value mk = fun [
       <:ctyp< $ty$ [@chain] >> -> { ty = ty ; is_chain = True }
-    | ty -> { ty = ty ; is_chain = True }
+    | ty -> { ty = ty ; is_chain = False }
     ]
     ;
   end;
@@ -294,11 +331,49 @@ module AG = struct
   ; productions = []
   }
   ;
+  value node_productions ag nt =
+    match List.assoc nt ag.productions with [
+      x -> x
+    | exception Not_found ->
+      Ploc.raise ag.loc
+        (Failure Fmt.(str "node_productions: nonterminal %s has no productions -- surely this is an error" nt))
+    ]
+  ;
+  value node_attributes ag nt =
+    match List.assoc nt ag.node_attributes with [
+      x -> x
+    | exception Not_found -> []
+    ]
+  ;
+  value node_attribute_exists ag (nt, attrna) =
+    List.mem_assoc nt ag.node_attributes &&
+    let attrs = List.assoc nt ag.node_attributes in
+    List.mem attrna attrs
+  ;
+  value production_attributes ag nt =
+    match List.assoc nt ag.production_attributes with [
+      x -> x
+    | exception Not_found -> []
+    ]
+  ;
+  value production_attribute_exists ag (pn, attrna) =
+    let pn = PN.unparse pn in
+    List.mem_assoc pn ag.production_attributes &&
+    let attrs = List.assoc pn ag.production_attributes in
+    List.mem attrna attrs
+  ;
+  value attribute_type ag attrna =
+    match List.assoc attrna ag.attribute_types with [
+      x -> x
+    | exception Not_found ->
+      Ploc.raise ag.loc (Failure Fmt.(str "attribute_type: attribute %s has no declared type" attrna))
+    ]
+  ;
 end ;
 
 module Demarshal = struct
 
-value expr_to_attribute_reference pn e =
+value expr_to_attribute_reference ?{is_lhs=False} pn e =
   let open AG in
   let open AEQ in
   match e with [
@@ -314,6 +389,12 @@ value expr_to_attribute_reference pn e =
     AR.NT (NR.PRIM None (int_of_string n)) ""
   | <:expr< [%local $lid:attrna$;] >> ->
     AR.PROD pn attrna
+
+  | <:expr< [%chainstart $int:n$;] . $lid:attrna$ >> ->
+    AR.CHAINSTART pn (NR.CHILD None (int_of_string n)) attrna
+  | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
+    AR.CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
+
   | _ -> Ploc.raise (MLast.loc_of_expr e) (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
                                                           Pp_MLast.pp_expr e))
   ]
@@ -336,7 +417,7 @@ value assignment_to_equation_or_condition pn e = match e with [
     <:expr:< $lhs$ . val := $rhs$ >> | <:expr:< $lhs$ := $rhs$ >> ->
     (True, {
       AG.AEQ.loc = loc
-    ; lhs = expr_to_attribute_reference pn lhs
+    ; lhs = expr_to_attribute_reference ~{is_lhs=True} pn lhs
     ; msg = None
     ; rhs_nodes = extract_attribute_references pn rhs
     ; rhs_expr = rhs })
@@ -648,15 +729,46 @@ module AGOps = struct
       |> Std2.hash_uniq
     ;
 
+  module G = Graph.Persistent.Digraph.ConcreteBidirectionalLabeled(
+  struct
+    type t = string ;
+    value equal = (=) ;
+    value compare = Stdlib.compare ;
+    value hash = Hashtbl.hash ;
+  end)(
+  struct
+    type t = option Production.t ;
+    value compare = Stdlib.compare ;
+    value default = None ;
+  end) ;
+
+  value prodtree_graph ag =
+      let open AG in
+      let open TNR in
+      let g = G.empty in
+      let g = List.fold_left G.add_vertex g ag.nonterminals in
+      let add_edge g (lhs, pn, rhs) = match (lhs, rhs) with [
+        (PARENT pnt, CHILD cnt _) -> G.add_edge_e g (pnt, Some pn, cnt)
+      | _ -> g
+      ] in
+      List.fold_left (fun g (_,pl) ->
+          List.fold_left (fun g p ->
+              let lhs = List.hd p.P.typed_nodes in
+              let rhsl = List.tl p.P.typed_nodes in
+              List.fold_left (fun g rhs -> add_edge g (lhs, p, rhs)) g rhsl) g pl) g ag.productions
+  ;
+
     type memoized_af_ai_is_t = {
       ag : AG.t
     ; _A : list (string * list string)
     ; _AI : list (string * list string)
     ; _AS : list (string * list string)
+    ; _PT : G.t
     }
     ;
 
     value mk_memo ag =
+    let pt = prodtree_graph ag in
     let a = ag.nonterminals |> List.map (fun nt ->
         (nt, _attributes_of ag nt)
       ) in
@@ -666,7 +778,7 @@ module AGOps = struct
     let asyn = ag.nonterminals |> List.map (fun nt ->
         (nt, _synthesized_attributes_of ag nt)
       ) in
-    { ag = ag ; _A = a ; _AI = ainh ; _AS = asyn }
+    { ag = ag ; _A = a ; _AI = ainh ; _AS = asyn ; _PT = pt }
     ;
     value _A m nt = match List.assoc nt m._A with [
       x -> x
@@ -692,15 +804,107 @@ module AGOps = struct
 
   end ;
 
+(** an AG covers with predicate [pred] a production prod = "a -> ...."
 
+    [pred prod] is TRUE
+
+    OR
+
+    in every possible parsetree where [prod] appears, some ancestor
+   production prod' satisfies predicate [pred], viz. [pred prod'].
+
+    ASSUMPTION: the axiom nonterminal is only seen on the LHS of
+   productions.  All nonterminals are derivable from axiom.
+
+    DEFINITIONS:
+
+    (a, prod, b) in TREE: exactly when production [prod] is "a ->
+   .... b ...."  TREEPRED(b): { (a,p) | (a,p,b) in TREE }
+
+    ALGORITHM:
+
+    TOCOVER: set of productions that must be covered
+
+    SEEN: set of nonterminals we've seen already
+
+    initial state:
+
+      (1) SEEN={}, TOCOVER=[]
+
+      (2) if the initial production [initprod] enjoys [pred initprod]
+   then we're done;
+
+      (3) otherwise, add [initprod] to TOCOVER
+
+    INVARIANTS:
+        { lhs(p) | p in TOCOVER } is disjoint from SEEN
+        for all p in TOCOVER: not (pred p)
+
+    step:
+
+      (1) select and remove a production [p] from TOCOVER
+
+      (2) if [lhs(p)] is the axiom, and [pred p] is false, then fail
+
+      (3) get the list of its direct predecessor productions
+          pl=TREEPRED(lhs(p)) in the parse-tree relation.
+
+      (4) add [lhs(p)] to SEEN
+
+      (5) for each (a,prod) in pl:
+            if not [pred prod] and a is not in SEEN then
+              add prod to TOCOVER
+
+    termination condition:
+
+      when TOCOVER is empty
+
+    success condition: we don't fail.
+
+    Proof of termination: SEEN grows with each step iteration, and
+   TOCOVER is always disjoint from SEEN.  So eventually there are no
+   nonterminals that can be added to TOCOVER.  Each step iteration
+   removes an element from TOCOVER.
+
+    Correctness: consider a -covered- member [nt] of TOCOVER: either
+   it satisfies the predicate, or some ancestor in the TREE relation
+   satisfies the predicate.  Each step will replace [nt] with all its
+   predecessors.  Eventually, every such predecessor will be replaced
+   by a covered predecessor.
+
+    Consider a -non-covered- member [nt] of TOCOVER: there must be a
+   parse-tree in which from the axiom we can derive [nt] without
+   passing thru a production that satisfies the predicate.  Repeated
+   application of [step] will produce that path up to axiom, and the
+   axiom is not covered.  QED.
+
+  *)
+
+  value covers_with memo pred initpl =
+    let open NTOps in
+    let open AG in
+    let ag = memo.ag in
+    let rec covrec seen tocover =
+      match tocover with [
+        [] -> True
+      | [p' :: tocover] ->
+        let lhs = P.lhs p' in
+        if lhs = ag.axiom && not (pred p') then False else
+        let seen = [ lhs :: seen ] in
+        let pred_pl = G.pred_e memo._PT lhs in
+        let tocover = List.fold_left (fun tocover (a, prod', _) ->
+            let prod' = match prod' with [ Some p -> p | None -> assert False ] in
+            if not (pred prod') && not (List.mem a seen) then
+              [prod' :: tocover] else tocover
+          ) tocover pred_pl in
+        covrec seen tocover
+      ]
+    in
+    let initpl = List.filter (fun p -> not(pred p)) initpl in
+    match initpl with [ [] -> True | _ -> covrec [] initpl ]
+  ;
   (** an AG is well-formed2 if every attribute reference in all equations
       and conditions is declared in the typed attributes *)
-
-  value attribute_exists attributes (nt, attrna) =
-    List.mem_assoc nt attributes &&
-    let attrs = List.assoc nt attributes in
-    List.mem attrna attrs
-  ;
 
   value well_formed_aref ag =
     let open AG in
@@ -709,9 +913,10 @@ module AGOps = struct
     let open PN in
     fun [
       NT (PRIM _ _) "" -> True
-    | NT (PARENT nt) attrna -> attribute_exists ag.node_attributes (nt, attrna)
-    | NT (CHILD nt _) attrna -> attribute_exists ag.node_attributes (nt, attrna)
-    | PROD pn attrna -> attribute_exists ag.production_attributes (PN.unparse pn, attrna)
+    | NT (PARENT nt) attrna -> AG.node_attribute_exists ag (nt, attrna)
+    | NT (CHILD nt _) attrna -> AG.node_attribute_exists ag (nt, attrna)
+    | PROD pn attrna -> AG.production_attribute_exists ag (pn, attrna)
+    | CHAINSTART pn (CHILD nt _) attrna -> AG.node_attribute_exists ag (nt, attrna)
     | _ -> False
     ]
   ;
@@ -748,6 +953,35 @@ module AGOps = struct
       (well_formed_condition0 typed_attributes pn tcond)
   ;
 
+  value chain_attributes_of ag nt =
+    nt
+  |> AG.node_attributes ag
+  |> List.map (fun a -> (a, AG.attribute_type ag a))
+  |> List.filter_map (fun (a, aty) -> if aty.AT.is_chain then Some a else None)
+  ;
+
+  value covers_chain ag attrna prod =
+    prod.P.typed_equations |> List.exists (fun [
+      {TAEQ.lhs=TAR.CHAINSTART _ (TNR.CHILD _ _) attrna'} -> attrna = attrna'
+    | _ -> False
+    ])
+  ;
+
+  value well_formed_chains m =
+    let ag = m.NTOps.ag in
+    (ag.nonterminals |> List.for_all (fun nt ->
+         match chain_attributes_of ag nt with [
+           [] -> True
+         | l ->
+           l |> List.for_all (fun attrna ->
+               let pred prod = covers_chain ag attrna prod in
+               let pl = AG.node_productions ag nt in
+               covers_with m pred pl
+             )
+         ]
+       ))
+  ;
+
   value well_formed2 m =
     let ag = m.NTOps.ag in
     (ag.productions |> List.for_all (fun (nt, pl) -> pl |> List.for_all (fun p ->
@@ -759,6 +993,7 @@ module AGOps = struct
   value well_formed m =
     let ag = m.NTOps.ag in
     (well_formed2 m) &&
+    (well_formed_chains m) &&
     (ag.nonterminals |> List.for_all (fun nt ->
         [] = Std.intersect (NTOps._AI m nt) (NTOps._AS m nt)
     ))

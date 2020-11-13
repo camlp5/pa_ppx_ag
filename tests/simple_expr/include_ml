@@ -132,7 +132,8 @@ print_string "================ START ================\n";; flush stdout ;;
 
 Pa_ppx_base.Pa_passthru.debug := true ;;
 
-#directory "../pa_ag";;
+#directory "../../pa_ag";;
+#require "ocamlgraph";;
 #require "pa_ppx.import" ;;
 Pa_import.add_include "." ;;
 
@@ -167,14 +168,21 @@ open Ag_types ;;
 #trace Ag_tsort.typed_equation_to_deps;;
 #trace Ag_types.AGOps.POps.defining_occurrences ;;
 #trace Ag_tsort.attribute_function ;;
-*)
 #trace Pa_deriving_attributed.AC.generate_attributed_constructor ;;
+*)
 open Ag_types.AG ;;
 open NR ;;
 open AEQ ;;
 (*
 #trace Ag_types.Demarshal.productions ;;
 *)
+#trace Ag_types.AGOps.well_formed ;;
+#trace Ag_types.AGOps.well_formed2 ;;
+#trace Ag_types.AGOps.well_formed_chains ;;
+#trace Ag_types.AGOps.chain_attributes_of ;;
+#trace Ag_types.AGOps.covers_with ;;
+#trace Ag_types.AGOps.covers_chain ;;
+
 "test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
