@@ -149,6 +149,7 @@ open Ag_types ;;
 (*
 #install_printer AG.P.pp_top ;;
 *)
+#install_printer AG.AT.pp_top ;;
 #install_printer AG.AEQ.pp_top ;;
 #install_printer AG.TAEQ.pp_top ;;
 #install_printer AG.Cond.pp_top ;;
@@ -161,7 +162,6 @@ open Ag_types ;;
 #trace AGOps.POps.inherited_occurrences ;;
 #trace AGOps.POps.synthesized_occurrences ;;
 #trace Demarshal.expr_to_attribute_reference ;;
-#trace AGOps.NTOps.mk_memo ;;
 #trace Ag_tsort.compile_teqn_body ;;
 #trace Ag_tsort.lookup_var ;;
 #trace Ag_tsort.lookup_tnr ;;
@@ -175,13 +175,14 @@ open NR ;;
 open AEQ ;;
 (*
 #trace Ag_types.Demarshal.productions ;;
-*)
 #trace Ag_types.AGOps.well_formed ;;
 #trace Ag_types.AGOps.well_formed2 ;;
 #trace Ag_types.AGOps.well_formed_chains ;;
 #trace Ag_types.AGOps.chain_attributes_of ;;
 #trace Ag_types.AGOps.covers_with ;;
 #trace Ag_types.AGOps.covers_chain ;;
+*)
+#trace AGOps.NTOps.mk_memo ;;
 
 "test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1

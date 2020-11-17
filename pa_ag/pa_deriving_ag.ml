@@ -145,6 +145,8 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;
       assert (AGOps.locally_acyclic memo) ;
+    let ag = AGOps.(augment_chain_with_copychains memo.NTOps.ag) in
+    let memo = AGOps.NTOps.mk_memo ag in
       <:str_item< 
                 declare
                   $stri:uu_st$ ;

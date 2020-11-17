@@ -26,7 +26,7 @@ value builtin_types =
   ]
 ;
 
-module PP_hum = struct
+module Pp_hum = struct
   value ctyp pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));
   value ctyp_top pps x = Fmt.(pf pps "#<ctyp< %a >>" ctyp x) ;
   value expr pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_expr Pprintf.empty_pc ty));
@@ -199,10 +199,10 @@ module AG = struct
         assert (match x.lhs with [ AR.PROD _ "condition" -> True | _ -> False ]) ;
         Fmt.(pf pps "assert %a %a"
                (option Dump.string) x.msg
-               PP_hum.expr x.rhs_expr) ;
+               Pp_hum.expr x.rhs_expr) ;
       }
       else
-        Fmt.(pf pps "%a := %a%a" AR.pp_hum x.lhs PP_hum.expr x.rhs_expr
+        Fmt.(pf pps "%a := %a%a" AR.pp_hum x.lhs Pp_hum.expr x.rhs_expr
                (option (wrap_comment Dump.string)) x.msg) ;
     value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
   end ;
@@ -223,16 +223,19 @@ module AG = struct
     ; rhs_expr : MLast.expr
     }
     ;
+    value lhs e = e.lhs ;
+    value rhs_expr e = e.rhs_expr ;
+    value rhs_nodes e = e.rhs_nodes ;
     value pp_hum ?{is_condition=False} pps x =
       if is_condition then do {
         assert (match x.lhs with [ TAR.PROD _ "condition" -> True | _ -> False ]) ;
         Fmt.(pf pps "assert %a %a"
                (option (wrap_comment Dump.string)) x.msg
-               PP_hum.expr x.rhs_expr
+               Pp_hum.expr x.rhs_expr
             )
       }
       else
-        Fmt.(pf pps "%a := %a%a" TAR.pp_hum x.lhs PP_hum.expr x.rhs_expr
+        Fmt.(pf pps "%a := %a%a" TAR.pp_hum x.lhs Pp_hum.expr x.rhs_expr
                (option (wrap_comment Dump.string)) x.msg) ;
     value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
   end ;
@@ -243,9 +246,7 @@ module AG = struct
     ; loc : Ploc.t
     ; typed_nodes : list TNR.t
     ; typed_node_names : list (NR.t * TNR.t)
-    ; equations : list AEQ.t
     ; typed_equations : list TAEQ.t
-    ; conditions : list AEQ.t
     ; typed_conditions : list TAEQ.t
     ; patt : MLast.patt
     ; patt_var_to_noderef : list (string * TNR.t)
@@ -256,9 +257,9 @@ module AG = struct
     value pp_hum pps x =
       Fmt.(pf pps "%a : %a\n%a@ %a"
              PN.pp_hum x.name
-             PP_hum.patt x.patt
-             (list AEQ.pp_hum) x.equations
-             (list AEQ.pp_hum) x.conditions
+             Pp_hum.patt x.patt
+             (list TAEQ.pp_hum) x.typed_equations
+             (list TAEQ.pp_hum) x.typed_conditions
           ) ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
     value typed_attribute p =
@@ -301,6 +302,10 @@ module AG = struct
     | ty -> { ty = ty ; is_chain = False }
     ]
     ;
+    value pp_hum pps x =
+      Fmt.(pf pps "%a%s" Pp_hum.ctyp x.ty (if x.is_chain then "[@chain]" else ""))
+    ;
+    value pp_top pps x = Fmt.(pf pps "#<at< %a >>" pp_hum x) ;
   end;
   module AT = AttributeType ;
   type t = {
@@ -563,9 +568,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   ; loc = loc
   ; typed_nodes = typed_nodes
   ; typed_node_names = typed_node_names
-  ; equations = equations
   ; typed_equations = []
-  ; conditions = conditions
   ; typed_conditions = []
   ; patt = Patt.tuple loc (List.map Std.fst3 patt_nref_l)
   ; patt_var_to_noderef = List.map Std.snd3 patt_nref_l
@@ -636,7 +639,11 @@ value productions ag type_decls =
   let productions = ag.AG.nonterminals |> List.map (fun n ->
     (n, Std.filter (fun p -> n = p.P.name.PN.nonterm_name) l)
   ) in
-  { (ag) with AG.productions = productions }
+  { (ag) with
+    AG.productions = productions
+  ; equations = []
+  ; conditions = []
+  }
 ;
 
 end
@@ -811,15 +818,15 @@ module AGOps = struct
     OR
 
     in every possible parsetree where [prod] appears, some ancestor
-   production prod' satisfies predicate [pred], viz. [pred prod'].
+    production prod' satisfies predicate [pred], viz. [pred prod'].
 
     ASSUMPTION: the axiom nonterminal is only seen on the LHS of
-   productions.  All nonterminals are derivable from axiom.
+    productions.  All nonterminals are derivable from axiom.
 
     DEFINITIONS:
 
     (a, prod, b) in TREE: exactly when production [prod] is "a ->
-   .... b ...."  TREEPRED(b): { (a,p) | (a,p,b) in TREE }
+    .... b ...."  TREEPRED(b): { (a,p) | (a,p,b) in TREE }
 
     ALGORITHM:
 
@@ -832,7 +839,7 @@ module AGOps = struct
       (1) SEEN={}, TOCOVER=[]
 
       (2) if the initial production [initprod] enjoys [pred initprod]
-   then we're done;
+    then we're done;
 
       (3) otherwise, add [initprod] to TOCOVER
 
@@ -862,23 +869,23 @@ module AGOps = struct
     success condition: we don't fail.
 
     Proof of termination: SEEN grows with each step iteration, and
-   TOCOVER is always disjoint from SEEN.  So eventually there are no
-   nonterminals that can be added to TOCOVER.  Each step iteration
-   removes an element from TOCOVER.
+    TOCOVER is always disjoint from SEEN.  So eventually there are no
+    nonterminals that can be added to TOCOVER.  Each step iteration
+    removes an element from TOCOVER.
 
     Correctness: consider a -covered- member [nt] of TOCOVER: either
-   it satisfies the predicate, or some ancestor in the TREE relation
-   satisfies the predicate.  Each step will replace [nt] with all its
-   predecessors.  Eventually, every such predecessor will be replaced
-   by a covered predecessor.
+    it satisfies the predicate, or some ancestor in the TREE relation
+    satisfies the predicate.  Each step will replace [nt] with all its
+    predecessors.  Eventually, every such predecessor will be replaced
+    by a covered predecessor.
 
     Consider a -non-covered- member [nt] of TOCOVER: there must be a
-   parse-tree in which from the axiom we can derive [nt] without
-   passing thru a production that satisfies the predicate.  Repeated
-   application of [step] will produce that path up to axiom, and the
-   axiom is not covered.  QED.
+    parse-tree in which from the axiom we can derive [nt] without
+    passing thru a production that satisfies the predicate.  Repeated
+    application of [step] will produce that path up to axiom, and the
+    axiom is not covered.  QED.
 
-  *)
+*)
 
   value covers_with memo pred initpl =
     let open NTOps in
@@ -967,7 +974,18 @@ module AGOps = struct
     ])
   ;
 
-  value well_formed_chains m =
+  value well_formed_chains0 m =
+    let ag = m.NTOps.ag in
+    let chain_attributes = ag.attribute_types |> List.filter_map (fun (ana, aty) ->
+        if aty.AT.is_chain then Some ana else None) in
+    chain_attributes |> List.for_all (fun cattr ->
+        let pre = "pre_"^cattr in
+        let post = "post_"^cattr in
+        not(List.mem_assoc pre ag.attribute_types) &&
+        not (List.mem_assoc post ag.attribute_types))
+  ;
+
+  value well_formed_chains1 m =
     let ag = m.NTOps.ag in
     (ag.nonterminals |> List.for_all (fun nt ->
          match chain_attributes_of ag nt with [
@@ -982,6 +1000,9 @@ module AGOps = struct
        ))
   ;
 
+  value well_formed_chains m =
+    well_formed_chains0 m && well_formed_chains1 m
+  ;
   value well_formed2 m =
     let ag = m.NTOps.ag in
     (ag.productions |> List.for_all (fun (nt, pl) -> pl |> List.for_all (fun p ->
@@ -1050,6 +1071,185 @@ module AGOps = struct
         let ddp = POps.direct_reference_graph p in
         not Tsort0.(cyclic (nodes ddp) (mkadj ddp))
       ))
+  ;
+
+  (** [chain_to_copychains ag]
+
+      This function takes an AG, assumed to be well-formed (per above),
+      and replaces [@chain] attributes and CHAINSTART equations with
+      normal attributes and copy-rules.  It fills-in chain-inferrable
+      equations where missing.
+
+      (a) collect every [@chain] attribute "a", check that "pre_a" and
+      "post_a" are not already declared.
+
+      (b) for each nonterminal "X" with a [@chain} attribute "a",
+      replace it with "pre_a" and "post_a", neither of which are
+      [@chain].  Also replace in the global attribute_types table.
+
+      ================================================================
+
+      (c) for every production for nonterminal X:
+
+      (c.1) there can be defining and applied occurrences for "a" on
+      the lhs, and on children with chain attribute a.  These can
+      appear in equations that define the chain attribute, or define
+      other attributes, either nodes or local attributes.
+
+      Let's treat each of: defining occurrences for attributes of the
+      parent/lhs, attributes of child nodes that do not define the
+      chain attribute, local attributes, defining occurrences for
+      attributes of child nodes that DO define the chain attribute.
+
+      assume that child nodes that have the chain attribute are
+      numbered [0..N).  N=0 means no such child nodes.
+
+      (c.2) the production can also contain a CHAINSTART for attribute
+      "a" on some nonterminal.
+
+      So we'll handle these cases one-by-one.  Assume we have a
+      production "X -> rhs", and that the child nodes with chain
+      attribute "a" are numbered child_[0..N-1] (N=0 means no such
+      children).  Assume that all rhs nonterminals are numbered
+      rhs_[0..M-1].
+
+      Also, we'll deal first with defining occurrence, and only then
+      with applied occurrences.
+
+      (d) [%chainstart child.(i)].a := rhs -- replace with regular
+      equation "child_{i}.a := rhs".  If X has chain attribute "a", and
+      if it hasn't a defining occurrence, add equation "X.a := X.a".
+
+      At this point, we can proceed as if there are no CHAINSTART
+      equations for "a".  Also, the parent node X has chain attribute
+      "a".
+
+      (e) parent node occurrences of "a".  If there are no defining
+      occurrences of "a", and N=0, add equation "parent.a := parent.a";
+      if N>0 then add equation "parent.a := child_{N-1}.a".
+
+      (f) rhs nonterminals that do not have chain attributes "a" --
+      nothing to do here.
+
+      (g) rhs nonterminals that have chain attribute (hence, N>0):
+      child_{i}.a -- if there is not a defining occurrence:
+
+        if i = 0: add equation "child_{i=0}.a := parent.a"
+
+        if i > 0: add equation "child_{i}.a := child_{i-1}.a"
+
+      (h) local attributes cannot be chain attributes.
+
+      ================================================================
+
+      Now we can rewrite all occurrences to eliminate "a" in favor of
+      "{pre,post}_a".
+
+      (i) applied occurrences of "parent.a" are rewritten to
+      "parent.pre_a".
+
+      (j) defining occurrences "parent.a" are rewritten to
+      "parent.post_a".
+
+      (k) defining occurrences of "child_{i}.a" are rewritten to
+      "child_{i}.pre_a".
+
+      (l) referring occurrences of "child_{i}.a" are rewritten to
+      "child_{i}.post_a".
+
+   *)
+
+  value augment_production ag cattr p =
+    let loc = p.P.loc in
+    let pnt = p.P.name.PN.nonterm_name in
+    let defined_arefs = List.map TAEQ.lhs p.P.typed_equations in
+    let cattr_children = (List.tl p.P.typed_nodes) |> List.filter_map TNR.(fun [
+        (CHILD nt i) as cnr when AG.node_attribute_exists ag (nt, cattr) -> Some (cnr, (nt, i))
+      | _ -> None
+      ]) in
+    let parent_has_cattr = AG.node_attribute_exists ag (pnt, cattr) in
+    let has_chainstart = defined_arefs |> List.exists TAR.(fun [
+        TAR.CHAINSTART _ cnr attr when cattr = attr -> True
+      | _ -> False
+      ]) in
+    let (child_equations, last_nr, last_expr) =
+      cattr_children |> List.fold_left (fun (acc, prev_nr, prev_expr) (cnr, (c_nt, c_index)) ->
+          let newacc =
+            if List.mem (TAR.NT cnr cattr) defined_arefs then acc else
+              [TAEQ.{
+                lhs = TAR.NT cnr cattr
+              ; loc = loc
+              ; msg = None
+              ; rhs_nodes = [TAR.NT prev_nr cattr]
+              ; rhs_expr = prev_expr
+              } :: acc] in
+          let newprev = <:expr< [%nterm $lid:c_nt$ . ( $int:string_of_int c_index$ );] . $lid:cattr$ >> in
+          (newacc, cnr, newprev)
+        ) ([], TNR.PARENT pnt, <:expr< [%nterm $lid:pnt$;] . $lid:cattr$ >>) in
+    let parent_equations =
+      if not parent_has_cattr then [] else
+      if List.mem (TAR.NT (TNR.PARENT pnt) cattr) defined_arefs then [] else
+      if has_chainstart then 
+        (* parent.cattr := parent. cattr *)
+        [TAEQ.{
+            lhs=TAR.NT (TNR.PARENT pnt) cattr
+          ; loc = p.P.loc
+          ; msg = None
+          ; rhs_nodes = [TAR.NT (TNR.PARENT pnt) cattr]
+          ; rhs_expr = <:expr< [%nterm $lid:pnt$;] . $lid:cattr$ >>
+          }]
+      else
+        (* parent.cattr := (last_child|parent). cattr *)
+        [TAEQ.{
+            lhs=TAR.NT (TNR.PARENT pnt) cattr
+          ; loc = loc
+          ; msg = None
+          ; rhs_nodes = [TAR.NT last_nr cattr]
+          ; rhs_expr = last_expr
+          }] in
+    let new_equations = parent_equations @ child_equations in
+    if [] = new_equations then p else
+    {(p) with
+     P.typed_equations = p.P.typed_equations @ new_equations }
+  ;
+
+  value add_chain_attributes_once ag cattr =
+    let open AG in
+    let nt_needs_chain p =
+      let pnt = p.P.name.PN.nonterm_name in
+      let parent_has_cattr = AG.node_attribute_exists ag (pnt, cattr) in
+      let child_has_cattr = (List.tl p.P.typed_nodes) |> List.exists TNR.(fun [
+          CHILD nt i -> AG.node_attribute_exists ag (nt, cattr)
+        | _ -> False
+        ]) in
+      child_has_cattr && not parent_has_cattr in
+    let add_cattr_ntl = ag.productions |> List.filter_map (fun (pnt, pl) ->
+      if pl |> List.exists nt_needs_chain then Some pnt else None) in
+    let new_node_attributes = ag.node_attributes |> List.map (fun (nt, al) ->
+      (nt, if List.mem nt add_cattr_ntl then [cattr :: al] else al)) in
+    (add_cattr_ntl <> [], { (ag) with node_attributes = new_node_attributes})
+  ;
+
+  value add_chain_attributes ag cattr =
+    let rec add1 ag =
+      let (changed, ag) = add_chain_attributes_once ag cattr in
+      if changed then add1 ag else ag
+    in add1 ag
+  ;
+
+  value augment_one_chain ag cattr =
+    let ag = add_chain_attributes ag cattr in
+    let productions =
+      ag.productions |> List.map (fun (nt, pl) ->
+          (nt, List.map (augment_production ag cattr) pl)) in
+    { (ag) with productions = productions }
+  ;
+
+  value augment_chain_with_copychains ag =
+    let open AG in
+    let chain_attributes = ag.attribute_types |> List.filter_map (fun (aname, at) ->
+        if at.AT.is_chain then Some aname else None) in
+    List.fold_left augment_one_chain ag chain_attributes
   ;
 
 end
