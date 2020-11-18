@@ -5,7 +5,9 @@ type expr =
     INT of int
   | PLUS of expr * expr
   | REF of string
-and prog = PROG of expr
+and block1 = BLOCK1 of block2
+and block2 = BLOCK2 of expr
+and prog = PROG of block1
   [@@deriving ag {
     module_name = AG
   ; attribution_model = Attributed {
@@ -24,6 +26,8 @@ and prog = PROG of expr
     }
   ; node_attributes = {
       expr = [env; value_; rpn]
+    ; block1 = [env; value_; rpn]
+    ; block2 = [env; value_]
     ; prog = [value_; rpn_notation]
     }
   ; production_attributes = {
@@ -50,8 +54,14 @@ and prog = PROG of expr
         [%nterm 1].env := [("x", 1); ("y", 2); ("z", 3); ("w", 4)]
       ; [%nterm 0].value_ := [%nterm 1].value_
       ; condition true
-      ; [%chainstart expr.(1)].rpn := []
-      ; [%nterm prog].rpn_notation := [%nterm expr.(1)].rpn
+      ; [%chainstart 1].rpn := []
+      ; [%nterm prog].rpn_notation := [%nterm 1].rpn
+      )
+    ; block1__BLOCK1 = (
+        [%nterm 0].value_ := [%nterm 1].value_
+      )
+    ; block2__BLOCK2 = (
+        [%nterm 0].value_ := [%nterm 1].value_
       )
     }
   }]

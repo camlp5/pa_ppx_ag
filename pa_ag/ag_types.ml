@@ -131,6 +131,32 @@ module AG = struct
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<ar< %a >>" pp_hum x) ;
+
+    value expr_to_ar pn e =
+      match e with [
+        <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
+        NT (NR.PARENT (Some tyname)) attrna
+      | <:expr< [%nterm 0;] . $lid:attrna$ >> ->
+        NT (NR.PARENT None) attrna
+      | <:expr< [%nterm $int:n$;] . $lid:attrna$ >> ->
+        NT (NR.CHILD None (int_of_string n)) attrna
+      | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
+        NT (NR.CHILD (Some tyname) (int_of_string n)) attrna
+      | <:expr< [%prim $int:n$;] >> ->
+        NT (NR.PRIM None (int_of_string n)) ""
+      | <:expr< [%local $lid:attrna$;] >> ->
+        PROD pn attrna
+
+      | <:expr< [%chainstart $int:n$;] . $lid:attrna$ >> ->
+        CHAINSTART pn (NR.CHILD None (int_of_string n)) attrna
+      | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
+        CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
+
+      | _ -> Ploc.raise (MLast.loc_of_expr e)
+          (Failure Fmt.(str "expr_to_ar: bad expr:@ %a"
+                          Pp_MLast.pp_expr e))
+      ]
+    ;
   end ;
 
   module TypedNodeReference = struct
@@ -181,6 +207,50 @@ module AG = struct
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
+
+    value expr_to_tar pn e =
+      let open TNR in
+      match e with [
+        <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
+        NT (PARENT tyname) attrna
+
+      | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
+        NT (CHILD tyname (int_of_string n)) attrna
+
+      | <:expr< [%prim $lid:tyname$ . ( $int:n$ );] >> ->
+        NT (PRIM tyname (int_of_string n)) ""
+
+      | <:expr< [%local $lid:attrna$;] >> ->
+        PROD pn attrna
+
+      | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
+        CHAINSTART pn (CHILD tyname (int_of_string n)) attrna
+
+      | _ -> Ploc.raise (MLast.loc_of_expr e)
+          (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
+                          Pp_MLast.pp_expr e))
+  ]
+  ;
+
+  value tar_to_expr loc e =
+    let open TNR in
+    match e with [
+      NT (PARENT tyname) attrna ->
+      <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >>
+
+    | NT (CHILD tyname n) attrna ->
+      <:expr< [%nterm $lid:tyname$ . ( $int:string_of_int n$ );] . $lid:attrna$ >>
+
+    | NT (PRIM tyname n) "" ->
+      <:expr< [%prim $lid:tyname$ . ( $int:string_of_int n$ );] >>
+
+    | PROD pn attrna ->
+      <:expr< [%local $lid:attrna$;] >>
+
+    | CHAINSTART pn (CHILD tyname n) attrna ->
+      <:expr< [%chainstart $lid:tyname$ . ( $int:string_of_int n$ );] . $lid:attrna$ >>
+    ]
+    ;
   end ;
 
   value wrap_comment pp1 pps x = Fmt.(pf pps "(* %a *)" pp1 x) ;
@@ -258,17 +328,17 @@ module AG = struct
       Fmt.(pf pps "%a : %a\n%a@ %a"
              PN.pp_hum x.name
              Pp_hum.patt x.patt
-             (list TAEQ.pp_hum) x.typed_equations
-             (list TAEQ.pp_hum) x.typed_conditions
+             (list ~{sep=sp} TAEQ.pp_hum) x.typed_equations
+             (list ~{sep=sp} TAEQ.pp_hum) x.typed_conditions
           ) ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
-    value typed_attribute p =
+    value typed_attribute loc p =
       let lookup_nr ~{is_chainstart} nr =
         match List.assoc nr p.typed_node_names with [
           x -> x
         | exception Not_found ->
-          Ploc.raise p.loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
-                                           (NR.pp_hum ~{is_chainstart}) nr))
+          Ploc.raise loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
+                                         (NR.pp_hum ~{is_chainstart}) nr))
         ] in
       fun [
       (AR.NT nr attrna) as ar ->
@@ -278,14 +348,24 @@ module AG = struct
       TAR.CHAINSTART pn (lookup_nr ~{is_chainstart=True} nr) attrna
     ]
     ;
+    value typed_rhs loc p e =
+      let dt = Camlp5_migrate.make_dt () in
+      let fallback_migrate_expr = dt.migrate_expr in
+      let migrate_expr dt e =
+        let pn = p.name in
+        try e |> TAR.expr_to_tar pn |> TAR.tar_to_expr (loc_of_expr e)
+        with _ -> fallback_migrate_expr dt e in
+      let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
+      dt.migrate_expr dt e
+    ;
     value typed_equation p aeq =
       let { AEQ.loc = loc; lhs = lhs ; msg = msg ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
       {
         TAEQ.loc = loc
-      ; lhs = typed_attribute p lhs
+      ; lhs = typed_attribute loc p lhs
       ; msg = msg
-      ; rhs_nodes = List.map (typed_attribute p) rhs_nodes
-      ; rhs_expr = rhs_expr
+      ; rhs_nodes = List.map (typed_attribute loc p) rhs_nodes
+      ; rhs_expr = typed_rhs loc p rhs_expr
       }
       ;
   end ;
@@ -378,39 +458,12 @@ end ;
 
 module Demarshal = struct
 
-value expr_to_attribute_reference ?{is_lhs=False} pn e =
-  let open AG in
-  let open AEQ in
-  match e with [
-    <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
-    AR.NT (NR.PARENT (Some tyname)) attrna
-  | <:expr< [%nterm 0;] . $lid:attrna$ >> ->
-    AR.NT (NR.PARENT None) attrna
-  | <:expr< [%nterm $int:n$;] . $lid:attrna$ >> ->
-    AR.NT (NR.CHILD None (int_of_string n)) attrna
-  | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
-    AR.NT (NR.CHILD (Some tyname) (int_of_string n)) attrna
-  | <:expr< [%prim $int:n$;] >> ->
-    AR.NT (NR.PRIM None (int_of_string n)) ""
-  | <:expr< [%local $lid:attrna$;] >> ->
-    AR.PROD pn attrna
-
-  | <:expr< [%chainstart $int:n$;] . $lid:attrna$ >> ->
-    AR.CHAINSTART pn (NR.CHILD None (int_of_string n)) attrna
-  | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
-    AR.CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
-
-  | _ -> Ploc.raise (MLast.loc_of_expr e) (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
-                                                          Pp_MLast.pp_expr e))
-  ]
-;
-
 value extract_attribute_references pn e =
   let references = ref [] in
   let dt = Camlp5_migrate.make_dt () in
   let fallback_migrate_expr = dt.migrate_expr in
   let migrate_expr dt e =
-    try do { Std.push references (expr_to_attribute_reference pn e); e } 
+    try do { Std.push references (AG.AR.expr_to_ar pn e); e } 
     with _ -> fallback_migrate_expr dt e in
   let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in do {
     ignore(dt.migrate_expr dt e) ;
@@ -422,7 +475,7 @@ value assignment_to_equation_or_condition pn e = match e with [
     <:expr:< $lhs$ . val := $rhs$ >> | <:expr:< $lhs$ := $rhs$ >> ->
     (True, {
       AG.AEQ.loc = loc
-    ; lhs = expr_to_attribute_reference ~{is_lhs=True} pn lhs
+    ; lhs = AG.AR.expr_to_ar pn lhs
     ; msg = None
     ; rhs_nodes = extract_attribute_references pn rhs
     ; rhs_expr = rhs })
@@ -583,15 +636,15 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   }
 ;
 
-value branch2production loc ag lhs_name b =
+value branch2production ag lhs_name b =
   let open AG in
   match b with [
     <:constructor:< $uid:ci$ of $list:tl$ $_algattrs:_$ >> as gc
     when ag.storage_mode = Records && tl <> [] && List.mem_assoc (lhs_name^"__"^ci) ag.production_attributes ->
       let (last, tl) = sep_last tl in
       let lastpatt = match last with [
-        <:ctyp< $lid:n$ >> when n = lhs_name^"__"^ci^"_attributes" -> <:patt< prod_attrs >>
-      | _ -> Ploc.raise loc
+        <:ctyp:< $lid:n$ >> when n = lhs_name^"__"^ci^"_attributes" -> <:patt< prod_attrs >>
+      | ty -> Ploc.raise (MLast.loc_of_ctyp ty)
                (Failure Fmt.(str "branch2production: unrecognizable last type:@ %a"
                                Pp_MLast.pp_generic_constructor gc))
       ] in
@@ -602,7 +655,7 @@ value branch2production loc ag lhs_name b =
         | p -> Patt.applist <:patt< $uid:ci$ >> ([p]@[lastpatt])
         ]
       }
-    | <:constructor< $uid:ci$ of $list:tl$ $_algattrs:_$ >> ->
+    | <:constructor:< $uid:ci$ of $list:tl$ $_algattrs:_$ >> ->
       let p = tuple2production loc ag lhs_name ~{case_name=Some ci} tl in
       { (p) with
         patt = match p.P.patt with [
@@ -625,7 +678,7 @@ value productions ag type_decls =
       ] in
       match td.tdDef with [
         (<:ctyp:< [ $list:branches$ ] >> | <:ctyp:< $_$ == [ $list:branches$ ] >>) ->
-          List.map (branch2production loc ag name) branches
+          List.map (branch2production ag name) branches
       | <:ctyp:< ( $list:tl$ ) >> ->
           [tuple2production loc ag name tl]
       | <:ctyp:< $lid:_$ >> as z ->
@@ -1013,10 +1066,17 @@ module AGOps = struct
 
   value well_formed m =
     let ag = m.NTOps.ag in
+    let loc = ag.loc in
     (well_formed2 m) &&
     (well_formed_chains m) &&
     (ag.nonterminals |> List.for_all (fun nt ->
-        [] = Std.intersect (NTOps._AI m nt) (NTOps._AS m nt)
+         true_or_exn ~{exnf=fun() ->
+             Ploc.raise loc
+               (Failure Fmt.(str "well_formed: nonterminal %s: AI (@[<h>{ %a }@]) not disjoint from AS (@[<h>{ %a }@])"
+                               nt
+                               (list ~{sep=sp} string) (NTOps._AI m nt) 
+                               (list ~{sep=sp} string) (NTOps._AS m nt)))}
+           ([] = Std.intersect (NTOps._AI m nt) (NTOps._AS m nt))
     ))
     && (ag.productions |> List.for_all (fun (_, pl) ->
         pl |> List.for_all (fun p ->
@@ -1031,16 +1091,16 @@ module AGOps = struct
     (ag.nonterminals |> List.for_all (fun nt ->
          true_or_exn ~{exnf=fun () ->
              Ploc.raise loc
-               (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (A(X) = { %a }) != (AI(X) = { %a }) union (AS(X) = { %a })"
-                               nt (list string) (NTOps._A m nt)
-                               (list string) (NTOps._AI m nt)
-                               (list string) (NTOps._AS m nt)))}
+               (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (@[<h>A(X) = { %a }@]) != (@[<h>AI(X) = { %a }@]) union (@[<h>AS(X) = { %a }@])"
+                               nt (list ~{sep=sp} string) (NTOps._A m nt)
+                               (list ~{sep=sp} string) (NTOps._AI m nt)
+                               (list ~{sep=sp} string) (NTOps._AS m nt)))}
            (Std.same_members (NTOps._A m nt) (Std.union (NTOps._AI m nt) (NTOps._AS m nt))) &&
          true_or_exn ~{exnf=fun () ->
              Ploc.raise loc
-               (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (A(X) = { %a }) != (declared_attributes(X) = { %a })"
-                               nt (list string) (NTOps._A m nt)
-                               (list string) (List.assoc nt ag.node_attributes)
+               (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (@[<h>A(X) = { %a }@]) != (@[<h>declared_attributes(X) = { %a }@])"
+                               nt (list ~{sep=sp} string) (NTOps._A m nt)
+                               (list ~{sep=sp} string) (List.assoc nt ag.node_attributes)
                                ))}
            (Std.same_members (NTOps._A m nt)
         (match List.assoc nt ag.node_attributes with

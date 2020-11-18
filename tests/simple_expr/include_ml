@@ -183,6 +183,8 @@ open AEQ ;;
 #trace Ag_types.AGOps.covers_chain ;;
 *)
 #trace AGOps.NTOps.mk_memo ;;
+#trace Ag_types.AG.P.typed_equation ;;
+
 
 "test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
