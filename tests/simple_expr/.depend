@@ -14,16 +14,36 @@ test1_ag.cmx : \
 test1_ast.cmo :
 test1_ast.cmx :
 test1_migrate.cmo : \
-    test1_variants.cmo
+    test1_variants.cmo \
+    test1_ast.cmo
 test1_migrate.cmx : \
-    test1_variants.cmx
+    test1_variants.cmx \
+    test1_ast.cmx
 test1_variants.cmo : \
     test1_ast.cmo
 test1_variants.cmx : \
     test1_ast.cmx
+test2.cmo : \
+    test2_pa.cmo \
+    test2_ag.cmo
+test2.cmx : \
+    test2_pa.cmx \
+    test2_ag.cmx
+test2_ag.cmo :
+test2_ag.cmx :
+test2_migrate.cmo : \
+    test2_ag.cmo
+test2_migrate.cmx : \
+    test2_ag.cmx
 test1_pa.cmo : \
     test1_migrate.cmo \
     test1_ast.cmo
 test1_pa.cmx : \
     test1_migrate.cmx \
     test1_ast.cmx
+test2_pa.cmo : \
+    test2_migrate.cmo \
+    test2_ag.cmo
+test2_pa.cmx : \
+    test2_migrate.cmx \
+    test2_ag.cmx

@@ -12,7 +12,6 @@ and prog = PROG of block1
     module_name = AG
   ; attribution_model = Attributed {
     attributed_module_name = AT
-  ; attributes = ()
   }
   ; storage_mode = Records
   ; axiom = prog

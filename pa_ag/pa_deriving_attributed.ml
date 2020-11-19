@@ -37,7 +37,7 @@ type t = {
 ; plugin_name : string [@default "attributed";]
 ; normal_module_name : option uident
 ; attributed_module_name : uident
-; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;]
+; typed_attributes : (alist lident (alist lident ctyp)) [@name attributes;] [@default [];]
 ; type_decls : list (string * MLast.type_decl) [@computed type_decls;]
 } [@@deriving params {
     formal_args = {

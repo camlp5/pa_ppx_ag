@@ -62,7 +62,7 @@ $(CMO): $(EXTERNAL)
 
 depend::
 	echo "$(CMO): $(EXTERNAL)" > .depend.NEW
-	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) -package $(PACKAGES) -syntax camlp5o \
+	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.import -syntax camlp5o \
 	test1_ast.ml test1_variants.ml test1_migrate.ml test1_ag.ml test1.ml \
 	test2_ag.ml test2_migrate.ml test2.ml \
 	>> .depend.NEW
