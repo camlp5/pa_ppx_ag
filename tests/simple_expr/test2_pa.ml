@@ -23,7 +23,7 @@ EXTEND
     ]
   ]
   ;
-  prog: [ [ x = expr; EOI -> PROG x ] ];
+  prog: [ [ x = expr; EOI -> PROG (BLOCK1 (BLOCK2 x)) ] ];
 
   prog_eoi: [ [ x = prog; EOI -> x ] ];
   prog_attributed_eoi: [ [ x = prog_eoi -> Test2_migrate.ToAttributed.prog x ] ];
@@ -37,7 +37,7 @@ value pr_prog = Eprinter.make "prog";
 value prog = Eprinter.apply pr_prog;
 
 EXTEND_PRINTER
-  pr_prog: [ [ PROG e -> pprintf pc "%p" expr e ] ] ;
+  pr_prog: [ [ PROG (BLOCK1 (BLOCK2 e)) -> pprintf pc "%p" expr e ] ] ;
   pr_expr:
     [ "add"
       [ PLUS e1 e2 -> pprintf pc "%p + %p" curr e1 next e2

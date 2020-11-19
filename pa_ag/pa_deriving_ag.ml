@@ -130,8 +130,8 @@ value str_item_gen_decorated loc rc tdl =
 ;
 value str_item_gen_ag name arg = fun [
   <:str_item:< type $_flag:_$ $list:tdl$ >> as st ->
-    let rc = AGC.build_context loc arg tdl in
-    let (rc, uu_st, uu_open_st) = str_item_gen_decorated loc rc tdl in
+    let rc0 = AGC.build_context loc arg tdl in
+    let (rc, uu_st, uu_open_st) = str_item_gen_decorated loc rc0 tdl in
     let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules rc.AGC.storage_mode in
     let ag0 = AG.mk0 loc
         rc.AGC.storage_mode
@@ -143,6 +143,13 @@ value str_item_gen_ag name arg = fun [
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
     let ag = AGOps.(augment_chains_with_copychains ag) in
     let ag = AGOps.(replace_chains_with_pre_post ag) in
+    let (rc, uu_st, uu_open_st) =
+      let rc0 = AGC.{
+          (rc0) with
+          attribute_types = ag.attribute_types |> List.map (fun (attrna, aty) -> (attrna, aty.AG.AT.ty))
+        ; node_attributes = ag.node_attributes
+        } in
+      str_item_gen_decorated loc rc0 tdl in
     let memo = AGOps.NTOps.mk_memo ag in
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;

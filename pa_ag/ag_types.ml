@@ -1290,7 +1290,12 @@ module AGOps = struct
           CHILD nt i -> AG.node_attribute_exists ag (nt, cattr)
         | _ -> False
         ]) in
-      child_has_cattr && not parent_has_cattr in
+      let defined_arefs = List.map TAEQ.lhs p.P.typed_equations in
+      let has_chainstart = defined_arefs |> List.exists TAR.(fun [
+        TAR.CHAINSTART _ cnr attr when cattr = attr -> True
+      | _ -> False
+      ]) in
+      child_has_cattr && not parent_has_cattr && not has_chainstart in
     let add_cattr_ntl = ag.productions |> List.filter_map (fun (pnt, pl) ->
       if pl |> List.exists nt_needs_chain then Some pnt else None) in
     let new_node_attributes = ag.node_attributes |> List.map (fun (nt, al) ->

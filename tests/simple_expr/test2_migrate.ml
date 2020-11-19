@@ -26,6 +26,8 @@ module OK = struct
         ; dstmod = Test2_ag
         ; types = [
             prog
+          ; block1
+          ; block2
           ; expr
           ]
         }
@@ -56,6 +58,8 @@ module Attributed = struct
         ; dstmod = Test2_ag.AT
         ; types = [
             prog_node
+          ; block1_node
+          ; block2_node
           ; expr_node
           ; expr__PLUS_attributes
           ; prog__PROG_attributes
@@ -87,6 +91,18 @@ module Attributed = struct
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
             Test2_ag.AT.make_prog (migrate_prog_node __dt__ node)
         }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: block1]
+        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
+            Test2_ag.AT.make_block1 (migrate_block1_node __dt__ node)
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: block2]
+        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
+            Test2_ag.AT.make_block2 (migrate_block2_node __dt__ node)
+        }
       }
     }
   ]
@@ -98,6 +114,10 @@ type expr = expr_node
 and expr_node = [%import: Test2_ag.expr]
 and prog = prog_node
 and prog_node = [%import: Test2_ag.prog]
+and block1 = block1_node
+and block1_node = [%import: Test2_ag.block1]
+and block2 = block2_node
+and block2_node = [%import: Test2_ag.block2]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
@@ -123,7 +143,7 @@ and prog_node = [%import: Test2_ag.prog]
           srctype = [%typ: prog_node]
         ; dsttype = [%typ: Test2_ag.AT.prog_node]
         ; code = (fun __dt__ -> function PROG x ->
-            Test2_ag.AT.make_prog__PROG (__dt__.migrate_expr __dt__ x)
+            Test2_ag.AT.make_prog__PROG (__dt__.migrate_block1 __dt__ x)
           )
         }
       ; migrate_prog = {
@@ -131,6 +151,28 @@ and prog_node = [%import: Test2_ag.prog]
         ; dsttype = [%typ: Test2_ag.AT.prog]
         ; code = (fun __dt__ x ->
             Test2_ag.AT.make_prog (__dt__.migrate_prog_node __dt__ x)
+          )
+        }
+      ; migrate_block1_node = {
+          srctype = [%typ: block1_node]
+        ; dsttype = [%typ: Test2_ag.AT.block1_node]
+        }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: Test2_ag.AT.block1]
+        ; code = (fun __dt__ x ->
+            Test2_ag.AT.make_block1 (__dt__.migrate_block1_node __dt__ x)
+          )
+        }
+      ; migrate_block2_node = {
+          srctype = [%typ: block2_node]
+        ; dsttype = [%typ: Test2_ag.AT.block2_node]
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: Test2_ag.AT.block2]
+        ; code = (fun __dt__ x ->
+            Test2_ag.AT.make_block2 (__dt__.migrate_block2_node __dt__ x)
           )
         }
       }
@@ -178,7 +220,7 @@ module _ = Test2_ag
         ; dsttype = [%typ: Test2_ag.prog]
         ; custom_branches_code = (function
               PROG (e, _) ->
-              Test2_ag.PROG (__dt__.migrate_expr __dt__ e)
+              Test2_ag.PROG (__dt__.migrate_block1 __dt__ e)
           )
         }
       ; migrate_prog = {
@@ -188,6 +230,29 @@ module _ = Test2_ag
             __dt__.migrate_prog_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
+      ; migrate_block1_node = {
+          srctype = [%typ: block1_node]
+        ; dsttype = [%typ: Test2_ag.block1]
+        }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: Test2_ag.block1]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_block1_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
+          )
+        }
+      ; migrate_block2_node = {
+          srctype = [%typ: block2_node]
+        ; dsttype = [%typ: Test2_ag.block2]
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: Test2_ag.block2]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_block2_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
+          )
+        }
+
       }
     }
 ]

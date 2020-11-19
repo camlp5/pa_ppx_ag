@@ -9,8 +9,9 @@ let pa_prog_attributed s =
   |> Grammar.Entry.parse Test2_pa.prog_attributed_eoi
 
 let test_records ctxt =
-  assert_equal 3 ({| x + y |} |> pa_prog_attributed |> AG.evaluate)
-; assert_equal 5 ({| 1 + w |} |> pa_prog_attributed |> AG.evaluate)
+  let printer = [%show: int * string list] in
+  assert_equal ~printer (3, ["+"; "y"; "x"]) ({| x + y |} |> pa_prog_attributed |> AG.evaluate)
+; assert_equal ~printer (5, ["+"; "w"; "1"]) ({| 1 + w |} |> pa_prog_attributed |> AG.evaluate)
 
 let suite = "test2" >::: [
     "test_records"           >:: test_records

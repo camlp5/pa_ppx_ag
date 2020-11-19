@@ -185,6 +185,7 @@ open AEQ ;;
 *)
 #trace AGOps.NTOps.mk_memo ;;
 #trace Ag_types.AGOps.augment_production ;;
+#trace Ag_types.AGOps.add_chain_attributes ;;
 (*
 #trace Ag_types.AGOps.replace_rhs ;;
 *)
