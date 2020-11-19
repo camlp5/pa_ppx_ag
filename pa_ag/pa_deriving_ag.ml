@@ -141,7 +141,8 @@ value str_item_gen_ag name arg = fun [
         rc.AGC.equations
         rc.AGC.conditions in
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
-    let ag = AGOps.(augment_chain_with_copychains ag) in
+    let ag = AGOps.(augment_chains_with_copychains ag) in
+    let ag = AGOps.(replace_chains_with_pre_post ag) in
     let memo = AGOps.NTOps.mk_memo ag in
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;

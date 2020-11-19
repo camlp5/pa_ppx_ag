@@ -468,6 +468,9 @@ value compile_teqn_tcond_body ag p body =
     | <:expr:< [%prim int . ( $int:reli$ ) ;] >> ->
       let v = lookup_var p (NR.PRIM (Some "int") (int_of_string reli)) in
       <:expr< $lid:v$ >>
+    | <:expr:< [%prim string . ( $int:reli$ ) ;] >> ->
+      let v = lookup_var p (NR.PRIM (Some "string") (int_of_string reli)) in
+      <:expr< $lid:v$ >>
 
     | <:expr:< [%nterm 0 ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.PARENT None) in

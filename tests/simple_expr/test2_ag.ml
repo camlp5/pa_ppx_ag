@@ -59,9 +59,11 @@ and prog = PROG of block1
       )
     ; block1__BLOCK1 = (
         [%nterm 0].value_ := [%nterm 1].value_
+      ; [%nterm 1].env := [%nterm 0].env
       )
     ; block2__BLOCK2 = (
         [%nterm 0].value_ := [%nterm 1].value_
+      ; [%nterm 1].env := [%nterm 0].env
       )
     }
   }]

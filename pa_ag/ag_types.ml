@@ -353,7 +353,7 @@ module AG = struct
       let fallback_migrate_expr = dt.migrate_expr in
       let migrate_expr dt e =
         let pn = p.name in
-        try e |> TAR.expr_to_tar pn |> TAR.tar_to_expr (loc_of_expr e)
+        try e |> AR.expr_to_ar pn |> typed_attribute loc p |> TAR.tar_to_expr (loc_of_expr e)
         with _ -> fallback_migrate_expr dt e in
       let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
       dt.migrate_expr dt e
@@ -1080,7 +1080,12 @@ module AGOps = struct
     ))
     && (ag.productions |> List.for_all (fun (_, pl) ->
         pl |> List.for_all (fun p ->
-            Std.distinct (POps.defining_occurrences p)
+            true_or_exn ~{exnf=fun () ->
+                Ploc.raise loc
+                  (Failure Fmt.(str "well_formed: in production %a defining occurrences are not distinct: { %a }"
+                                  PN.pp_hum p.P.name
+                                  (list ~{sep=sp} TAR.pp_hum) (POps.defining_occurrences p)))}
+              (Std.distinct (POps.defining_occurrences p))
           )
       ))
   ;
@@ -1233,9 +1238,12 @@ module AGOps = struct
       | _ -> False
       ]) in
     let (child_equations, last_nr, last_expr) =
-      cattr_children |> List.fold_left (fun (acc, prev_nr, prev_expr) (cnr, (c_nt, c_index)) ->
+      cattr_children
+      |> List.mapi (fun i c -> (i,c))
+      |> List.fold_left (fun (acc, prev_nr, prev_expr) (i, (cnr, (c_nt, c_index))) ->
           let newacc =
-            if List.mem (TAR.NT cnr cattr) defined_arefs then acc else
+            if List.mem (TAR.NT cnr cattr) defined_arefs ||
+               (i = 0 && has_chainstart) then acc else
               [TAEQ.{
                 lhs = TAR.NT cnr cattr
               ; loc = loc
@@ -1305,12 +1313,108 @@ module AGOps = struct
     { (ag) with productions = productions }
   ;
 
-  value augment_chain_with_copychains ag =
+  value augment_chains_with_copychains ag =
     let open AG in
     let chain_attributes = ag.attribute_types |> List.filter_map (fun (aname, at) ->
         if at.AT.is_chain then Some aname else None) in
     List.fold_left augment_one_chain ag chain_attributes
   ;
+
+  value replace_rhs_tar cattr =
+    let pre = "pre_"^cattr in
+    let post = "post_"^cattr in
+    let open TAR in
+    let open TNR in
+    fun [
+      NT (PARENT _ as nt) a when a = cattr -> NT nt pre
+    | NT (CHILD _ _ as nt) a when a = cattr -> NT nt post
+    | x -> x
+    ]
+  ;
+
+  value replace_rhs p cattr e =
+    let dt = Camlp5_migrate.make_dt () in
+    let fallback_migrate_expr = dt.migrate_expr in
+    let migrate_expr dt e =
+      let pn = p.P.name in
+      try e |> TAR.expr_to_tar pn |> replace_rhs_tar cattr |> TAR.tar_to_expr (loc_of_expr e)
+      with _ -> fallback_migrate_expr dt e in
+    let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
+    dt.migrate_expr dt e
+  ;
+
+  value replace_equation ag cattr p e =
+    let open TAEQ in
+    let open TAR in
+    let pre = "pre_"^cattr in
+    let post = "post_"^cattr in
+    let (parent, children) = match p.P.typed_nodes with [ [h :: t] -> (h,t) | _ -> assert False ] in
+    let new_lhs = match e.lhs with [
+      NT nt a when nt = parent && a = cattr ->
+      NT parent post
+    | NT cnt a when a = cattr && List.mem cnt children ->
+      NT cnt pre
+    | CHAINSTART _ cnt a when a = cattr && List.mem cnt children ->
+      NT cnt pre
+    | x -> x
+    ] in
+    let new_rhs_expr = replace_rhs p cattr e.rhs_expr in
+    let new_rhs_nodes = List.map (replace_rhs_tar cattr) e.rhs_nodes in
+    { (e) with
+      lhs = new_lhs
+    ; rhs_expr = new_rhs_expr
+    ; rhs_nodes = new_rhs_nodes
+    }
+  ;
+
+  value replace_production ag cattr p =
+    let open AG in
+    let open P in
+    let new_typed_equations =
+      List.map (replace_equation ag cattr p) p.typed_equations in
+    let new_typed_conditions =
+      List.map (replace_equation ag cattr p) p.typed_conditions in
+    {(p) with
+      typed_equations = new_typed_equations
+    ; typed_conditions = new_typed_conditions
+    }
+  ;
+
+  value replace_chain_attributes ag cattr =
+    let open AG in
+    let pre = "pre_"^cattr in
+    let post = "post_"^cattr in
+    let aty = {(List.assoc cattr ag.attribute_types) with AT.is_chain = False } in
+    let new_attribute_types =
+      ag.attribute_types
+      |> List.remove_assoc cattr
+      |> (fun l -> [(pre, aty); (post, aty)]@l) in
+    let new_node_attributes =
+      ag.node_attributes |> List.map (fun (nt, al) ->
+          (nt,
+           if List.mem cattr al then
+             al |> Std.except cattr |> (fun l -> [pre; post]@l)
+           else al)) in
+    { (ag) with
+      attribute_types = new_attribute_types
+    ; node_attributes = new_node_attributes }
+  ;
+
+  value replace_one_chain ag cattr =
+    let ag = replace_chain_attributes ag cattr in
+    let productions =
+      ag.productions |> List.map (fun (nt, pl) ->
+          (nt, List.map (replace_production ag cattr) pl)) in
+    { (ag) with productions = productions }
+  ;
+
+  value replace_chains_with_pre_post ag =
+    let open AG in
+    let chain_attributes = ag.attribute_types |> List.filter_map (fun (aname, at) ->
+        if at.AT.is_chain then Some aname else None) in
+    List.fold_left replace_one_chain ag chain_attributes
+  ;
+
 
 end
 ;
