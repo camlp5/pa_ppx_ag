@@ -54,7 +54,7 @@ and prog = PROG of block1
       ; [%nterm 0].value_ := [%nterm 1].value_
       ; condition true
       ; [%chainstart 1].rpn := []
-      ; [%nterm prog].rpn_notation := [%nterm 1].rpn
+      ; [%nterm prog].rpn_notation := List.rev [%nterm 1].rpn
       )
     ; block1__BLOCK1 = (
         [%nterm 0].value_ := [%nterm 1].value_
