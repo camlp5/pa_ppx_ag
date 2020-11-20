@@ -101,8 +101,8 @@ module HC = struct
 end
 
 module Unique = struct
-  module _ = Test1_variants
-  [%%import: Test1_variants.Unique.UN.expr]
+  module _ = Test1_ag
+  [%%import: Test1_ag.UN.UN.expr]
   [@@deriving migrate
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
@@ -110,8 +110,8 @@ module Unique = struct
     ; open_recursion_dispatchers = [ expr ]
     ; default_dispatchers = [
         {
-          srcmod = Test1_variants.Unique.UN
-        ; dstmod = Test1_variants.Unique.UN
+          srcmod = Test1_ag.UN.UN
+        ; dstmod = Test1_ag.UN.UN
         ; types = [
             prog_node
           ; expr_node
@@ -131,25 +131,25 @@ module Unique = struct
           srctype = [%typ: expr]
         ; dsttype = [%typ: expr]
         ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
-            Test1_variants.Unique.UN.make_expr (migrate_expr_node __dt__ node)
+            Test1_ag.UN.UN.make_expr (migrate_expr_node __dt__ node)
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
         ; dsttype = [%typ: prog]
         ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
-            Test1_variants.Unique.UN.make_prog (migrate_prog_node __dt__ node)
+            Test1_ag.UN.UN.make_prog (migrate_prog_node __dt__ node)
         }
       ; migrate_binop = {
           srctype = [%typ: binop]
         ; dsttype = [%typ: binop]
         ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
-            Test1_variants.Unique.UN.make_binop (migrate_binop_node __dt__ node)
+            Test1_ag.UN.UN.make_binop (migrate_binop_node __dt__ node)
         }
       ; migrate_unop = {
           srctype = [%typ: unop]
         ; dsttype = [%typ: unop]
         ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
-            Test1_variants.Unique.UN.make_unop (migrate_unop_node __dt__ node)
+            Test1_ag.UN.UN.make_unop (migrate_unop_node __dt__ node)
         }
       }
     }
@@ -157,54 +157,54 @@ module Unique = struct
 end
 
 module ToUnique = struct
-module _ = Test1_variants
-[%%import: Test1_variants.Unique.OK.expr]
+module _ = Test1_ag
+[%%import: Test1_ag.UN.OK.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
     ; dispatchers = {
         migrate_expr_node = {
           srctype = [%typ: expr_node]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.expr_node]
+        ; dsttype = [%typ: Test1_ag.UN.UN.expr_node]
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.expr]
+        ; dsttype = [%typ: Test1_ag.UN.UN.expr]
         ; code = (fun __dt__ x ->
-            Test1_variants.Unique.UN.make_expr (__dt__.migrate_expr_node __dt__ x)
+            Test1_ag.UN.UN.make_expr (__dt__.migrate_expr_node __dt__ x)
           )
         }
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.prog_node]
+        ; dsttype = [%typ: Test1_ag.UN.UN.prog_node]
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.prog]
+        ; dsttype = [%typ: Test1_ag.UN.UN.prog]
         ; code = (fun __dt__ x ->
-            Test1_variants.Unique.UN.make_prog (__dt__.migrate_prog_node __dt__ x)
+            Test1_ag.UN.UN.make_prog (__dt__.migrate_prog_node __dt__ x)
           )
         }
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.binop_node]
+        ; dsttype = [%typ: Test1_ag.UN.UN.binop_node]
         }
       ; migrate_binop = {
           srctype = [%typ: binop]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.binop]
+        ; dsttype = [%typ: Test1_ag.UN.UN.binop]
         ; code = (fun __dt__ x ->
-            Test1_variants.Unique.UN.make_binop (__dt__.migrate_binop_node __dt__ x)
+            Test1_ag.UN.UN.make_binop (__dt__.migrate_binop_node __dt__ x)
           )
         }
       ; migrate_unop_node = {
           srctype = [%typ: unop_node]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.unop_node]
+        ; dsttype = [%typ: Test1_ag.UN.UN.unop_node]
         }
       ; migrate_unop = {
           srctype = [%typ: unop]
-        ; dsttype = [%typ: Test1_variants.Unique.UN.unop]
+        ; dsttype = [%typ: Test1_ag.UN.UN.unop]
         ; code = (fun __dt__ x ->
-            Test1_variants.Unique.UN.make_unop (__dt__.migrate_unop_node __dt__ x)
+            Test1_ag.UN.UN.make_unop (__dt__.migrate_unop_node __dt__ x)
           )
         }
       }
@@ -219,51 +219,51 @@ end
 
 module FromUnique = struct
 module _ = Test1_variants
-[%%import: Test1_variants.Unique.UN.expr]
+[%%import: Test1_ag.UN.UN.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
     ; dispatchers = {
         migrate_expr_node = {
           srctype = [%typ: expr_node]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.expr_node]
+        ; dsttype = [%typ: Test1_ag.UN.OK.expr_node]
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.expr]
+        ; dsttype = [%typ: Test1_ag.UN.OK.expr]
         ; code = (fun __dt__ x ->
             __dt__.migrate_expr_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
           )
         }
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.prog_node]
+        ; dsttype = [%typ: Test1_ag.UN.OK.prog_node]
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.prog]
+        ; dsttype = [%typ: Test1_ag.UN.OK.prog]
         ; code = (fun __dt__ x ->
             __dt__.migrate_prog_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
           )
         }
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.binop_node]
+        ; dsttype = [%typ: Test1_ag.UN.OK.binop_node]
         }
       ; migrate_binop = {
           srctype = [%typ: binop]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.binop]
+        ; dsttype = [%typ: Test1_ag.UN.OK.binop]
         ; code = (fun __dt__ x ->
             __dt__.migrate_binop_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
           )
         }
       ; migrate_unop_node = {
           srctype = [%typ: unop_node]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.unop_node]
+        ; dsttype = [%typ: Test1_ag.UN.OK.unop_node]
         }
       ; migrate_unop = {
           srctype = [%typ: unop]
-        ; dsttype = [%typ: Test1_variants.Unique.OK.unop]
+        ; dsttype = [%typ: Test1_ag.UN.OK.unop]
         ; code = (fun __dt__ x ->
             __dt__.migrate_unop_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
           )
@@ -280,7 +280,7 @@ end
 
 module Attributed = struct
   module _ = Test1_variants
-  [%%import: Test1_variants.Attributed.AT.expr]
+  [%%import: Test1_ag.REC.AT.expr]
   [@@deriving migrate
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
@@ -288,8 +288,8 @@ module Attributed = struct
     ; open_recursion_dispatchers = [ expr ]
     ; default_dispatchers = [
         {
-          srcmod = Test1_variants.Attributed.AT
-        ; dstmod = Test1_variants.Attributed.AT
+          srcmod = Test1_ag.REC.AT
+        ; dstmod = Test1_ag.REC.AT
         ; types = [
             prog_node
           ; expr_node
@@ -317,25 +317,25 @@ module Attributed = struct
           srctype = [%typ: expr]
         ; dsttype = [%typ: expr]
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
-            Test1_variants.Attributed.AT.make_expr (migrate_expr_node __dt__ node)
+            Test1_ag.REC.AT.make_expr (migrate_expr_node __dt__ node)
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
         ; dsttype = [%typ: prog]
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
-            Test1_variants.Attributed.AT.make_prog (migrate_prog_node __dt__ node)
+            Test1_ag.REC.AT.make_prog (migrate_prog_node __dt__ node)
         }
       ; migrate_binop = {
           srctype = [%typ: binop]
         ; dsttype = [%typ: binop]
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
-            Test1_variants.Attributed.AT.make_binop (migrate_binop_node __dt__ node)
+            Test1_ag.REC.AT.make_binop (migrate_binop_node __dt__ node)
         }
       ; migrate_unop = {
           srctype = [%typ: unop]
         ; dsttype = [%typ: unop]
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
-            Test1_variants.Attributed.AT.make_unop (migrate_unop_node __dt__ node)
+            Test1_ag.REC.AT.make_unop (migrate_unop_node __dt__ node)
         }
       }
     }
@@ -344,17 +344,17 @@ end
 
 module ToAttributed = struct
 module _ = Test1_variants
-[%%import: Test1_variants.Attributed.OK.expr]
+[%%import: Test1_ag.REC.OK.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
     ; dispatchers = {
         migrate_expr_node = {
           srctype = [%typ: expr_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.expr_node]
+        ; dsttype = [%typ: Test1_ag.REC.AT.expr_node]
         ; custom_branches_code = (function
               BINOP (bop, x, y) ->
-              Test1_variants.Attributed.AT.make_expr__BINOP
+              Test1_ag.REC.AT.make_expr__BINOP
                 (__dt__.migrate_binop __dt__ bop)
                 (__dt__.migrate_expr __dt__ x)
                 (__dt__.migrate_expr __dt__ y)
@@ -362,45 +362,45 @@ module _ = Test1_variants
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.expr]
+        ; dsttype = [%typ: Test1_ag.REC.AT.expr]
         ; code = (fun __dt__ x ->
-            Test1_variants.Attributed.AT.make_expr (__dt__.migrate_expr_node __dt__ x)
+            Test1_ag.REC.AT.make_expr (__dt__.migrate_expr_node __dt__ x)
           )
         }
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.prog_node]
+        ; dsttype = [%typ: Test1_ag.REC.AT.prog_node]
         ; code = (fun __dt__ -> function PROG x ->
-            Test1_variants.Attributed.AT.make_prog__PROG (__dt__.migrate_expr __dt__ x)
+            Test1_ag.REC.AT.make_prog__PROG (__dt__.migrate_expr __dt__ x)
           )
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.prog]
+        ; dsttype = [%typ: Test1_ag.REC.AT.prog]
         ; code = (fun __dt__ x ->
-            Test1_variants.Attributed.AT.make_prog (__dt__.migrate_prog_node __dt__ x)
+            Test1_ag.REC.AT.make_prog (__dt__.migrate_prog_node __dt__ x)
           )
         }
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.binop_node]
+        ; dsttype = [%typ: Test1_ag.REC.AT.binop_node]
         }
       ; migrate_binop = {
           srctype = [%typ: binop]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.binop]
+        ; dsttype = [%typ: Test1_ag.REC.AT.binop]
         ; code = (fun __dt__ x ->
-            Test1_variants.Attributed.AT.make_binop (__dt__.migrate_binop_node __dt__ x)
+            Test1_ag.REC.AT.make_binop (__dt__.migrate_binop_node __dt__ x)
           )
         }
       ; migrate_unop_node = {
           srctype = [%typ: unop_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.unop_node]
+        ; dsttype = [%typ: Test1_ag.REC.AT.unop_node]
         }
       ; migrate_unop = {
           srctype = [%typ: unop]
-        ; dsttype = [%typ: Test1_variants.Attributed.AT.unop]
+        ; dsttype = [%typ: Test1_ag.REC.AT.unop]
         ; code = (fun __dt__ x ->
-            Test1_variants.Attributed.AT.make_unop (__dt__.migrate_unop_node __dt__ x)
+            Test1_ag.REC.AT.make_unop (__dt__.migrate_unop_node __dt__ x)
           )
         }
       }
@@ -414,8 +414,8 @@ let prog x = dt.migrate_prog dt x
 end
 
 module FromAttributed = struct
-module _ = Test1_variants
-[%%import: Test1_variants.Attributed.AT.expr]
+module _ = Test1_ag
+[%%import: Test1_ag.REC.AT.expr]
 [@@deriving migrate
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
@@ -428,10 +428,10 @@ module _ = Test1_variants
         }
       ; migrate_expr_node = {
           srctype = [%typ: expr_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.expr_node]
+        ; dsttype = [%typ: Test1_ag.REC.OK.expr_node]
         ; custom_branches_code = (function
               BINOP (bop, x, y, _) ->
-              Test1_variants.Attributed.OK.BINOP
+              Test1_ag.REC.OK.BINOP
                 (__dt__.migrate_binop __dt__ bop,
                  __dt__.migrate_expr __dt__ x,
                  __dt__.migrate_expr __dt__ y)
@@ -439,44 +439,44 @@ module _ = Test1_variants
         }
       ; migrate_expr = {
           srctype = [%typ: expr]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.expr]
+        ; dsttype = [%typ: Test1_ag.REC.OK.expr]
         ; code = (fun __dt__ x ->
             __dt__.migrate_expr_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.prog_node]
+        ; dsttype = [%typ: Test1_ag.REC.OK.prog_node]
         ; custom_branches_code = (function
               PROG (e, _) ->
-              Test1_variants.Attributed.OK.PROG (__dt__.migrate_expr __dt__ e)
+              Test1_ag.REC.OK.PROG (__dt__.migrate_expr __dt__ e)
           )
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.prog]
+        ; dsttype = [%typ: Test1_ag.REC.OK.prog]
         ; code = (fun __dt__ x ->
             __dt__.migrate_prog_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.binop_node]
+        ; dsttype = [%typ: Test1_ag.REC.OK.binop_node]
         }
       ; migrate_binop = {
           srctype = [%typ: binop]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.binop]
+        ; dsttype = [%typ: Test1_ag.REC.OK.binop]
         ; code = (fun __dt__ x ->
             __dt__.migrate_binop_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
       ; migrate_unop_node = {
           srctype = [%typ: unop_node]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.unop_node]
+        ; dsttype = [%typ: Test1_ag.REC.OK.unop_node]
         }
       ; migrate_unop = {
           srctype = [%typ: unop]
-        ; dsttype = [%typ: Test1_variants.Attributed.OK.unop]
+        ; dsttype = [%typ: Test1_ag.REC.OK.unop]
         ; code = (fun __dt__ x ->
             __dt__.migrate_unop_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )

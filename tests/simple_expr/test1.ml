@@ -14,16 +14,16 @@ let pa_prog_attributed s =
   |> Grammar.Entry.parse Test1_pa.prog_attributed_eoi
 
 let test_hashtables ctxt =
-  assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> UN1.AG.evaluate)
-; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> UN1.AG.evaluate)
+  assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> UN.AG.evaluate)
+; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> UN.AG.evaluate)
 ; assert_raises (Failure "rhs must be nonzero")
-    (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_unique |> UN1.AG.evaluate)
+    (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_unique |> UN.AG.evaluate)
 
 let test_records ctxt =
-  assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_attributed |> REC1.AG.evaluate)
-; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> REC1.AG.evaluate)
+  assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_attributed |> REC.AG.evaluate)
+; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> REC.AG.evaluate)
 ; assert_raises (Failure "rhs must be nonzero")
-    (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_attributed |> REC1.AG.evaluate)
+    (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_attributed |> REC.AG.evaluate)
  
 
 let suite = "test1" >::: [

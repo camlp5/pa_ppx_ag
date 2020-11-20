@@ -23,7 +23,7 @@ TESTS= \
 	test1.byte test2.byte \
 
 ML=\
-	test1_ast.ml test1_variants.ml test1_migrate.ml test1_pa.ml test1_ag.ml test1.ml \
+	test1_ast.ml test1_variants.ml test1_ag.ml test1_migrate.ml test1_pa.ml test1.ml \
 	test2_ag.ml test2_pa.ml test2_migrate.ml test2.ml
 
 
@@ -38,11 +38,11 @@ all test: $(TESTS)  $(TESTS:.byte=)
 % : %.opt
 	mkdir -p _build && ./$<
 
-test1.byte: test1_ast.cmo test1_variants.cmo test1_migrate.cmo test1_pa.cmo test1_ag.cmo test1.cmo
+test1.byte: test1_ast.cmo test1_variants.cmo test1_ag.cmo test1_migrate.cmo test1_pa.cmo test1.cmo
 	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) -package $(PACKAGES),camlp5.pa_o.link \
 	-linkpkg -linkall -syntax camlp5o $^ -o $@
 
-test1.opt: test1_ast.cmx test1_variants.cmx test1_migrate.cmx test1_pa.cmx test1_ag.cmx test1.cmx
+test1.opt: test1_ast.cmx test1_variants.cmx test1_ag.cmx test1_migrate.cmx test1_pa.cmx test1.cmx
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES),camlp5.pa_o.link \
 	-linkpkg -linkall -syntax camlp5o $^ -o $@
 
