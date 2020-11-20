@@ -966,7 +966,9 @@ module AGOps = struct
   (** an AG is well-formed2 if every attribute reference in all equations
       and conditions is declared in the typed attributes *)
 
-  value well_formed_aref ag =
+  value true_or_exn ~{exnf} x = if x then x else exnf() ;
+
+  value well_formed_aref0 loc ag =
     let open AG in
     let open TAR in
     let open TNR in
@@ -981,12 +983,17 @@ module AGOps = struct
     ]
   ;
 
-  value true_or_exn ~{exnf} x = if x then x else exnf() ;
+  value well_formed_aref loc ag x =
+    true_or_exn ~{exnf=fun () ->
+      Ploc.raise loc (Failure Fmt.(str "not a well-formed attribute ref: %a"
+                                     TAR.pp_hum x))}
+    (well_formed_aref0 loc ag x)
+  ;
 
   value well_formed_equation0 ag pn teq =
     let open AG.TAEQ in
-    well_formed_aref ag teq.lhs &&
-    List.for_all (well_formed_aref ag) teq.rhs_nodes
+    well_formed_aref teq.loc ag teq.lhs &&
+    List.for_all (well_formed_aref teq.loc ag) teq.rhs_nodes
   ;
 
   value well_formed_equation ag pn teq =
@@ -1000,8 +1007,8 @@ module AGOps = struct
 
   value well_formed_condition0 typed_attributes pn tcond =
     let open AG.TAEQ in
-    well_formed_aref typed_attributes tcond.lhs &&
-    List.for_all (well_formed_aref typed_attributes) tcond.rhs_nodes
+    well_formed_aref tcond.loc typed_attributes tcond.lhs &&
+    List.for_all (well_formed_aref tcond.loc typed_attributes) tcond.rhs_nodes
   ;
 
   value well_formed_condition typed_attributes pn tcond =
@@ -1420,6 +1427,44 @@ module AGOps = struct
     List.fold_left replace_one_chain ag chain_attributes
   ;
 
+  value add_condition_attributes ag =
+    let open AG in
+    let open P in
+    let open TAEQ in
+    let loc = ag.AG.loc in
+    let condition_pns = ag.productions |> List.concat_map (fun (nt, pl) -> pl |> List.filter_map (fun p ->
+        if p.typed_conditions <> [] &&
+           not(production_attribute_exists ag (p.name, "condition")) then
+          Some (PN.unparse p.name)
+        else None
+      )) in
+    let ag = condition_pns |> List.fold_left (fun ag pn ->
+        let old_al = match List.assoc pn ag.production_attributes with [ x -> x | exception Not_found -> [] ] in
+        {(ag) with
+         production_attributes =
+           ag.production_attributes
+           |> List.remove_assoc pn
+           |> (fun l -> [(pn, ["condition" :: old_al]) :: l])
+        }
+      ) ag in
+    let new_productions =
+      if ag.storage_mode = Hashtables then ag.productions else
+        ag.productions |> List.map (fun (nt, pl) -> (nt, pl |> List.map (fun p ->
+        let loc = p.P.loc in
+        if not (List.mem_assoc (PN.unparse p.name) ag.production_attributes) then p else
+        let new_patt = match p.patt with [
+          <:patt< $_$ prod_attrs >> -> p.patt
+        | <:patt< ( $list:_$ ) >>  -> p.patt
+        | _ -> <:patt< $p.patt$ prod_attrs >>
+        ] in
+        {(p) with patt = new_patt }
+      ))) in
+    let ag = {(ag) with productions = new_productions } in
+    if not (List.mem_assoc "condition" ag.attribute_types) then
+      {(ag) with
+       attribute_types = [("condition", AT.mk <:ctyp< bool >>) :: ag.attribute_types]}
+    else ag
+  ;
 
 end
 ;

@@ -15,7 +15,6 @@ module _ = Test1_ast
   ; axiom = prog
   ; attribute_types = {
       bin_oper = [%typ: int -> int -> int]
-    ; condition = [%typ: bool]
     ; inh_env = [%typ: (string * int) list]
     ; result = [%typ: int]
     ; rhs_must_be_nonzero = [%typ: bool]
@@ -35,8 +34,7 @@ module _ = Test1_ast
     ; unop = [un_oper; operator_text]
     }
   ; production_attributes = {
-      expr__BINOP = [condition; result]
-    ; prog__PROG = [condition]
+      expr__BINOP = [result]
     }
   ; attribution = {
       expr__INT = (
@@ -144,7 +142,6 @@ module _ = Test1_ast
   ; axiom = prog
   ; attribute_types = {
       bin_oper = [%typ: int -> int -> int]
-    ; condition = [%typ: bool]
     ; inh_env = [%typ: (string * int) list]
     ; result = [%typ: int]
     ; rhs_must_be_nonzero = [%typ: bool]
@@ -164,8 +161,7 @@ module _ = Test1_ast
     ; unop = [un_oper; operator_text]
     }
   ; production_attributes = {
-      expr__BINOP = [condition; result]
-    ; prog__PROG = [condition]
+      expr__BINOP = [result]
     }
   ; attribution = {
       expr__INT = (

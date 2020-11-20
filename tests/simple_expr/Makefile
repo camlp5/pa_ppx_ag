@@ -14,6 +14,8 @@ NOT_OCAMLFIND=$(LAUNCH) not-ocamlfind
 MKCAMLP5=$(LAUNCH) mkcamlp5
 PACKAGES := $(PACKAGES),ounit2,fmt,pcre,rresult,compiler-libs.common,sexplib,uint,pa_ppx.utils,ocamlgraph
 PACKAGES := $(PACKAGES),pa_ppx_ag,pa_ppx_ag.runtime,pa_ppx_migrate,pa_ppx_hashcons,pa_ppx_unique
+R_PACKAGES := $(PACKAGES)
+PACKAGES := $(PACKAGES),camlp5.pr_o
 SYNTAX := camlp5o
 OCAMLCFLAGS += -ppopt -pa_passthru-debug 
 IMPORT_OCAMLCFLAGS = -ppopt -pa_import-package -ppopt camlp5
@@ -66,7 +68,7 @@ depend::
 	test1_ast.ml test1_variants.ml test1_migrate.ml test1_ag.ml test1.ml \
 	test2_ag.ml test2_migrate.ml test2.ml \
 	>> .depend.NEW
-	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r \
+	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r \
 	test1_pa.ml \
 	test2_pa.ml \
 	>> .depend.NEW
@@ -75,16 +77,16 @@ depend::
 -include .depend
 
 test1_pa.cmo: test1_pa.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
 
 test1_pa.cmx: test1_pa.ml
-	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
 
 test2_pa.cmo: test2_pa.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
 
 test2_pa.cmx: test2_pa.ml
-	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
 
 .ml.cmo:
 #	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -ppopt -sep -ppopt ";;\n" -package $(PACKAGES),pa_ppx.import,camlp5.pr_o -syntax $(SYNTAX) $< > $*_ppo.ml

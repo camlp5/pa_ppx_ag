@@ -375,7 +375,6 @@ module Attributed = struct
           ; binop_node
           ; unop_node
           ; expr__BINOP_attributes
-          ; prog__PROG_attributes
           ]
         }
       ]
@@ -462,9 +461,6 @@ module _ = Test1_variants
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
         ; dsttype = [%typ: Test1_ag.REC.AT.prog_node]
-        ; code = (fun __dt__ -> function PROG x ->
-            Test1_ag.REC.AT.make_prog__PROG (__dt__.migrate_block1 __dt__ x)
-          )
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
@@ -562,10 +558,6 @@ module _ = Test1_ag
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
         ; dsttype = [%typ: Test1_ag.REC.OK.prog_node]
-        ; custom_branches_code = (function
-              PROG (e, _) ->
-              Test1_ag.REC.OK.PROG (__dt__.migrate_block1 __dt__ e)
-          )
         }
       ; migrate_prog = {
           srctype = [%typ: prog]

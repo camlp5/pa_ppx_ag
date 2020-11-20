@@ -143,11 +143,13 @@ value str_item_gen_ag name arg = fun [
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
     let ag = AGOps.(augment_chains_with_copychains ag) in
     let ag = AGOps.(replace_chains_with_pre_post ag) in
+    let ag = AGOps.add_condition_attributes ag in
     let (rc, uu_st, uu_open_st) =
       let rc0 = AGC.{
           (rc0) with
           attribute_types = ag.attribute_types |> List.map (fun (attrna, aty) -> (attrna, aty.AG.AT.ty))
         ; node_attributes = ag.node_attributes
+        ; production_attributes = ag.production_attributes
         } in
       str_item_gen_decorated loc rc0 tdl in
     let memo = AGOps.NTOps.mk_memo ag in

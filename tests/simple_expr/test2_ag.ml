@@ -19,7 +19,6 @@ and prog = PROG of block1
       env = [%typ: (string * int) list]
     ; value_ = [%typ: int]
     ; result = [%typ: int]
-    ; condition = [%typ: bool]
     ; rpn = [%typ: (string list [@chain])]
     ; rpn_notation = [%typ: string list]
     }
@@ -31,7 +30,6 @@ and prog = PROG of block1
     }
   ; production_attributes = {
       expr__PLUS = [result]
-    ; prog__PROG = [condition]
     }
   ; attribution = {
       expr__INT = (
