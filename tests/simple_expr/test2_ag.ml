@@ -24,7 +24,6 @@ and prog = PROG of block1
     ; inh_env = [%typ: (string * int) list]
     ; result = [%typ: int]
     ; rhs_must_be_nonzero = [%typ: bool]
-    ; syn_env = [%typ: (string * int) list]
     ; un_oper = [%typ: int -> int]
     ; value_ = [%typ: int]
     ; rpn = [%typ: (string list [@chain])]
@@ -32,7 +31,7 @@ and prog = PROG of block1
     ; operator_text = [%typ: string]
     }
   ; node_attributes = {
-      expr = [inh_env; syn_env; value_; rpn]
+      expr = [inh_env; value_; rpn]
     ; block1 = [inh_env; value_; rpn]
     ; block2 = [inh_env; value_]
     ; prog = [value_; rpn_notation]
@@ -44,14 +43,12 @@ and prog = PROG of block1
     }
   ; attribution = {
       expr__INT = (
-        [%nterm 0].syn_env := [%nterm 0].inh_env ;
         [%nterm 0].value_ := [%prim 1]
       ; [%nterm 0].rpn := (string_of_int [%prim 1]) :: [%nterm 0].rpn
       )
     ; expr__BINOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env
-      ; [%nterm expr.(2)].inh_env := [%nterm expr.(1)].syn_env
-      ; [%nterm expr].syn_env := [%nterm expr.(2)].syn_env
+      ; [%nterm expr.(2)].inh_env := [%nterm expr].inh_env
       ; [%nterm expr].value_ := [%local result]
       ; [%local result] := [%nterm binop.(1)].bin_oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_
       ; [%nterm expr].rpn := [%nterm binop.(1)].operator_text :: [%nterm expr.(2)].rpn
@@ -62,20 +59,17 @@ and prog = PROG of block1
       )
     ; expr__UNOP = (
         [%nterm expr.(1)].inh_env := [%nterm expr].inh_env
-      ; [%nterm expr].syn_env := [%nterm expr.(1)].syn_env
       ; [%nterm expr].value_ := [%nterm unop.(1)].un_oper [%nterm expr.(1)].value_
       ; [%nterm expr].rpn := [%nterm unop.(1)].operator_text :: [%nterm expr.(1)].rpn
       )
     ; expr__REF = (
-        [%nterm 0].syn_env := [%nterm 0].inh_env ;
         [%nterm 0].value_ := List.assoc [%prim 1] [%nterm 0].inh_env
       ; [%nterm expr].rpn := [%prim 1] :: [%nterm expr].rpn
       )
     ; expr__SEQ = (
-        [%nterm 1].inh_env := [%nterm 0].inh_env ;
-        [%nterm 2].inh_env := [%nterm 1].syn_env ;
-        [%nterm 0].syn_env := [%nterm 2].syn_env ;
-        [%nterm 0].value_ := [%nterm 2].value_
+        [%nterm 1].inh_env := [%nterm 0].inh_env
+      ; [%nterm 2].inh_env := [%nterm 0].inh_env
+      ; [%nterm 0].value_ := [%nterm 2].value_
       ; [%nterm expr].rpn := ";" :: [%nterm expr.(2)].rpn
       )
     ; prog__PROG = (
