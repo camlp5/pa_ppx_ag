@@ -15,7 +15,16 @@ EXTEND
   GLOBAL: expr prog prog_eoi prog_attributed_eoi;
 
   expr: [
-    [ e1 = expr ; "+" ; e2 = expr -> PLUS e1 e2
+    [ e1 = expr ; ";" ; e2 = expr -> SEQ e1 e2 ]
+  | [ e1 = expr ; "+" ; e2 = expr -> BINOP PLUS e1 e2
+    | e1 = expr ; "-" ; e2 = expr -> BINOP MINUS e1 e2
+    ]
+  | [ e1 = expr ; "*" ; e2 = expr -> BINOP STAR e1 e2
+    | e1 = expr ; "/" ; e2 = expr -> BINOP SLASH e1 e2
+    | e1 = expr ; "%" ; e2 = expr -> BINOP PERCENT e1 e2
+    ]
+  | [ "+" ; e = expr -> UNOP UPLUS e
+    | "-" ; e = expr -> UNOP UMINUS e
     ]
   | [ n = INT -> INT (int_of_string n)
     | id = LIDENT -> REF id
@@ -39,8 +48,20 @@ value prog = Eprinter.apply pr_prog;
 EXTEND_PRINTER
   pr_prog: [ [ PROG (BLOCK1 (BLOCK2 e)) -> pprintf pc "%p" expr e ] ] ;
   pr_expr:
-    [ "add"
-      [ PLUS e1 e2 -> pprintf pc "%p + %p" curr e1 next e2
+    [ "semi"
+      [ SEQ e1 e2 -> pprintf pc "%p; %p" curr e1 next e2 ]
+    | "add"
+      [ BINOP PLUS e1 e2 -> pprintf pc "%p + %p" curr e1 next e2
+      | BINOP MINUS e1 e2 -> pprintf pc "%p - %p" curr e1 next e2
+      ]
+    | "mul"
+      [ BINOP STAR e1 e2 -> pprintf pc "%p * %p" curr e1 next e2
+      | BINOP SLASH e1 e2 -> pprintf pc "%p / %p" curr e1 next e2
+      | BINOP PERCENT e1 e2 -> pprintf pc "%p %% %p" curr e1 next e2
+      ]
+    | "unop"
+      [ UNOP UPLUS e -> pprintf pc "+ %p" curr e
+      | UNOP UMINUS e -> pprintf pc "- %p" curr e
       ]
     | "simple"
       [ INT n -> pprintf pc "%d" n

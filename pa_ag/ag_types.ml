@@ -121,6 +121,7 @@ module AG = struct
       NT of NR.t and string
     | PROD of PN.t and string
     | CHAINSTART of PN.t and NR.t and string
+    | REMOTE of list (string * string)
     ]
     ;
     value rec pp_hum pps = fun [
@@ -151,6 +152,15 @@ module AG = struct
         CHAINSTART pn (NR.CHILD None (int_of_string n)) attrna
       | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
         CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
+
+      | <:expr< [%remote ( $list:l$ );] >> ->
+        let l = l |> List.map (fun [
+            <:expr< $lid:pnt$ . $lid:attrna$ >> -> (pnt, attrna)
+          | e ->
+            Ploc.raise (MLast.loc_of_expr e)
+              (Failure Fmt.(str "expr_to_ar: malformed upward attribute reference %a" Pp_MLast.pp_expr e))
+          ]) in
+        REMOTE l
 
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_ar: bad expr:@ %a"
@@ -197,6 +207,7 @@ module AG = struct
       NT of TNR.t and string
     | PROD of PN.t and string
     | CHAINSTART of PN.t and TNR.t and string
+    | REMOTE of list (string * string)
     ]
     ;
     value pp_hum pps = fun [
@@ -226,6 +237,15 @@ module AG = struct
       | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
         CHAINSTART pn (CHILD tyname (int_of_string n)) attrna
 
+      | <:expr< [%remote ( $list:l$ );] >> ->
+        let l = l |> List.map (fun [
+            <:expr< $lid:pnt$ . $lid:attrna$ >> -> (pnt, attrna)
+          | e ->
+            Ploc.raise (MLast.loc_of_expr e)
+              (Failure Fmt.(str "expr_to_ar: malformed upward attribute reference %a" Pp_MLast.pp_expr e))
+          ]) in
+        REMOTE l
+
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
                           Pp_MLast.pp_expr e))
@@ -249,6 +269,10 @@ module AG = struct
 
     | CHAINSTART pn (CHILD tyname n) attrna ->
       <:expr< [%chainstart $lid:tyname$ . ( $int:string_of_int n$ );] . $lid:attrna$ >>
+
+    | REMOTE l ->
+      let l = List.map (fun (p,a) -> <:expr< $lid:p$ . $lid:a$ >>) l in
+      <:expr< [%remote ( $list:l$ );] >>
     ]
     ;
   end ;
