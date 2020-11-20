@@ -39,7 +39,7 @@ end
 type storage_mode_t = [ Hashtables | Records ] ;
 
 module AG = struct
-  module ProductionName = struct
+  module PN = struct
     type t = {
       nonterm_name: string
     ; case_name: option string
@@ -56,9 +56,9 @@ module AG = struct
     ]
     ;
   end ;
-  module PN = ProductionName ;
+  module ProductionName = PN ;
 
-  module NodeReference = struct
+  module NR = struct
     type t = [
         PARENT of option string
       | CHILD of option string and int
@@ -115,7 +115,7 @@ module AG = struct
   ]
   ;
   end ;
-  module NR = NodeReference ;
+  module NodeReference = NR ;
   module AR = struct
     type t = [
       NT of NR.t and string
@@ -159,7 +159,7 @@ module AG = struct
     ;
   end ;
 
-  module TypedNodeReference = struct
+  module TNR = struct
     type t = [
         PARENT of string
       | CHILD of string and int
@@ -191,7 +191,7 @@ module AG = struct
     value to_expr loc x = NR.to_expr loc (to_nr x) ;
   end
   ;
-  module TNR = TypedNodeReference ;
+  module TypedNodeReference = TNR ;
   module TAR = struct
     type t = [
       NT of TNR.t and string
@@ -310,7 +310,7 @@ module AG = struct
     value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
   end ;
 
-  module Production = struct
+  module P = struct
     type t = {
       name : PN.t
     ; loc : Ploc.t
@@ -369,9 +369,9 @@ module AG = struct
       }
       ;
   end ;
-  module P = Production ;
+  module Production = P ;
 
-  module AttributeType = struct
+  module AT = struct
     type t = {
       ty : ctyp
     ; is_chain : bool
@@ -387,7 +387,7 @@ module AG = struct
     ;
     value pp_top pps x = Fmt.(pf pps "#<at< %a >>" pp_hum x) ;
   end;
-  module AT = AttributeType ;
+  module AttributeType = AT ;
   type t = {
     loc : Ploc.t
   ; storage_mode : storage_mode_t
@@ -557,7 +557,7 @@ value compute_name2nodename type_decls =
     ) |> List.concat
 ;
 
-module NodeAliases = struct
+module NA = struct
   open AG ;
   value mk () = ref [] ;
   value get x = x.val ;
@@ -582,7 +582,7 @@ module NodeAliases = struct
   ;
   value add x v = Std.push x v ;
 end ;
-module NA = NodeAliases ;
+module NodeAliases = NA ;
 
 value tuple2production loc ag lhs_name ?{case_name=None} tl =
   let open AG in
