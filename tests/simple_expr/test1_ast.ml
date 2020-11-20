@@ -10,4 +10,6 @@ type expr =
   | SEQ of expr * expr
 and unop = UPLUS | UMINUS
 and binop = PLUS | MINUS | STAR | SLASH | PERCENT
-and prog = PROG of expr
+and block1 = BLOCK1 of block2
+and block2 = BLOCK2 of expr
+and prog = PROG of block1

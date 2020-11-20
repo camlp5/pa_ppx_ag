@@ -184,17 +184,17 @@ open AEQ ;;
 #trace Ag_types.AG.P.typed_equation ;;
 *)
 #trace AGOps.NTOps.mk_memo ;;
+(*
 #trace Ag_types.AGOps.augment_production ;;
 #trace Ag_types.AGOps.add_chain_attributes ;;
-(*
 #trace Ag_types.AGOps.replace_rhs ;;
-*)
 #trace Ag_types.AGOps.well_formed_aref ;;
 #trace Ag_types.AGOps.well_formed_equation ;;
 #trace Ag_types.AGOps.well_formed_condition ;;
 #trace Ag_types.AGOps.well_formed_chains ;;
+*)
 
-"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
+"test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
 

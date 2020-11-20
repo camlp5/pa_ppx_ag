@@ -28,6 +28,8 @@ module _ = Test1_ast
     }
   ; node_attributes = {
       expr = [inh_env; syn_env; value_; rpn]
+    ; block1 = [inh_env; value_; rpn]
+    ; block2 = [inh_env; value_]
     ; prog = [value_; rpn_notation]
     ; binop = [bin_oper;rhs_must_be_nonzero; operator_text]
     ; unop = [un_oper; operator_text]
@@ -83,6 +85,14 @@ module _ = Test1_ast
       ; [%nterm 0].value_ := [%nterm 1].value_
       ; [%chainstart 1].rpn := []
       ; [%nterm prog].rpn_notation := List.rev [%nterm 1].rpn
+      )
+    ; block1__BLOCK1 = (
+        [%nterm 0].value_ := [%nterm 1].value_
+      ; [%nterm 1].inh_env := [%nterm 0].inh_env
+      )
+    ; block2__BLOCK2 = (
+        [%nterm 0].value_ := [%nterm 1].value_
+      ; [%nterm 1].inh_env := [%nterm 0].inh_env
       )
     ; unop__UPLUS = (
         [%nterm unop].un_oper := (fun x -> x)
@@ -147,6 +157,8 @@ module _ = Test1_ast
     }
   ; node_attributes = {
       expr = [inh_env; syn_env; value_; rpn]
+    ; block1 = [inh_env; value_; rpn]
+    ; block2 = [inh_env; value_]
     ; prog = [value_; rpn_notation]
     ; binop = [bin_oper;rhs_must_be_nonzero; operator_text]
     ; unop = [un_oper; operator_text]
@@ -203,6 +215,14 @@ module _ = Test1_ast
       ; [%chainstart 1].rpn := []
       ; [%nterm prog].rpn_notation := List.rev [%nterm 1].rpn
       )
+    ; block1__BLOCK1 = (
+        [%nterm 0].value_ := [%nterm 1].value_
+      ; [%nterm 1].inh_env := [%nterm 0].inh_env
+      )
+    ; block2__BLOCK2 = (
+        [%nterm 0].value_ := [%nterm 1].value_
+      ; [%nterm 1].inh_env := [%nterm 0].inh_env
+      )
     ; unop__UPLUS = (
         [%nterm unop].un_oper := (fun x -> x)
       ; [%nterm unop].operator_text := "unary+"
@@ -239,3 +259,4 @@ module _ = Test1_ast
     }
   }]
 end
+

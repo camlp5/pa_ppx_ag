@@ -26,6 +26,8 @@ module OK = struct
         ; dstmod = Test1_variants.Unique.OK
         ; types = [
             prog
+          ; block1
+          ; block2
           ; expr
           ; binop
           ; unop
@@ -58,6 +60,8 @@ module HC = struct
         ; dstmod = Test1_variants.Hashcons.HC
         ; types = [
             prog_node
+          ; block1_node
+          ; block2_node
           ; expr_node
           ; binop_node
           ; unop_node
@@ -82,6 +86,18 @@ module HC = struct
         ; dsttype = [%typ: prog]
         ; code = fun __dt__ -> fun { Hashcons.node = node } ->
             Test1_variants.Hashcons.HC.make_prog (migrate_prog_node __dt__ node)
+        }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: block1]
+        ; code = fun __dt__ -> fun { Hashcons.node = node } ->
+            Test1_variants.Hashcons.HC.make_block1 (migrate_block1_node __dt__ node)
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: block2]
+        ; code = fun __dt__ -> fun { Hashcons.node = node } ->
+            Test1_variants.Hashcons.HC.make_block2 (migrate_block2_node __dt__ node)
         }
       ; migrate_binop = {
           srctype = [%typ: binop]
@@ -114,6 +130,8 @@ module Unique = struct
         ; dstmod = Test1_ag.UN.UN
         ; types = [
             prog_node
+          ; block1_node
+          ; block2_node
           ; expr_node
           ; binop_node
           ; unop_node
@@ -139,6 +157,19 @@ module Unique = struct
         ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
             Test1_ag.UN.UN.make_prog (migrate_prog_node __dt__ node)
         }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: block1]
+        ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
+            Test1_ag.UN.UN.make_block1 (migrate_block1_node __dt__ node)
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: block2]
+        ; code = fun __dt__ -> fun { Pa_ppx_unique_runtime.Unique.node = node } ->
+            Test1_ag.UN.UN.make_block2 (migrate_block2_node __dt__ node)
+        }
+
       ; migrate_binop = {
           srctype = [%typ: binop]
         ; dsttype = [%typ: binop]
@@ -185,6 +216,30 @@ module _ = Test1_ag
             Test1_ag.UN.UN.make_prog (__dt__.migrate_prog_node __dt__ x)
           )
         }
+      ; migrate_block1_node = {
+          srctype = [%typ: block1_node]
+        ; dsttype = [%typ: Test1_ag.UN.UN.block1_node]
+        }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: Test1_ag.UN.UN.block1]
+        ; code = (fun __dt__ x ->
+            Test1_ag.UN.UN.make_block1 (__dt__.migrate_block1_node __dt__ x)
+          )
+        }
+
+      ; migrate_block2_node = {
+          srctype = [%typ: block2_node]
+        ; dsttype = [%typ: Test1_ag.UN.UN.block2_node]
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: Test1_ag.UN.UN.block2]
+        ; code = (fun __dt__ x ->
+            Test1_ag.UN.UN.make_block2 (__dt__.migrate_block2_node __dt__ x)
+          )
+        }
+
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
         ; dsttype = [%typ: Test1_ag.UN.UN.binop_node]
@@ -246,6 +301,28 @@ module _ = Test1_variants
             __dt__.migrate_prog_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
           )
         }
+      ; migrate_block1_node = {
+          srctype = [%typ: block1_node]
+        ; dsttype = [%typ: Test1_ag.UN.OK.block1_node]
+        }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: Test1_ag.UN.OK.block1]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_block1_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
+          )
+        }
+      ; migrate_block2_node = {
+          srctype = [%typ: block2_node]
+        ; dsttype = [%typ: Test1_ag.UN.OK.block2_node]
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: Test1_ag.UN.OK.block2]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_block2_node __dt__ x.Pa_ppx_unique_runtime.Unique.node
+          )
+        }
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
         ; dsttype = [%typ: Test1_ag.UN.OK.binop_node]
@@ -292,6 +369,8 @@ module Attributed = struct
         ; dstmod = Test1_ag.REC.AT
         ; types = [
             prog_node
+          ; block1_node
+          ; block2_node
           ; expr_node
           ; binop_node
           ; unop_node
@@ -325,6 +404,19 @@ module Attributed = struct
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
             Test1_ag.REC.AT.make_prog (migrate_prog_node __dt__ node)
         }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: block1]
+        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
+            Test1_ag.REC.AT.make_block1 (migrate_block1_node __dt__ node)
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: block2]
+        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
+            Test1_ag.REC.AT.make_block2 (migrate_block2_node __dt__ node)
+        }
+
       ; migrate_binop = {
           srctype = [%typ: binop]
         ; dsttype = [%typ: binop]
@@ -371,7 +463,7 @@ module _ = Test1_variants
           srctype = [%typ: prog_node]
         ; dsttype = [%typ: Test1_ag.REC.AT.prog_node]
         ; code = (fun __dt__ -> function PROG x ->
-            Test1_ag.REC.AT.make_prog__PROG (__dt__.migrate_expr __dt__ x)
+            Test1_ag.REC.AT.make_prog__PROG (__dt__.migrate_block1 __dt__ x)
           )
         }
       ; migrate_prog = {
@@ -381,6 +473,29 @@ module _ = Test1_variants
             Test1_ag.REC.AT.make_prog (__dt__.migrate_prog_node __dt__ x)
           )
         }
+      ; migrate_block1_node = {
+          srctype = [%typ: block1_node]
+        ; dsttype = [%typ: Test1_ag.REC.AT.block1_node]
+        }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: Test1_ag.REC.AT.block1]
+        ; code = (fun __dt__ x ->
+            Test1_ag.REC.AT.make_block1 (__dt__.migrate_block1_node __dt__ x)
+          )
+        }
+      ; migrate_block2_node = {
+          srctype = [%typ: block2_node]
+        ; dsttype = [%typ: Test1_ag.REC.AT.block2_node]
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: Test1_ag.REC.AT.block2]
+        ; code = (fun __dt__ x ->
+            Test1_ag.REC.AT.make_block2 (__dt__.migrate_block2_node __dt__ x)
+          )
+        }
+
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
         ; dsttype = [%typ: Test1_ag.REC.AT.binop_node]
@@ -449,7 +564,7 @@ module _ = Test1_ag
         ; dsttype = [%typ: Test1_ag.REC.OK.prog_node]
         ; custom_branches_code = (function
               PROG (e, _) ->
-              Test1_ag.REC.OK.PROG (__dt__.migrate_expr __dt__ e)
+              Test1_ag.REC.OK.PROG (__dt__.migrate_block1 __dt__ e)
           )
         }
       ; migrate_prog = {
@@ -459,6 +574,29 @@ module _ = Test1_ag
             __dt__.migrate_prog_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
+      ; migrate_block1_node = {
+          srctype = [%typ: block1_node]
+        ; dsttype = [%typ: Test1_ag.REC.OK.block1_node]
+        }
+      ; migrate_block1 = {
+          srctype = [%typ: block1]
+        ; dsttype = [%typ: Test1_ag.REC.OK.block1]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_block1_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
+          )
+        }
+      ; migrate_block2_node = {
+          srctype = [%typ: block2_node]
+        ; dsttype = [%typ: Test1_ag.REC.OK.block2_node]
+        }
+      ; migrate_block2 = {
+          srctype = [%typ: block2]
+        ; dsttype = [%typ: Test1_ag.REC.OK.block2]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_block2_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
+          )
+        }
+
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
         ; dsttype = [%typ: Test1_ag.REC.OK.binop_node]
