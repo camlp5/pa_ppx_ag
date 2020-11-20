@@ -14,8 +14,11 @@ let pa_prog_attributed s =
   |> Grammar.Entry.parse Test1_pa.prog_attributed_eoi
 
 let test_hashtables ctxt =
-  assert_equal 3 ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> UN.AG.evaluate)
-; assert_equal 0 ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> UN.AG.evaluate)
+  let printer = [%show: int * string list] in
+  assert_equal ~printer (3,["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"])
+    ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> UN.AG.evaluate)
+; assert_equal ~printer (0,["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"])
+    ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> UN.AG.evaluate)
 ; assert_raises (Failure "rhs must be nonzero")
     (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_unique |> UN.AG.evaluate)
 
