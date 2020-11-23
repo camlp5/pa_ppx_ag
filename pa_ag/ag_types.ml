@@ -129,6 +129,8 @@ module AG = struct
     | PROD pn a -> Fmt.(pf pps "%a.%s" PN.pp_hum pn a)
     | CHAINSTART pn nr a ->
       Fmt.(pf pps "(* @%a *)%a.%s" PN.pp_hum pn (NR.pp_hum ~{is_chainstart=True}) nr a)
+    | REMOTE l ->
+      Fmt.(pf pps "{%a}" (list ~{sep=comma} (pair ~{sep=const string "."} string string)) l)
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<ar< %a >>" pp_hum x) ;
@@ -160,7 +162,7 @@ module AG = struct
             Ploc.raise (MLast.loc_of_expr e)
               (Failure Fmt.(str "expr_to_ar: malformed upward attribute reference %a" Pp_MLast.pp_expr e))
           ]) in
-        REMOTE l
+        REMOTE (l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare)
 
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_ar: bad expr:@ %a"
@@ -215,6 +217,8 @@ module AG = struct
     | PROD pn a -> Fmt.(pf pps "%a.%s" PN.pp_hum pn a)
     | CHAINSTART pn nr a ->
       Fmt.(pf pps "(* @%a *)%a.%s" PN.pp_hum pn (TNR.pp_hum ~{is_chainstart=True}) nr a)
+    | REMOTE l ->
+      Fmt.(pf pps "{%a}" (list ~{sep=comma} (pair ~{sep=const string "."} string string)) l)
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
@@ -332,6 +336,10 @@ module AG = struct
         Fmt.(pf pps "%a := %a%a" TAR.pp_hum x.lhs Pp_hum.expr x.rhs_expr
                (option (wrap_comment Dump.string)) x.msg) ;
     value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
+
+    value remote_upward_attributes e =
+      e.rhs_nodes |> List.filter (fun [ TAR.REMOTE _ -> True | _ -> False ])
+    ;
   end ;
 
   module P = struct
@@ -392,6 +400,14 @@ module AG = struct
       ; rhs_expr = typed_rhs loc p rhs_expr
       }
       ;
+    value remote_upward_attributes p =
+      (p.typed_equations |> List.concat_map TAEQ.remote_upward_attributes) @
+      (p.typed_conditions |> List.concat_map TAEQ.remote_upward_attributes)
+    ;
+    value parent_nonterminal p = p.name.PN.nonterm_name ;
+    value child_nonterminals p =
+      p.typed_nodes |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ])
+    ;
   end ;
   module Production = P ;
 
@@ -440,6 +456,10 @@ module AG = struct
   ; productions = []
   }
   ;
+  value all_productions ag =
+    ag.productions |> List.concat_map (fun (_, pl) -> pl)
+  ;
+
   value node_productions ag nt =
     match List.assoc nt ag.productions with [
       x -> x
@@ -781,8 +801,8 @@ module AGOps = struct
 
   module NTOps = struct
     value _attributes_of ag ntname =
-      ag.productions
-      |> List.map snd |> List.concat
+      ag
+      |> AG.all_productions
       |> List.map POps.attribute_occurrences |> List.concat
       |> List.filter_map (fun [
           TAR.NT (TNR.CHILD n _) attrna when n = ntname -> Some attrna
@@ -793,8 +813,8 @@ module AGOps = struct
     ;
 
     value _inherited_attributes_of ag ntname =
-      ag.productions
-      |> List.map snd |> List.concat
+      ag
+      |> AG.all_productions
       |> List.map POps.inherited_occurrences |> List.concat
       |> List.filter_map (fun [
           TAR.NT (TNR.CHILD n _) attrna when n = ntname -> Some attrna
@@ -803,8 +823,8 @@ module AGOps = struct
       |> Std2.hash_uniq
     ;
     value _synthesized_attributes_of ag ntname =
-      ag.productions
-      |> List.map snd |> List.concat
+      ag
+      |> AG.all_productions
       |> List.map POps.synthesized_occurrences |> List.concat
       |> List.filter_map (fun [
           TAR.NT (TNR.PARENT n) attrna when n = ntname -> Some attrna
@@ -835,11 +855,11 @@ module AGOps = struct
         (PARENT pnt, CHILD cnt _) -> G.add_edge_e g (pnt, Some pn, cnt)
       | _ -> g
       ] in
-      List.fold_left (fun g (_,pl) ->
-          List.fold_left (fun g p ->
-              let lhs = List.hd p.P.typed_nodes in
-              let rhsl = List.tl p.P.typed_nodes in
-              List.fold_left (fun g rhs -> add_edge g (lhs, p, rhs)) g rhsl) g pl) g ag.productions
+      List.fold_left (fun g p ->
+          let lhs = List.hd p.P.typed_nodes in
+          let rhsl = List.tl p.P.typed_nodes in
+          List.fold_left (fun g rhs -> add_edge g (lhs, p, rhs)) g rhsl)
+        g (AG.all_productions ag)
   ;
 
     type memoized_af_ai_is_t = {
@@ -1089,10 +1109,10 @@ module AGOps = struct
   ;
   value well_formed2 m =
     let ag = m.NTOps.ag in
-    (ag.productions |> List.for_all (fun (nt, pl) -> pl |> List.for_all (fun p ->
+    ag |> AG.all_productions |> List.for_all (fun p ->
          p.P.typed_equations |> List.for_all (well_formed_equation ag p.P.name) &&
          p.P.typed_conditions |> List.for_all (well_formed_condition ag p.P.name)
-       )))
+       )
   ;
 
   value well_formed m =
@@ -1109,16 +1129,14 @@ module AGOps = struct
                                (list ~{sep=sp} string) (NTOps._AS m nt)))}
            ([] = Std.intersect (NTOps._AI m nt) (NTOps._AS m nt))
     ))
-    && (ag.productions |> List.for_all (fun (_, pl) ->
-        pl |> List.for_all (fun p ->
+    && (ag |> AG.all_productions |> List.for_all (fun p ->
             true_or_exn ~{exnf=fun () ->
                 Ploc.raise loc
                   (Failure Fmt.(str "well_formed: in production %a defining occurrences are not distinct: { %a }"
                                   PN.pp_hum p.P.name
                                   (list ~{sep=sp} TAR.pp_hum) (POps.defining_occurrences p)))}
               (Std.distinct (POps.defining_occurrences p))
-          )
-      ))
+          ))
   ;
 
   value complete m =
@@ -1142,8 +1160,7 @@ module AGOps = struct
         (match List.assoc nt ag.node_attributes with
            [ l -> l | exception Not_found -> assert False ]))
     ))
-    && (ag.productions |> List.for_all
-          (fun (_, pl) -> pl |> List.for_all (fun p ->
+    && (ag |> AG.all_productions |> List.for_all (fun p ->
                (List.tl p.P.typed_nodes) |> List.for_all (fun node ->
                    match node with [
                      TNR.PARENT nt ->
@@ -1156,17 +1173,17 @@ module AGOps = struct
                      Std.subset occurrences (POps.defining_occurrences p)
                    | TNR.PRIM _ _ -> True
                    ]
-                 ))))
+                 )))
     && ([] = NTOps._AI m ag.axiom)
     && True
   ;
 
   value locally_acyclic m =
     let ag = m.NTOps.ag in
-    ag.productions |> List.for_all (fun (_, pl) -> pl |> List.for_all (fun p ->
+    ag |> AG.all_productions |> List.for_all (fun p ->
         let ddp = POps.direct_reference_graph p in
         not Tsort0.(cyclic (nodes ddp) (mkadj ddp))
-      ))
+      )
   ;
 
   (** [chain_to_copychains ag]
@@ -1456,12 +1473,12 @@ module AGOps = struct
     let open P in
     let open TAEQ in
     let loc = ag.AG.loc in
-    let condition_pns = ag.productions |> List.concat_map (fun (nt, pl) -> pl |> List.filter_map (fun p ->
+    let condition_pns = ag |> AG.all_productions |> List.filter_map (fun p ->
         if p.typed_conditions <> [] &&
            not(production_attribute_exists ag (p.name, "condition")) then
           Some (PN.unparse p.name)
         else None
-      )) in
+      ) in
     let ag = condition_pns |> List.fold_left (fun ag pn ->
         let old_al = match List.assoc pn ag.production_attributes with [ x -> x | exception Not_found -> [] ] in
         {(ag) with
@@ -1490,5 +1507,178 @@ module AGOps = struct
     else ag
   ;
 
+  (** remote upward attribute sets
+
+      (1) syntax: [%remote X.a, Y.b, Z.c]
+
+      (2) check that a,b,c all have the same type
+
+      (3) check that X.a, Y.b and Z.c all are declared properly
+
+      (4) check that X,Y,Z are distinct
+
+      (5) compute new attribute-name, as (a) sort set, then (b) concat
+     with "__"
+
+      (6) If one of the X,Y,Z is the LHS of the production, then
+     rewrite the remote attribute-set to a local reference to that
+     attribute of the LHS.
+
+      (7) Otherwise, we need to compute the set S of nonterminals that
+     need this new attribute #5.
+
+          (a) S starts with { LHS }
+
+          (b) for every production P whose LHS is not the axiom, and
+          with a RHS nonterminal in S, and whose LHS is not one of X,Y,Z,
+          add P.LHS to S.
+
+          (c) success condition: RHS nonterminals of productions whose LHS
+          is the axiom, are NOT in S.
+
+      (8) Now, for every production whose LHS is not in S, but
+          has a RHS child X in S, add the equation:
+
+          X.{#5 attribute name} := LHS.{relevant attribute name from upward remote set}
+
+      (9) for every production who LHS is in S, and has a RHS child X in S,
+          add the equation:
+
+          X.{#5 attribute name} := LHS.{#5 attribute name}
+
+      (10) add {#5 attribute name} as an attribute to every nonterminal in S.
+
+      (11) declare {#5 attribute name} with type of X.a
+
+  *)
+
+  value rua_to_attribute = fun [
+    TAR.REMOTE l ->
+    l |> List.concat_map (fun (a,b) -> [a;b]) |> String.concat "__"
+  | _ -> assert False ]
+  ;
+
+  value remote_upward_attributes ag =
+    let open AG in
+    let open P in
+    let open TAEQ in
+    ag.productions
+    |> List.map (fun (nt, pl) ->
+        (nt, pl |> List.concat_map P.remote_upward_attributes))
+  ;
+
+  value rua_to_nt_aref ag rua nt =
+    let l = match rua with [ TAR.REMOTE l -> l | _ -> assert False ] in
+    l |> List.find_map (fun [
+        (n,a) when nt = n && AG.node_attribute_exists ag (n,a) -> Some a
+      | _ -> None
+      ])
+  ;
+
+  value nt_satisfies_rua ag rua nt =
+    None <> rua_to_nt_aref ag rua nt
+  ;
+
+  value rua_nonterminals_step ag rua sofar =
+    let open AG in
+    let open P in
+    let open TAEQ in
+    ag |> AG.all_productions |> List.concat_map (fun p ->
+        let parent_nt = P.parent_nonterminal p in
+        let child_nts = P.child_nonterminals p in
+        if not (List.mem parent_nt sofar) && not (nt_satisfies_rua ag rua parent_nt) &&
+           [] <> Std.intersect (P.child_nonterminals p) sofar then
+          [parent_nt] else []
+      )
+  ;
+
+  value nt_uses_rua ag rua nt =
+    let pl = List.assoc nt ag.productions in
+    pl |> List.exists (fun p -> List.mem rua (P.remote_upward_attributes p))
+  ;
+
+  value rua_nonterminals ag rua init =
+    let rec setrec sofar =
+      let addl = rua_nonterminals_step ag rua sofar in
+      if addl = [] then sofar
+      else setrec (addl@sofar)
+    in do {
+      assert (init |> List.for_all (nt_uses_rua ag rua)) ;
+      setrec init
+    }
+  ;
+
+  value rua_type ag rua =
+    let aname = match rua with [
+      TAR.REMOTE [(_, aname) :: _] -> aname
+    | _ -> assert False
+    ] in
+    AG.attribute_type ag aname
+  ;
+
+  (** replace_rua:
+
+      (1) compute full list of nonterminals that need the new
+     attribute
+
+      (2) declare the new attribute's type
+
+      (3) add the new attribute to the list from #1
+
+      (4) stitch thru equations to copy-chain the new attribute: for
+     each production:
+
+          (a) if the LHS is not in list #1 and there is a child in
+     list #1, then *perforce* the LHS must satisfy the RUA (have a
+     satisfying attribute).  Add an equation copying it to each child
+     that is in list #1.
+
+          (b) if both LHS and child are in list #1, then add an
+     equation copying it to the child.
+
+      (5) rewrite matching RUAs using the attribute:
+
+          (a) if the LHS is not in list #1 but satisfies the RUA, then
+     rewrite all instances of the RUA in equations/conditions to use
+     the LHS attribute.
+
+          (b) if the LHS is in list #1 then rewrite all instances of
+     teh RUA in equations/conditions to use the new attribute on the
+     LHS.
+
+  *)
+
+  value add_new_attribute ag (new_attr, ty) ntl =
+    let open AG in
+    let ag = {
+      (ag) with
+      attribute_types = [(new_attr, AT.mk ty) :: ag.attribute_types]
+    } in
+    let ag = {
+      (ag) with
+      node_attributes =
+        ag.node_attributes |> List.map (fun (nt, al) ->
+            (nt, if List.mem nt ntl then [new_attr :: al] else al))
+    } in
+    ag
+  ;
+
+(*
+  value stitch_rua_copy_chain ag rua new_attr ntl =
+
+  value replace_rua ag (rua,ntl) =
+    let open AG in
+    let full_ntl = rua_nonterminals ag rua ntl in do {
+      if List.mem ag.axiom full_ntl then
+        Ploc.raise ag.loc
+          (Failure Fmt.(str "replace_rua: nonterminal %s is the axiom ([@<h>full set = { %a }@]), found during processing of remote upward attribute %a"
+                          ag.axiom
+                          (list ~{sep=spc} string) full_ntl
+                          TAR.pp_hum rua))
+      else
+        let ty = rua_type ag rua in
+        let new_attr = rua_to_attribute rua in
+    }
+*)
 end
 ;
