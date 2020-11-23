@@ -471,7 +471,9 @@ module AG = struct
   value node_attributes ag nt =
     match List.assoc nt ag.node_attributes with [
       x -> x
-    | exception Not_found -> []
+    | exception Not_found ->
+      Ploc.raise ag.loc
+        (Failure Fmt.(str "node_attributes: nonterminal %s has no attributes -- surely this is an error" nt))
     ]
   ;
   value node_attribute_exists ag (nt, attrna) =
@@ -491,6 +493,7 @@ module AG = struct
     let attrs = List.assoc pn ag.production_attributes in
     List.mem attrna attrs
   ;
+  value is_declared_attribute ag attrna = List.mem_assoc attrna ag.attribute_types ;
   value attribute_type ag attrna =
     match List.assoc attrna ag.attribute_types with [
       x -> x
@@ -748,14 +751,6 @@ end
 
 module AGOps = struct
   open AG ;
-
-  value productions ag nt =
-    match List.assoc nt ag.productions with [
-      x -> x
-    | exception Not_found ->
-      Ploc.raise ag.loc (Failure Fmt.(str "No productions found for nonterminal %s" nt))
-    ]
-  ;
 
   module POps = struct
     value attribute_occurrences p =
@@ -1085,8 +1080,8 @@ module AGOps = struct
     chain_attributes |> List.for_all (fun cattr ->
         let pre = "pre_"^cattr in
         let post = "post_"^cattr in
-        not(List.mem_assoc pre ag.attribute_types) &&
-        not (List.mem_assoc post ag.attribute_types))
+        not(AG.is_declared_attribute ag pre) &&
+        not (AG.is_declared_attribute ag post))
   ;
 
   value well_formed_chains1 m =
@@ -1154,11 +1149,10 @@ module AGOps = struct
              Ploc.raise loc
                (Failure Fmt.(str "complete: AG is not complete (nonterminal X = %s): sets (@[<h>A(X) = { %a }@]) != (@[<h>declared_attributes(X) = { %a }@])"
                                nt (list ~{sep=sp} string) (NTOps._A m nt)
-                               (list ~{sep=sp} string) (List.assoc nt ag.node_attributes)
+                               (list ~{sep=sp} string) (AG.node_attributes ag nt)
                                ))}
            (Std.same_members (NTOps._A m nt)
-        (match List.assoc nt ag.node_attributes with
-           [ l -> l | exception Not_found -> assert False ]))
+        (AG.node_attributes ag nt))
     ))
     && (ag |> AG.all_productions |> List.for_all (fun p ->
                (List.tl p.P.typed_nodes) |> List.for_all (fun node ->
@@ -1437,7 +1431,7 @@ module AGOps = struct
     let open AG in
     let pre = "pre_"^cattr in
     let post = "post_"^cattr in
-    let aty = {(List.assoc cattr ag.attribute_types) with AT.is_chain = False } in
+    let aty = {(AG.attribute_type ag cattr) with AT.is_chain = False } in
     let new_attribute_types =
       ag.attribute_types
       |> List.remove_assoc cattr
@@ -1480,7 +1474,7 @@ module AGOps = struct
         else None
       ) in
     let ag = condition_pns |> List.fold_left (fun ag pn ->
-        let old_al = match List.assoc pn ag.production_attributes with [ x -> x | exception Not_found -> [] ] in
+        let old_al = AG.production_attributes ag pn in
         {(ag) with
          production_attributes =
            ag.production_attributes
@@ -1492,7 +1486,7 @@ module AGOps = struct
       if ag.storage_mode = Hashtables then ag.productions else
         ag.productions |> List.map (fun (nt, pl) -> (nt, pl |> List.map (fun p ->
         let loc = p.P.loc in
-        if not (List.mem_assoc (PN.unparse p.name) ag.production_attributes) then p else
+        if [] = AG.production_attributes ag (PN.unparse p.name) then p else
         let new_patt = match p.patt with [
           <:patt< $_$ prod_attrs >> -> p.patt
         | <:patt< ( $list:_$ ) >>  -> p.patt
@@ -1501,7 +1495,7 @@ module AGOps = struct
         {(p) with patt = new_patt }
       ))) in
     let ag = {(ag) with productions = new_productions } in
-    if not (List.mem_assoc "condition" ag.attribute_types) then
+    if not (AG.is_declared_attribute ag "condition") then
       {(ag) with
        attribute_types = [("condition", AT.mk <:ctyp< bool >>) :: ag.attribute_types]}
     else ag
@@ -1593,7 +1587,7 @@ module AGOps = struct
   ;
 
   value nt_uses_rua ag rua nt =
-    let pl = List.assoc nt ag.productions in
+    let pl = AG.node_productions ag nt in
     pl |> List.exists (fun p -> List.mem rua (P.remote_upward_attributes p))
   ;
 
@@ -1662,9 +1656,9 @@ module AGOps = struct
     } in
     ag
   ;
-
 (*
   value stitch_rua_copy_chain ag rua new_attr ntl =
+    
 
   value replace_rua ag (rua,ntl) =
     let open AG in
