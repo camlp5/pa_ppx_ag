@@ -399,7 +399,7 @@ module AG = struct
       ; rhs_nodes = List.map (typed_attribute loc p) rhs_nodes
       ; rhs_expr = typed_rhs loc p rhs_expr
       }
-      ;
+    ;
     value remote_upward_attributes p =
       (p.typed_equations |> List.concat_map TAEQ.remote_upward_attributes) @
       (p.typed_conditions |> List.concat_map TAEQ.remote_upward_attributes)
@@ -407,6 +407,12 @@ module AG = struct
     value parent_nonterminal p = p.name.PN.nonterm_name ;
     value child_nonterminals p =
       p.typed_nodes |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ])
+    ;
+    value map_typed_equations f p =
+      {(p) with typed_equations = List.map f p.typed_equations }
+    ;
+    value map_typed_conditions f p =
+      {(p) with typed_conditions = List.map f p.typed_conditions }
     ;
   end ;
   module Production = P ;
@@ -459,6 +465,10 @@ module AG = struct
   value all_productions ag =
     ag.productions |> List.concat_map (fun (_, pl) -> pl)
   ;
+  value map_productions f ag =
+    { (ag) with productions =
+      ag.productions |> List.map (fun (nt, pl) -> (nt, (pl |> List.map (f nt)))) }
+  ;
 
   value node_productions ag nt =
     match List.assoc nt ag.productions with [
@@ -501,6 +511,17 @@ module AG = struct
       Ploc.raise ag.loc (Failure Fmt.(str "attribute_type: attribute %s has no declared type" attrna))
     ]
   ;
+
+  value remote_upward_attributes ag =
+    let open P in
+    let open TAEQ in
+    ag.productions
+    |> List.concat_map (fun (nt, pl) ->
+        pl |> List.concat_map P.remote_upward_attributes)
+    |> List.sort_uniq Stdlib.compare
+    |> List.stable_sort Stdlib.compare
+  ;
+
 end ;
 
 module Demarshal = struct
@@ -1552,15 +1573,6 @@ module AGOps = struct
   | _ -> assert False ]
   ;
 
-  value remote_upward_attributes ag =
-    let open AG in
-    let open P in
-    let open TAEQ in
-    ag.productions
-    |> List.map (fun (nt, pl) ->
-        (nt, pl |> List.concat_map P.remote_upward_attributes))
-  ;
-
   value rua_to_nt_aref ag rua nt =
     let l = match rua with [ TAR.REMOTE l -> l | _ -> assert False ] in
     l |> List.find_map (fun [
@@ -1586,9 +1598,13 @@ module AGOps = struct
       )
   ;
 
+  value production_uses_rua rua p =
+    List.mem rua (P.remote_upward_attributes p)
+  ;
+
   value nt_uses_rua ag rua nt =
     let pl = AG.node_productions ag nt in
-    pl |> List.exists (fun p -> List.mem rua (P.remote_upward_attributes p))
+    pl |> List.exists (production_uses_rua rua)
   ;
 
   value rua_nonterminals ag rua init =
@@ -1656,23 +1672,162 @@ module AGOps = struct
     } in
     ag
   ;
-(*
-  value stitch_rua_copy_chain ag rua new_attr ntl =
-    
 
-  value replace_rua ag (rua,ntl) =
+  value rua_copy_equation loc (cnr, new_attr) (parent, p_attr) =
+    let lhs = TAR.NT cnr new_attr in
+    let rhs = TAR.NT (TNR.PARENT parent) p_attr in
+    Some {
+        TAEQ.loc = loc
+      ; lhs = lhs
+      ; msg = None
+      ; rhs_nodes = [rhs]
+      ; rhs_expr = TAR.tar_to_expr loc rhs
+      }
+  ;
+
+  value replace_rua_tar rua rua_tar =
+    let open TAR in
+    let open TNR in
+    fun [
+      REMOTE _ as a when a = rua -> rua_tar
+    | x -> x
+    ]
+  ;
+
+  value replace_rhs_rua p rua new_tar e =
+    let dt = Camlp5_migrate.make_dt () in
+    let fallback_migrate_expr = dt.migrate_expr in
+    let pn = p.P.name in
+    let migrate_expr dt e =
+      try e |> TAR.expr_to_tar pn |> replace_rua_tar rua new_tar |> TAR.tar_to_expr (loc_of_expr e)
+      with _ -> fallback_migrate_expr dt e in
+    let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
+    dt.migrate_expr dt e
+  ;
+
+  value stitch_rua_copy_chain ag rua new_attr ntl =
     let open AG in
-    let full_ntl = rua_nonterminals ag rua ntl in do {
-      if List.mem ag.axiom full_ntl then
-        Ploc.raise ag.loc
-          (Failure Fmt.(str "replace_rua: nonterminal %s is the axiom ([@<h>full set = { %a }@]), found during processing of remote upward attribute %a"
-                          ag.axiom
-                          (list ~{sep=spc} string) full_ntl
-                          TAR.pp_hum rua))
-      else
-        let ty = rua_type ag rua in
-        let new_attr = rua_to_attribute rua in
-    }
-*)
+    let open P in
+    ag |> AG.map_productions (fun nt p ->
+        let loc = p.loc in
+        let parent = P.parent_nonterminal p in
+        let copy_equations = match (List.mem (P.parent_nonterminal p) ntl, Std.subset (P.child_nonterminals p) ntl) with [
+          (True, True) ->
+          (* both parent and children have the RUA attribute; add copy-equations *)
+          p.typed_nodes |> List.filter_map (fun [
+              (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
+              rua_copy_equation loc (cnr, new_attr) (parent, new_attr)
+            | _ -> None
+        ])
+
+      | (False, True) ->
+        (* children have RUA, parent does not; check that parent satisfies RUA, add copy-equations *)
+        let satisfying_attrna = match rua_to_nt_aref ag rua parent with [
+          None -> Ploc.raise loc (Failure Fmt.(str "stitch_rua_copy_chain: malformed production %s"
+                                                 (PN.unparse p.name)))
+        | Some x -> x
+        ] in
+        p.typed_nodes |> List.filter_map (fun [
+            (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
+            rua_copy_equation loc (cnr, new_attr) (parent, satisfying_attrna)
+          | _ -> None
+        ])
+
+      | (_, False) ->
+        (* no children have RUA; do nothing *)
+        []
+      ] in
+      { (p) with typed_equations = copy_equations @ p.typed_equations }
+    )
+  ;
+
+  value replace_teqn_rua ag rua p e =
+    let open AG in
+    let open P in
+    let open TAEQ in
+    let loc = p.P.loc in
+    let parent = P.parent_nonterminal p in
+    let new_attr = rua_to_attribute rua in
+    match (node_attribute_exists ag (parent, new_attr), rua_to_nt_aref ag rua parent) with [
+      (True, Some _) ->
+      (* parent has new attr, but also satisfies the RUA:
+         this should never happen -- the second condition
+         should suffice.*)
+      assert False
+
+    | (True, None) ->
+      (* parent has new attr, replace rhs with this TAR *)
+      let new_tar = TAR.NT (TNR.PARENT parent) new_attr in
+      let new_rhs_expr = replace_rhs_rua p rua new_tar e.TAEQ.rhs_expr in
+      let new_rhs_nodes = e.rhs_nodes |> List.map (fun [
+          TAR.REMOTE _ as r when r = rua -> new_tar
+        | x -> x
+        ]) in
+      { (e) with
+        rhs_expr = new_rhs_expr
+      ; rhs_nodes = new_rhs_nodes
+      }
+
+    | (False, None) -> do {
+      (* parent hasn't new attr, and doesn't satisfy RUA:
+         there better not be any RUA references in rhs,
+         since we can't replace them *)
+        assert (not (List.mem rua (TAEQ.remote_upward_attributes e))) ;
+        e
+      }
+
+    | (False, Some attrna) ->
+      (* parent satisfies RUA, use that to rewrite rhs *)
+      let new_tar = TAR.NT (TNR.PARENT parent) attrna in
+      let new_rhs_expr = replace_rhs_rua p rua new_tar e.rhs_expr in
+      let new_rhs_nodes = e.rhs_nodes |> List.map (fun [
+          TAR.REMOTE _ as r when r = rua -> new_tar
+        | x -> x
+        ]) in
+      { (e) with
+        rhs_expr = new_rhs_expr
+      ; rhs_nodes = new_rhs_nodes
+      }
+    ]
+    ;
+
+  value replace_rhs_rua ag rua =
+    let open AG in
+    let open P in
+    ag |> AG.map_productions (fun nt p ->
+        p |> P.map_typed_equations (replace_teqn_rua ag rua p)
+        |> P.map_typed_conditions (replace_teqn_rua ag rua p)
+      )
+  ;
+
+  value rua_affected_nts ag rua =
+    ag.productions |> List.filter_map (fun (nt, pl) ->
+      if pl |> List.exists (fun p -> List.mem rua (P.remote_upward_attributes p)) then
+        Some nt
+      else None)
+  ;
+
+  value replace1_rua ag rua =
+    let open AG in
+    let ntl = rua_affected_nts ag rua in
+    let full_ntl = rua_nonterminals ag rua ntl in
+    if List.mem ag.axiom full_ntl then
+      Ploc.raise ag.loc
+        (Failure Fmt.(str "replace_rua: nonterminal %s is the axiom ([@<h>full set = { %a }@]), found during processing of remote upward attribute %a"
+                        ag.axiom
+                        (list ~{sep=sp} string) full_ntl
+                        TAR.pp_hum rua))
+    else
+      let ty = rua_type ag rua in
+      let new_attr = rua_to_attribute rua in
+      let ag = stitch_rua_copy_chain ag rua new_attr full_ntl in
+      replace_rhs_rua ag rua
+  ;
+
+  value replace_ruas ag =
+    let ruas = AG.remote_upward_attributes ag in
+    List.fold_left replace1_rua ag ruas
+  ;
+
 end
 ;
