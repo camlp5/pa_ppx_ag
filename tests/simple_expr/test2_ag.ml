@@ -21,7 +21,7 @@ and prog = PROG of block1
   ; axiom = prog
   ; attribute_types = {
       bin_oper = [%typ: int -> int -> int]
-    ; inh_env = [%typ: (string * int) list]
+    ; env = [%typ: (string * int) list]
     ; result = [%typ: int]
     ; rhs_must_be_nonzero = [%typ: bool]
     ; un_oper = [%typ: int -> int]
@@ -32,7 +32,7 @@ and prog = PROG of block1
     }
   ; node_attributes = {
       expr = [value_; rpn]
-    ; block1 = [inh_env; value_; rpn]
+    ; block1 = [env; value_; rpn]
     ; block2 = [value_]
     ; prog = [value_; rpn_notation]
     ; binop = [bin_oper;rhs_must_be_nonzero; operator_text]
@@ -60,7 +60,7 @@ and prog = PROG of block1
       ; [%nterm expr].rpn := [%nterm unop.(1)].operator_text :: [%nterm expr.(1)].rpn
       )
     ; expr__REF = (
-        [%nterm 0].value_ := List.assoc [%prim 1] [%remote block1.inh_env]
+        [%nterm 0].value_ := List.assoc [%prim 1] [%remote block1.env]
       ; [%nterm expr].rpn := [%prim 1] :: [%nterm expr].rpn
       )
     ; expr__SEQ = (
@@ -68,7 +68,7 @@ and prog = PROG of block1
       ; [%nterm expr].rpn := ";" :: [%nterm expr.(2)].rpn
       )
     ; prog__PROG = (
-        [%nterm 1].inh_env := [("x", 1); ("y", 2); ("z", 3); ("w", 4)]
+        [%nterm 1].env := [("x", 1); ("y", 2); ("z", 3); ("w", 4)]
       ; [%nterm 0].value_ := [%nterm 1].value_
       ; [%chainstart 1].rpn := []
       ; [%nterm prog].rpn_notation := List.rev [%nterm 1].rpn
