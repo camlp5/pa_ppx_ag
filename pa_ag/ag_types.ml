@@ -155,7 +155,8 @@ module AG = struct
       | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
         CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
 
-      | <:expr< [%remote ( $list:l$ );] >> ->
+      | <:expr< [%remote $exp:e$;] >> ->
+        let l = match e with [ <:expr< ( $list:l$ ) >> -> l | e -> [e] ] in
         let l = l |> List.map (fun [
             <:expr< $lid:pnt$ . $lid:attrna$ >> -> (pnt, attrna)
           | e ->
@@ -378,6 +379,7 @@ module AG = struct
     | AR.PROD pn attrna -> TAR.PROD pn attrna
     | AR.CHAINSTART pn nr attrna ->
       TAR.CHAINSTART pn (lookup_nr ~{is_chainstart=True} nr) attrna
+    | AR.REMOTE l -> TAR.REMOTE l
     ]
     ;
     value typed_rhs loc p e =
@@ -1181,11 +1183,25 @@ module AGOps = struct
                      TNR.PARENT nt ->
                      let synthesized = NTOps._AS m nt in
                      let occurrences = List.map (fun a -> TAR.NT node a) synthesized in
-                     Std.subset occurrences (POps.defining_occurrences p)
+                     true_or_exn ~{exnf=fun () ->
+                         Ploc.raise loc
+                           (Failure Fmt.(str "complete: production %s AS(%s) @[<h>({ %a })@] not a subset of defining_occurrences @[<h>({ %a })@]"
+                                           (PN.unparse p.P.name)
+                                           nt
+                                           (list ~{sep=sp} TAR.pp_hum) occurrences
+                                           (list ~{sep=sp} TAR.pp_hum) (POps.defining_occurrences p)))}
+                       (Std.subset occurrences (POps.defining_occurrences p))
                    | TNR.CHILD nt _ ->
                      let inherited = NTOps._AI m nt in
                      let occurrences = List.map (fun a -> TAR.NT node a) inherited in
-                     Std.subset occurrences (POps.defining_occurrences p)
+                     true_or_exn ~{exnf=fun () ->
+                         Ploc.raise loc
+                           (Failure Fmt.(str "complete: production %s AI(%s) @[<h>({ %a })@] not a subset of defining_occurrences @[<h>({ %a })@]"
+                                           (PN.unparse p.P.name)
+                                           nt
+                                           (list ~{sep=sp} TAR.pp_hum) occurrences
+                                           (list ~{sep=sp} TAR.pp_hum) (POps.defining_occurrences p)))}
+                       (Std.subset occurrences (POps.defining_occurrences p))
                    | TNR.PRIM _ _ -> True
                    ]
                  )))
@@ -1623,7 +1639,7 @@ module AGOps = struct
       TAR.REMOTE [(_, aname) :: _] -> aname
     | _ -> assert False
     ] in
-    AG.attribute_type ag aname
+    (AG.attribute_type ag aname).AT.ty
   ;
 
   (** replace_rua:
@@ -1711,7 +1727,9 @@ module AGOps = struct
     ag |> AG.map_productions (fun nt p ->
         let loc = p.loc in
         let parent = P.parent_nonterminal p in
-        let copy_equations = match (List.mem (P.parent_nonterminal p) ntl, Std.subset (P.child_nonterminals p) ntl) with [
+        let children = P.child_nonterminals p in
+        let copy_equations = match (List.mem (P.parent_nonterminal p) ntl,
+                                    ([] <> Std.intersect children ntl)) with [
           (True, True) ->
           (* both parent and children have the RUA attribute; add copy-equations *)
           p.typed_nodes |> List.filter_map (fun [
@@ -1820,6 +1838,7 @@ module AGOps = struct
     else
       let ty = rua_type ag rua in
       let new_attr = rua_to_attribute rua in
+      let ag = add_new_attribute ag (new_attr, ty) full_ntl in
       let ag = stitch_rua_copy_chain ag rua new_attr full_ntl in
       replace_rhs_rua ag rua
   ;

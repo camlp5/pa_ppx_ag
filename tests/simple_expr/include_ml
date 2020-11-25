@@ -193,8 +193,14 @@ open AEQ ;;
 #trace Ag_types.AGOps.well_formed_condition ;;
 #trace Ag_types.AGOps.well_formed_chains ;;
 *)
+#trace Ag_types.AGOps.complete ;;
+#trace Ag_types.AGOps.rua_affected_nts ;;
+#trace Ag_types.AGOps.rua_nonterminals ;;
+#trace Ag_types.AGOps.add_new_attribute ;;
+#trace Ag_types.AGOps.stitch_rua_copy_chain ;;
 
-"test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
+
+"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
 
