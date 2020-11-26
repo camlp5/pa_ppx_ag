@@ -135,6 +135,28 @@ module AG = struct
     ;
     value pp_top pps x = Fmt.(pf pps "#<ar< %a >>" pp_hum x) ;
 
+    value expr_to_remote = fun [
+      <:expr< [%remote $exp:e$;] >> ->
+        let l = match e with [ <:expr< ( $list:l$ ) >> -> l | e -> [e] ] in
+        let l = l |> List.map (fun [
+            <:expr< $lid:pnt$ . $lid:attrna$ >> -> (pnt, attrna)
+          | e ->
+            Ploc.raise (MLast.loc_of_expr e)
+              (Failure Fmt.(str "expr_to_ar: malformed upward attribute reference %a" Pp_MLast.pp_expr e))
+          ]) in
+        (l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare)
+      ]
+    ;
+
+    value remote_to_expr loc l =
+      let l = List.map (fun (p,a) -> <:expr< $lid:p$ . $lid:a$ >>) l in
+      match l with [
+        [_ ; _ :: _] -> <:expr< [%remote ( $list:l$ );] >>
+      | [e] -> <:expr< [%remote $exp:e$ ;] >>
+      | [] -> assert False
+      ]
+    ;
+
     value expr_to_ar pn e =
       match e with [
         <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
@@ -155,15 +177,7 @@ module AG = struct
       | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
         CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
 
-      | <:expr< [%remote $exp:e$;] >> ->
-        let l = match e with [ <:expr< ( $list:l$ ) >> -> l | e -> [e] ] in
-        let l = l |> List.map (fun [
-            <:expr< $lid:pnt$ . $lid:attrna$ >> -> (pnt, attrna)
-          | e ->
-            Ploc.raise (MLast.loc_of_expr e)
-              (Failure Fmt.(str "expr_to_ar: malformed upward attribute reference %a" Pp_MLast.pp_expr e))
-          ]) in
-        REMOTE (l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare)
+      | <:expr< [%remote $exp:_$;] >> -> REMOTE (expr_to_remote e)
 
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_ar: bad expr:@ %a"
@@ -242,14 +256,8 @@ module AG = struct
       | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
         CHAINSTART pn (CHILD tyname (int_of_string n)) attrna
 
-      | <:expr< [%remote ( $list:l$ );] >> ->
-        let l = l |> List.map (fun [
-            <:expr< $lid:pnt$ . $lid:attrna$ >> -> (pnt, attrna)
-          | e ->
-            Ploc.raise (MLast.loc_of_expr e)
-              (Failure Fmt.(str "expr_to_ar: malformed upward attribute reference %a" Pp_MLast.pp_expr e))
-          ]) in
-        REMOTE l
+      | <:expr< [%remote $exp:_$;] >> ->
+        REMOTE (AR.expr_to_remote e)
 
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
@@ -275,9 +283,7 @@ module AG = struct
     | CHAINSTART pn (CHILD tyname n) attrna ->
       <:expr< [%chainstart $lid:tyname$ . ( $int:string_of_int n$ );] . $lid:attrna$ >>
 
-    | REMOTE l ->
-      let l = List.map (fun (p,a) -> <:expr< $lid:p$ . $lid:a$ >>) l in
-      <:expr< [%remote ( $list:l$ );] >>
+    | REMOTE l -> AR.remote_to_expr loc l
     ]
     ;
   end ;

@@ -42,7 +42,7 @@ and prog = PROG of block1
     ; ref_expr = [value_; rpn (*; freevars *)]
     ; block1 = [env; value_; rpn]
     ; block2 = [value_]
-    ; prog = [value_; rpn_notation]
+    ; prog = [value_; rpn_notation (*; freevars *)]
     ; binop = [bin_oper;rhs_must_be_nonzero; operator_text]
     ; unop = [un_oper; operator_text]
     }
@@ -54,6 +54,12 @@ and prog = PROG of block1
         [%nterm let_expr].value_ := [%nterm expr.(2)].value_
       ; [%nterm expr.(2)].rpn := (Printf.sprintf "bind %s" [%prim 1]) :: [%nterm expr.(1)].rpn
       ; [%nterm let_expr].env := ([%prim 1], [%nterm expr.(1)].value_) :: [%remote (block1.env, let_expr.env)]
+(*
+      ; [%nterm 0].freevars :=
+          Std.union
+            [%constituents { node = [%nterm 1] ; attributes = [ref_expr.freevars; let_expr.freevars]}]
+            (Std.except [%prim 1] [%constituents { node = [%nterm 2] ; attributes = [ref_expr.freevars; let_expr.freevars]}])
+*)
       )
     ; expr__INT = (
         [%nterm 0].value_ := [%prim 1]
@@ -92,6 +98,9 @@ and prog = PROG of block1
       ; [%nterm 0].value_ := [%nterm 1].value_
       ; [%chainstart 1].rpn := []
       ; [%nterm prog].rpn_notation := List.rev [%nterm 1].rpn
+(*
+      ; [%nterm 0].freevars := [%constituents { node = [%nterm 1] ; attributes = [ref_expr.freevars; let_expr.freevars]}]
+*)
       )
     ; block1__BLOCK1 = (
         [%nterm 0].value_ := [%nterm 1].value_
