@@ -15,7 +15,7 @@ EXTEND
   GLOBAL: expr prog prog_eoi prog_attributed_eoi;
 
   expr: [
-    [ e1 = expr ; ";" ; e2 = expr -> SEQ e1 e2 ]
+    "top" [ e1 = expr ; ";" ; e2 = expr -> SEQ e1 e2 ]
   | [ e1 = expr ; "+" ; e2 = expr -> BINOP PLUS e1 e2
     | e1 = expr ; "-" ; e2 = expr -> BINOP MINUS e1 e2
     ]
@@ -29,6 +29,7 @@ EXTEND
   | [ n = INT -> INT (int_of_string n)
     | id = LIDENT -> REF id
     | "(" ; e = expr ; ")" -> e
+    | "let" ; id = LIDENT ; "=" ; e1 = expr LEVEL "top" ; "in" ; e2 = expr LEVEL "top" -> LET (LET_BINDING id e1 e2)
     ]
   ]
   ;
@@ -66,6 +67,7 @@ EXTEND_PRINTER
     | "simple"
       [ INT n -> pprintf pc "%d" n
       | REF id -> pprintf pc "%s" id
+      | LET (LET_BINDING id e1 e2) -> pprintf pc "let %s = %p in %p" id expr e1 expr e2
       | e -> pprintf pc "(%p)" expr e
       ]
     ] ;

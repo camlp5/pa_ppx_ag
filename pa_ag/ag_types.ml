@@ -1729,8 +1729,9 @@ module AGOps = struct
         let parent = P.parent_nonterminal p in
         let children = P.child_nonterminals p in
         let copy_equations = match (List.mem (P.parent_nonterminal p) ntl,
-                                    ([] <> Std.intersect children ntl)) with [
-          (True, True) ->
+                                    ([] <> Std.intersect children ntl),
+                                    rua_to_nt_aref ag rua parent) with [
+          (True, True, None) ->
           (* both parent and children have the RUA attribute; add copy-equations *)
           p.typed_nodes |> List.filter_map (fun [
               (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
@@ -1738,22 +1739,22 @@ module AGOps = struct
             | _ -> None
         ])
 
-      | (False, True) ->
-        (* children have RUA, parent does not; check that parent satisfies RUA, add copy-equations *)
-        let satisfying_attrna = match rua_to_nt_aref ag rua parent with [
-          None -> Ploc.raise loc (Failure Fmt.(str "stitch_rua_copy_chain: malformed production %s"
-                                                 (PN.unparse p.name)))
-        | Some x -> x
-        ] in
-        p.typed_nodes |> List.filter_map (fun [
-            (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
-            rua_copy_equation loc (cnr, new_attr) (parent, satisfying_attrna)
-          | _ -> None
-        ])
+        | (False, True, None) ->
+          (* children have RUA, parent does not; parent DOES NOT satisfies RUA *)
+          Ploc.raise loc (Failure Fmt.(str "stitch_rua_copy_chain: malformed production %s"
+                                         (PN.unparse p.name)))
 
-      | (_, False) ->
-        (* no children have RUA; do nothing *)
-        []
+        | (_, True, Some satisfying_attrna) ->
+          (* children have RUA; parent satisfies RUA, add copy-equations *)
+          p.typed_nodes |> List.filter_map (fun [
+              (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
+              rua_copy_equation loc (cnr, new_attr) (parent, satisfying_attrna)
+            | _ -> None
+          ])
+
+        | (_, False, _) ->
+          (* no children have RUA; do nothing *)
+          []
       ] in
       { (p) with typed_equations = copy_equations @ p.typed_equations }
     )
@@ -1767,13 +1768,7 @@ module AGOps = struct
     let parent = P.parent_nonterminal p in
     let new_attr = rua_to_attribute rua in
     match (node_attribute_exists ag (parent, new_attr), rua_to_nt_aref ag rua parent) with [
-      (True, Some _) ->
-      (* parent has new attr, but also satisfies the RUA:
-         this should never happen -- the second condition
-         should suffice.*)
-      assert False
-
-    | (True, None) ->
+      (True, _) ->
       (* parent has new attr, replace rhs with this TAR *)
       let new_tar = TAR.NT (TNR.PARENT parent) new_attr in
       let new_rhs_expr = replace_rhs_rua p rua new_tar e.TAEQ.rhs_expr in

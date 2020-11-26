@@ -12,6 +12,7 @@ let test_records ctxt =
   let printer = [%show: int * string list] in
   assert_equal ~printer (3, ["x"; "y"; "+"]) ({| x + y |} |> pa_prog_attributed |> AG.evaluate)
 ; assert_equal ~printer (5, ["1"; "w"; "+"]) ({| 1 + w |} |> pa_prog_attributed |> AG.evaluate)
+; assert_equal ~printer (7, ["6"; "bind z"; "1"; "z"; "+"]) ({| let z = 6 in 1 + z |} |> pa_prog_attributed |> AG.evaluate)
 
 let suite = "test2" >::: [
     "test_records"           >:: test_records

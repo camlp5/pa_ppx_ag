@@ -135,51 +135,32 @@ print_string "================ START ================\n";; flush stdout ;;
 #require "hashcons";;
 #require "ocamlgraph";;
 
-#load "test1_ast.cmo";;
-#load "test1_variants.cmo";;
-#load "test1_migrate.cmo";;
-#load "test1_pa.cmo";;
-#load "test1_ag_ppo.cmo";;
+#load "test2_ag.cmo";;
+#load "test2_migrate.cmo";;
+#load "test2_pa.cmo";;
 
 #print_length 10000 ;;
 #print_depth 10000 ;;
-open Test1_ag_ppo.HT ;;
-open AG ;;
-open AG.Node ;;
 
 let pp_expr e =
-  let n = e.Pa_ppx_unique_runtime.Unique.id in
-  let e = Test1_migrate.FromUnique.expr e in
-  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test1_pa.Pr.expr Pprintf.empty_pc e))
+  let n = e.Pa_ppx_ag_runtime.Attributes.id in
+  let e = Test2_migrate.FromAttributed.expr e in
+  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test2_pa.Pr.expr Pprintf.empty_pc e))
 ;;
 #install_printer pp_expr ;;
 
 let pp_prog e =
-  let n = e.Pa_ppx_unique_runtime.Unique.id in
-  let e = Test1_migrate.FromUnique.prog e in
-  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test1_pa.Pr.prog Pprintf.empty_pc e))
+  let n = e.Pa_ppx_ag_runtime.Attributes.id in
+  let e = Test2_migrate.FromAttributed.prog e in
+  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test2_pa.Pr.prog Pprintf.empty_pc e))
 ;;
 #install_printer pp_prog ;;
 
-let pp_attributes_t (t : AG.AttrTable.attributes_t) = Fmt.(pf stdout "#<attributes>") ;;
-#install_printer pp_attributes_t ;;
-
-let prog0 = {| x := 1 ; x ; y := 2 ; x + y |} |> Stream.of_string |> Grammar.Entry.parse Test1_pa.prog_unique_eoi ;;
-
-#trace AG.AttrTable.expr__isset_inh_env ;;
-#trace AG.AttrTable.expr__set_inh_env ;;
+let prog0 = {| let z = 6 in 1 + z |} |> Stream.of_string |> Grammar.Entry.parse Test2_pa.prog_attributed_eoi ;;
 
 #trace compute_attribute ;;
-AG.evaluate prog0 ;;
-(*
-let attrs = AttrTable.mk() ;;
-let deps = let d = ref [] in (preprocess_prog attrs d prog0 ; !d) ;;
-let g = edges_to_graph deps ;;
+Test2_ag.AG.evaluate prog0 ;;
 
-let visit (n : NodeAttr.t) = () ;;
-
-TSort.iter (compute_attribute attrs) g ;;
-*)
 (*
 ;;; Local Variables: ***
 ;;; mode:tuareg ***

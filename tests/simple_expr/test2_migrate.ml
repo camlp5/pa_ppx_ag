@@ -29,6 +29,7 @@ module OK = struct
           ; block1
           ; block2
           ; expr
+          ; let_expr
           ; binop
           ; unop
           ]
@@ -63,6 +64,7 @@ module Attributed = struct
           ; block1_node
           ; block2_node
           ; expr_node
+          ; let_expr_node
           ; binop_node
           ; unop_node
           ; expr__BINOP_attributes
@@ -87,6 +89,12 @@ module Attributed = struct
         ; dsttype = [%typ: expr]
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
             Test2_ag.AT.make_expr (migrate_expr_node __dt__ node)
+        }
+      ; migrate_let_expr = {
+          srctype = [%typ: let_expr]
+        ; dsttype = [%typ: let_expr]
+        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
+            Test2_ag.AT.make_let_expr (migrate_let_expr_node __dt__ node)
         }
       ; migrate_prog = {
           srctype = [%typ: prog]
@@ -126,7 +134,9 @@ end
 
 module ToAttributed = struct
 module _ = Test2_ag
-type expr = expr_node
+type let_expr = let_expr_node
+and let_expr_node = [%import: Test2_ag.let_expr]
+and expr = expr_node
 and expr_node = [%import: Test2_ag.expr]
 and binop = binop_node
 and binop_node = [%import: Test2_ag.binop]
@@ -158,6 +168,17 @@ and block2_node = [%import: Test2_ag.block2]
         ; dsttype = [%typ: Test2_ag.AT.expr]
         ; code = (fun __dt__ x ->
             Test2_ag.AT.make_expr (__dt__.migrate_expr_node __dt__ x)
+          )
+        }
+      ; migrate_let_expr_node = {
+          srctype = [%typ: let_expr_node]
+        ; dsttype = [%typ: Test2_ag.AT.let_expr_node]
+        }
+      ; migrate_let_expr = {
+          srctype = [%typ: let_expr]
+        ; dsttype = [%typ: Test2_ag.AT.let_expr]
+        ; code = (fun __dt__ x ->
+            Test2_ag.AT.make_let_expr (__dt__.migrate_let_expr_node __dt__ x)
           )
         }
       ; migrate_prog_node = {
@@ -257,6 +278,17 @@ module _ = Test2_ag
             __dt__.migrate_expr_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
+      ; migrate_let_expr_node = {
+          srctype = [%typ: let_expr_node]
+        ; dsttype = [%typ: Test2_ag.let_expr]
+        }
+      ; migrate_let_expr = {
+          srctype = [%typ: let_expr]
+        ; dsttype = [%typ: Test2_ag.let_expr]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_let_expr_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
+          )
+        }
       ; migrate_prog_node = {
           srctype = [%typ: prog_node]
         ; dsttype = [%typ: Test2_ag.prog]
@@ -322,4 +354,3 @@ let expr x = dt.migrate_expr dt x
 let prog x = dt.migrate_prog dt x
 
 end
-
