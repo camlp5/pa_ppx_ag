@@ -5,10 +5,11 @@ type expr =
     INT of int
   | BINOP of binop * expr * expr
   | UNOP of unop * expr
-  | REF of string
+  | REF of ref_expr
   | SEQ of expr * expr
   | LET of let_expr
 and let_expr = LET_BINDING of string * expr * expr
+and ref_expr = REF_EXPR of string
 and unop = UPLUS | UMINUS
 and binop = PLUS | MINUS | STAR | SLASH | PERCENT
 and block1 = BLOCK1 of block2
@@ -31,10 +32,14 @@ and prog = PROG of block1
     ; rpn = [%typ: (string list [@chain])]
     ; rpn_notation = [%typ: string list]
     ; operator_text = [%typ: string]
+(*
+    ; freevars = [%typ: list string]
+*)
     }
   ; node_attributes = {
       expr = [value_; rpn]
-    ; let_expr = [env; value_; rpn]
+    ; let_expr = [env; value_; rpn (*; freevars *)]
+    ; ref_expr = [value_; rpn (*; freevars *)]
     ; block1 = [env; value_; rpn]
     ; block2 = [value_]
     ; prog = [value_; rpn_notation]
@@ -72,8 +77,11 @@ and prog = PROG of block1
       ; [%nterm expr].rpn := [%nterm unop.(1)].operator_text :: [%nterm expr.(1)].rpn
       )
     ; expr__REF = (
+        [%nterm 0].value_ := [%nterm 1].value_
+      )
+    ; ref_expr__REF_EXPR = (
         [%nterm 0].value_ := List.assoc [%prim 1] [%remote (block1.env, let_expr.env)]
-      ; [%nterm expr].rpn := [%prim 1] :: [%nterm expr].rpn
+      ; [%nterm 0].rpn := [%prim 1] :: [%nterm 0].rpn
       )
     ; expr__SEQ = (
         [%nterm 0].value_ := [%nterm 2].value_

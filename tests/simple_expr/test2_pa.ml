@@ -27,7 +27,7 @@ EXTEND
     | "-" ; e = expr -> UNOP UMINUS e
     ]
   | [ n = INT -> INT (int_of_string n)
-    | id = LIDENT -> REF id
+    | id = LIDENT -> REF (REF_EXPR id)
     | "(" ; e = expr ; ")" -> e
     | "let" ; id = LIDENT ; "=" ; e1 = expr LEVEL "top" ; "in" ; e2 = expr LEVEL "top" -> LET (LET_BINDING id e1 e2)
     ]
@@ -66,7 +66,7 @@ EXTEND_PRINTER
       ]
     | "simple"
       [ INT n -> pprintf pc "%d" n
-      | REF id -> pprintf pc "%s" id
+      | REF (REF_EXPR id) -> pprintf pc "%s" id
       | LET (LET_BINDING id e1 e2) -> pprintf pc "let %s = %p in %p" id expr e1 expr e2
       | e -> pprintf pc "(%p)" expr e
       ]
