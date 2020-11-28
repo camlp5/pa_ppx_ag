@@ -64,6 +64,22 @@ module AG = struct
       | CHILD of option string and int
       | PRIM of option string and int
       ] ;
+    value expr_to_nterm e =
+      match e with [
+        <:expr< [%nterm $lid:tyname$;] >> -> 
+        PARENT (Some tyname)
+      | <:expr< [%nterm 0;] >> ->
+        PARENT None
+      | <:expr< [%nterm $int:n$;] >> ->
+        CHILD None (int_of_string n)
+      | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );]  >> ->
+        CHILD (Some tyname) (int_of_string n)
+
+      | _ -> Ploc.raise (MLast.loc_of_expr e)
+          (Failure Fmt.(str "expr_to_nterm: bad expr:@ %a"
+                          Pp_MLast.pp_expr e))
+      ]
+    ;
   value pp_hum ~{is_chainstart} pps = fun [
     PARENT (Some name) -> do {
       assert (not is_chainstart) 
@@ -122,6 +138,7 @@ module AG = struct
     | PROD of PN.t and string
     | CHAINSTART of PN.t and NR.t and string
     | REMOTE of list (string * string)
+    | CONSTITUENTS of list NR.t and list (string * string) and list string
     ]
     ;
     value rec pp_hum pps = fun [
@@ -131,23 +148,36 @@ module AG = struct
       Fmt.(pf pps "(* @%a *)%a.%s" PN.pp_hum pn (NR.pp_hum ~{is_chainstart=True}) nr a)
     | REMOTE l ->
       Fmt.(pf pps "{%a}" (list ~{sep=comma} (pair ~{sep=const string "."} string string)) l)
+    | CONSTITUENTS nodes attrs shields ->
+      Fmt.(pf pps "CONSTITUENTS [%a] ATTRS [%a] SHIELD [%a]"
+             (list ~{sep=comma} (NR.pp_hum ~{is_chainstart=False})) nodes
+             (list ~{sep=comma} (pair ~{sep=const string "."} string string)) attrs
+             (list ~{sep=comma} string) shields)
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<ar< %a >>" pp_hum x) ;
 
+
+    value expr_to_lident_pair = fun [
+      <:expr< $lid:l$ . $lid:r$ >> -> (l, r)
+    | e -> Ploc.raise (MLast.loc_of_expr e)
+        (Failure Fmt.(str "expr_to_lident_pair: not a lident pair:@ %a"
+                        Pp_MLast.pp_expr e))
+    ]
+    ;
+    open Pa_ppx_params.Runtime ;
+    type lident_pair_ne_list_t = ne_list ((lident * lident) [@convert  ( [%typ: expr], expr_to_lident_pair );])
+    [@@deriving params;]
+    ;
     value expr_to_remote = fun [
       <:expr< [%remote $exp:e$;] >> ->
-        let l = match e with [ <:expr< ( $list:l$ ) >> -> l | e -> [e] ] in
-        let l = l |> List.map (fun [
-            <:expr< $lid:pnt$ . $lid:attrna$ >> -> (pnt, attrna)
-          | e ->
-            Ploc.raise (MLast.loc_of_expr e)
-              (Failure Fmt.(str "expr_to_ar: malformed upward attribute reference %a" Pp_MLast.pp_expr e))
-          ]) in
-        (l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare)
-      ]
+        e
+        |> params_lident_pair_ne_list_t
+        |> List.sort_uniq Stdlib.compare
+        |> List.stable_sort Stdlib.compare
+    | _ -> assert False
+    ]
     ;
-
     value remote_to_expr loc l =
       let l = List.map (fun (p,a) -> <:expr< $lid:p$ . $lid:a$ >>) l in
       match l with [
@@ -157,27 +187,36 @@ module AG = struct
       ]
     ;
 
+    type nr_t = NR.t ;
+    value params_nr_t = NR.expr_to_nterm ;
+    type constituents_t = {
+      nodes : ne_list nr_t [@default [];]
+    ; attributes : lident_pair_ne_list_t [@default [];]
+    ; shield : ne_list lident [@default [];]
+    } [@@deriving params;]
+    ;
+
     value expr_to_ar pn e =
       match e with [
-        <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
-        NT (NR.PARENT (Some tyname)) attrna
-      | <:expr< [%nterm 0;] . $lid:attrna$ >> ->
-        NT (NR.PARENT None) attrna
-      | <:expr< [%nterm $int:n$;] . $lid:attrna$ >> ->
-        NT (NR.CHILD None (int_of_string n)) attrna
-      | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
-        NT (NR.CHILD (Some tyname) (int_of_string n)) attrna
+
+        <:expr< [%chainstart $int:n$;] . $lid:attrna$ >> ->
+        CHAINSTART pn (NR.CHILD None (int_of_string n)) attrna
+      | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
+        CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
+
+      | <:expr< $e$ . $lid:attrna$ >> -> 
+        NT (NR.expr_to_nterm e) attrna
+
       | <:expr< [%prim $int:n$;] >> ->
         NT (NR.PRIM None (int_of_string n)) ""
       | <:expr< [%local $lid:attrna$;] >> ->
         PROD pn attrna
 
-      | <:expr< [%chainstart $int:n$;] . $lid:attrna$ >> ->
-        CHAINSTART pn (NR.CHILD None (int_of_string n)) attrna
-      | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
-        CHAINSTART pn (NR.CHILD (Some tyname) (int_of_string n)) attrna
-
       | <:expr< [%remote $exp:_$;] >> -> REMOTE (expr_to_remote e)
+
+      | <:expr< [%constituents $exp:e$;] >> ->
+        let c = params_constituents_t e in
+        CONSTITUENTS c.nodes c.attributes c.shield
 
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_ar: bad expr:@ %a"
@@ -216,6 +255,21 @@ module AG = struct
     ;
     value to_patt loc x = NR.to_patt loc (to_nr x) ;
     value to_expr loc x = NR.to_expr loc (to_nr x) ;
+
+
+    value expr_to_typed_nterm pn e =
+      match e with [
+        <:expr< [%nterm $lid:tyname$;] >> -> 
+        PARENT tyname
+
+      | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] >> ->
+        CHILD tyname (int_of_string n)
+
+      | _ -> Ploc.raise (MLast.loc_of_expr e)
+          (Failure Fmt.(str "expr_to_typed_nterm: bad expr:@ %a"
+                          Pp_MLast.pp_expr e))
+  ]
+  ;
   end
   ;
   module TypedNodeReference = TNR ;
@@ -225,6 +279,7 @@ module AG = struct
     | PROD of PN.t and string
     | CHAINSTART of PN.t and TNR.t and string
     | REMOTE of list (string * string)
+    | CONSTITUENTS of list TNR.t and list (string * string) and list string
     ]
     ;
     value pp_hum pps = fun [
@@ -234,6 +289,11 @@ module AG = struct
       Fmt.(pf pps "(* @%a *)%a.%s" PN.pp_hum pn (TNR.pp_hum ~{is_chainstart=True}) nr a)
     | REMOTE l ->
       Fmt.(pf pps "{%a}" (list ~{sep=comma} (pair ~{sep=const string "."} string string)) l)
+    | CONSTITUENTS nodes attrs shields ->
+      Fmt.(pf pps "CONSTITUENTS [%a] ATTRS [%a] SHIELD [%a]"
+             (list ~{sep=comma} (TNR.pp_hum ~{is_chainstart=False})) nodes
+             (list ~{sep=comma} (pair ~{sep=const string "."} string string)) attrs
+             (list ~{sep=comma} string) shields)
     ]
     ;
     value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
@@ -241,7 +301,11 @@ module AG = struct
     value expr_to_tar pn e =
       let open TNR in
       match e with [
-        <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
+
+        <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
+        CHAINSTART pn (CHILD tyname (int_of_string n)) attrna
+
+      | <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
         NT (PARENT tyname) attrna
 
       | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
@@ -253,12 +317,13 @@ module AG = struct
       | <:expr< [%local $lid:attrna$;] >> ->
         PROD pn attrna
 
-      | <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
-        CHAINSTART pn (CHILD tyname (int_of_string n)) attrna
-
       | <:expr< [%remote $exp:_$;] >> ->
         REMOTE (AR.expr_to_remote e)
-
+(*
+      | <:expr< [%constituents $exp:e$;] >> ->
+        let c = params_constituents_t e in
+        CONSTITUENTS c.nodes c.attributes c.shield
+*)
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
                           Pp_MLast.pp_expr e))
@@ -371,20 +436,22 @@ module AG = struct
              (list ~{sep=sp} TAEQ.pp_hum) x.typed_conditions
           ) ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
+
+    value typed_nr ~{is_chainstart} loc p nr =
+      match List.assoc nr p.typed_node_names with [
+        x -> x
+      | exception Not_found ->
+        Ploc.raise loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
+                                       (NR.pp_hum ~{is_chainstart}) nr))
+    ]
+    ;
     value typed_attribute loc p =
-      let lookup_nr ~{is_chainstart} nr =
-        match List.assoc nr p.typed_node_names with [
-          x -> x
-        | exception Not_found ->
-          Ploc.raise loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
-                                         (NR.pp_hum ~{is_chainstart}) nr))
-        ] in
       fun [
       (AR.NT nr attrna) as ar ->
-      TAR.NT (lookup_nr ~{is_chainstart=False} nr) attrna
+      TAR.NT (typed_nr ~{is_chainstart=False} loc p nr) attrna
     | AR.PROD pn attrna -> TAR.PROD pn attrna
     | AR.CHAINSTART pn nr attrna ->
-      TAR.CHAINSTART pn (lookup_nr ~{is_chainstart=True} nr) attrna
+      TAR.CHAINSTART pn (typed_nr ~{is_chainstart=True} loc p nr) attrna
     | AR.REMOTE l -> TAR.REMOTE l
     ]
     ;
