@@ -1313,6 +1313,8 @@ module AGOps = struct
       )
   ;
 
+  module Chain = struct
+
   (** [chain_to_copychains ag]
 
       This function takes an AG, assumed to be well-formed (per above),
@@ -1594,6 +1596,8 @@ module AGOps = struct
         if at.AT.is_chain then Some aname else None) in
     List.fold_left replace_one_chain ag chain_attributes
   ;
+  end
+  ;
 
   value add_condition_attributes ag =
     let open AG in
@@ -1634,6 +1638,7 @@ module AGOps = struct
     else ag
   ;
 
+  module RUA = struct
   (** remote upward attribute sets
 
       (1) syntax: [%remote X.a, Y.b, Z.c]
@@ -1938,7 +1943,8 @@ module AGOps = struct
     let ruas = AG.remote_upward_attributes ag in
     List.fold_left replace1_rua ag ruas
   ;
-
+  end
+  ;
   (** replace constituents: do this for each constituent attribute-set
 
       (0) So, first compute all unique constituent reference (CR),
