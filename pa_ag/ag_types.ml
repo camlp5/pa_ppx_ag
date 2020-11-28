@@ -216,7 +216,20 @@ module AG = struct
 
       | <:expr< [%constituents $exp:e$;] >> ->
         let c = params_constituents_t e in
-        CONSTITUENTS c.nodes c.attributes c.shield
+        let nodes =
+          c.nodes
+          |> List.sort_uniq Stdlib.compare
+          |> List.stable_sort Stdlib.compare in
+        let attributes =
+          c.attributes
+          |> List.sort_uniq Stdlib.compare
+          |> List.stable_sort Stdlib.compare in
+        let shield =
+          c.shield
+          |> List.sort_uniq Stdlib.compare
+          |> List.stable_sort Stdlib.compare in
+
+        CONSTITUENTS nodes attributes shield
 
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_ar: bad expr:@ %a"
@@ -257,7 +270,7 @@ module AG = struct
     value to_expr loc x = NR.to_expr loc (to_nr x) ;
 
 
-    value expr_to_typed_nterm pn e =
+    value expr_to_nterm e =
       match e with [
         <:expr< [%nterm $lid:tyname$;] >> -> 
         PARENT tyname
@@ -266,7 +279,7 @@ module AG = struct
         CHILD tyname (int_of_string n)
 
       | _ -> Ploc.raise (MLast.loc_of_expr e)
-          (Failure Fmt.(str "expr_to_typed_nterm: bad expr:@ %a"
+          (Failure Fmt.(str "expr_to_nterm: bad expr:@ %a"
                           Pp_MLast.pp_expr e))
   ]
   ;
@@ -298,6 +311,16 @@ module AG = struct
     ;
     value pp_top pps x = Fmt.(pf pps "#<tar< %a >>" pp_hum x) ;
 
+    open Pa_ppx_params.Runtime ;
+    type tnr_t = TNR.t ;
+    value params_tnr_t = TNR.expr_to_nterm ;
+    type constituents_t = {
+      nodes : ne_list tnr_t [@default [];]
+    ; attributes : AR.lident_pair_ne_list_t [@default [];]
+    ; shield : ne_list lident [@default [];]
+    } [@@deriving params;]
+    ;
+
     value expr_to_tar pn e =
       let open TNR in
       match e with [
@@ -305,11 +328,8 @@ module AG = struct
         <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
         CHAINSTART pn (CHILD tyname (int_of_string n)) attrna
 
-      | <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >> -> 
-        NT (PARENT tyname) attrna
-
-      | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
-        NT (CHILD tyname (int_of_string n)) attrna
+      | <:expr< $e$ . $lid:attrna$ >> -> 
+        NT (TNR.expr_to_nterm e) attrna
 
       | <:expr< [%prim $lid:tyname$ . ( $int:n$ );] >> ->
         NT (PRIM tyname (int_of_string n)) ""
@@ -319,11 +339,11 @@ module AG = struct
 
       | <:expr< [%remote $exp:_$;] >> ->
         REMOTE (AR.expr_to_remote e)
-(*
+
       | <:expr< [%constituents $exp:e$;] >> ->
         let c = params_constituents_t e in
         CONSTITUENTS c.nodes c.attributes c.shield
-*)
+
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_attribute_reference: bad expr:@ %a"
                           Pp_MLast.pp_expr e))
@@ -333,14 +353,11 @@ module AG = struct
   value tar_to_expr loc e =
     let open TNR in
     match e with [
-      NT (PARENT tyname) attrna ->
-      <:expr< [%nterm $lid:tyname$;] . $lid:attrna$ >>
-
-    | NT (CHILD tyname n) attrna ->
-      <:expr< [%nterm $lid:tyname$ . ( $int:string_of_int n$ );] . $lid:attrna$ >>
-
-    | NT (PRIM tyname n) "" ->
+      NT (PRIM tyname n) "" ->
       <:expr< [%prim $lid:tyname$ . ( $int:string_of_int n$ );] >>
+
+    | NT tnr attrna ->
+      <:expr< $TNR.to_expr loc tnr$ . $lid:attrna$ >>
 
     | PROD pn attrna ->
       <:expr< [%local $lid:attrna$;] >>
@@ -349,6 +366,12 @@ module AG = struct
       <:expr< [%chainstart $lid:tyname$ . ( $int:string_of_int n$ );] . $lid:attrna$ >>
 
     | REMOTE l -> AR.remote_to_expr loc l
+
+    | CONSTITUENTS nodes attributes shield ->
+      let nodes = Ppxutil.convert_up_list_expr loc (List.map (TNR.to_expr loc) nodes) in
+      let attributes = Ppxutil.convert_up_list_expr loc (List.map (fun (a,b) -> <:expr< $lid:a$ . $lid:b$ >>) attributes) in
+      let shield = Ppxutil.convert_up_list_expr loc (List.map (fun a -> <:expr< $lid:a$ >>) shield) in
+      <:expr< [%constituents { nodes = $nodes$ ; attributes = $attributes$ ; shield = $shield$ } ;] >>
     ]
     ;
   end ;
@@ -1915,6 +1938,32 @@ module AGOps = struct
     let ruas = AG.remote_upward_attributes ag in
     List.fold_left replace1_rua ag ruas
   ;
+
+  (** replace constituents: do this for each constituent attribute-set
+
+      (0) So, first compute all unique constituent reference (CR),
+     then do the following for each CR, e.g. {X.a, Y.b}
+
+      (1) compute new attribute name in same manner as for RUA (sort
+     (CR.attrs, CR.shield), concat with "__")
+
+      (2) from nodes X that mention CR in equations/conditions, do a
+     DFS that computes whether it saw one of CR.attrs during the DFS.
+     For this, we need a CRASEEN set of nonterminals that during the
+     DFS from those nodes, a CR.attrs was seen.
+
+        (a) start CRASEEN as {nodes with attrs in CR.attrs}
+
+        (b) for each production with X as an LHS, DFS thru the
+     nonterminal children that are neither already in CRASEEN nor in
+     CR.shield.
+
+        (c) After DFS thru children, if any child nodes are in
+     CRASEEN, then add X to CRASEEN.
+
+        (d) CRASEEN is the set of nodes that need the new attribute
+
+  *)
 
 end
 ;
