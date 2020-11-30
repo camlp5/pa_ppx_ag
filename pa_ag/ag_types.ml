@@ -2084,7 +2084,6 @@ module AGOps = struct
         pl |> List.iter (fun p ->
            p.P.typed_nodes |> List.iter (fun [
              TNR.CHILD cnt _ -> do {
-                 Fmt.(pf stderr "dfsrec %s -> %s\n%!" nt cnt) ;
                  dfsrec [nt :: stk] cnt ;
                  if List.mem cnt acc.val then child_is_in.val := True else ()
                }
@@ -2105,19 +2104,12 @@ module AGOps = struct
       |> List.map (fun [ TNR.CHILD cnt _ -> cnt | _ -> assert False ])
       |> List.sort_uniq Stdlib.compare
       |> List.stable_sort Stdlib.compare in do {
-        Fmt.(pf stderr "dfs1: %s -> visit_children: %a\n%!"
-               nt
-               (list ~{sep=const string " "} string) visit_children) ;
         visit_children |> List.iter (fun nt -> dfsrec [] nt)
       }
     in
     let start = nts_mentioning_car ag car in do {
       List.iter dfs1 start;
       let carreach = List.stable_sort Stdlib.compare acc.val in
-      Fmt.(pf stderr "start: %a\ncarreach: %a\n%!"
-             (list ~{sep=const string " "} string) start
-             (list ~{sep=const string " "} string) carreach
-          ) ;
       (start, carreach)
     }
   ;
