@@ -15,7 +15,6 @@ MKCAMLP5=$(LAUNCH) mkcamlp5
 PACKAGES := $(PACKAGES),ounit2,fmt,pcre,rresult,compiler-libs.common,sexplib,uint,pa_ppx.utils,ocamlgraph
 PACKAGES := $(PACKAGES),pa_ppx_ag,pa_ppx_ag.runtime,pa_ppx_migrate,pa_ppx_hashcons,pa_ppx_unique
 R_PACKAGES := $(PACKAGES)
-PACKAGES := $(PACKAGES),camlp5.pr_o
 SYNTAX := camlp5o
 OCAMLCFLAGS += -ppopt -pa_passthru-debug 
 IMPORT_OCAMLCFLAGS = -ppopt -pa_import-package -ppopt camlp5
