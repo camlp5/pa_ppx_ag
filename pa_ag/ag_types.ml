@@ -149,7 +149,7 @@ module AG = struct
     | REMOTE l ->
       Fmt.(pf pps "{%a}" (list ~{sep=comma} (pair ~{sep=const string "."} string string)) l)
     | CONSTITUENTS nodes attrs shields ->
-      Fmt.(pf pps "CONSTITUENTS [%a] ATTRS [%a] SHIELD [%a]"
+      Fmt.(pf pps "CONSTITUENTS [%a] ATTRIBUTES [%a] SHIELD [%a]"
              (list ~{sep=comma} (NR.pp_hum ~{is_chainstart=False})) nodes
              (list ~{sep=comma} (pair ~{sep=const string "."} string string)) attrs
              (list ~{sep=comma} string) shields)
@@ -190,9 +190,9 @@ module AG = struct
     type nr_t = NR.t ;
     value params_nr_t = NR.expr_to_nterm ;
     type constituents_t = {
-      nodes : ne_list nr_t [@default [];]
+      nodes : list nr_t [@default [];]
     ; attributes : lident_pair_ne_list_t [@default [];]
-    ; shield : ne_list lident [@default [];]
+    ; shield : list lident [@default [];]
     } [@@deriving params;]
     ;
 
@@ -303,7 +303,7 @@ module AG = struct
     | REMOTE l ->
       Fmt.(pf pps "{%a}" (list ~{sep=comma} (pair ~{sep=const string "."} string string)) l)
     | CONSTITUENTS nodes attrs shields ->
-      Fmt.(pf pps "CONSTITUENTS [%a] ATTRS [%a] SHIELD [%a]"
+      Fmt.(pf pps "CONSTITUENTS [%a] ATTRIBUTES [%a] SHIELD [%a]"
              (list ~{sep=comma} (TNR.pp_hum ~{is_chainstart=False})) nodes
              (list ~{sep=comma} (pair ~{sep=const string "."} string string)) attrs
              (list ~{sep=comma} string) shields)
@@ -315,13 +315,13 @@ module AG = struct
     type tnr_t = TNR.t ;
     value params_tnr_t = TNR.expr_to_nterm ;
     type constituents_t = {
-      nodes : ne_list tnr_t [@default [];]
+      nodes : list tnr_t [@default [];]
     ; attributes : AR.lident_pair_ne_list_t [@default [];]
-    ; shield : ne_list lident [@default [];]
+    ; shield : list lident [@default [];]
     } [@@deriving params;]
     ;
 
-    value expr_to_tar pn e =
+    value of_expr pn e =
       let open TNR in
       match e with [
 
@@ -350,7 +350,7 @@ module AG = struct
   ]
   ;
 
-  value tar_to_expr loc e =
+  value to_expr loc e =
     let open TNR in
     match e with [
       NT (PRIM tyname n) "" ->
@@ -435,6 +435,9 @@ module AG = struct
     value remote_upward_attributes e =
       e.rhs_nodes |> List.filter (fun [ TAR.REMOTE _ -> True | _ -> False ])
     ;
+    value constituents_references e =
+      e.rhs_nodes |> List.filter (fun [ TAR.CONSTITUENTS _ _ _ -> True | _ -> False ])
+    ;
   end ;
 
   module P = struct
@@ -476,6 +479,9 @@ module AG = struct
     | AR.CHAINSTART pn nr attrna ->
       TAR.CHAINSTART pn (typed_nr ~{is_chainstart=True} loc p nr) attrna
     | AR.REMOTE l -> TAR.REMOTE l
+    | AR.CONSTITUENTS a b c ->
+      let a = List.map (typed_nr ~{is_chainstart=False} loc p) a in
+      TAR.CONSTITUENTS a b c
     ]
     ;
     value typed_rhs loc p e =
@@ -483,7 +489,7 @@ module AG = struct
       let fallback_migrate_expr = dt.migrate_expr in
       let migrate_expr dt e =
         let pn = p.name in
-        try e |> AR.expr_to_ar pn |> typed_attribute loc p |> TAR.tar_to_expr (loc_of_expr e)
+        try e |> AR.expr_to_ar pn |> typed_attribute loc p |> TAR.to_expr (loc_of_expr e)
         with _ -> fallback_migrate_expr dt e in
       let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
       dt.migrate_expr dt e
@@ -501,6 +507,10 @@ module AG = struct
     value remote_upward_attributes p =
       (p.typed_equations |> List.concat_map TAEQ.remote_upward_attributes) @
       (p.typed_conditions |> List.concat_map TAEQ.remote_upward_attributes)
+    ;
+    value constituents_references p =
+      (p.typed_equations |> List.concat_map TAEQ.constituents_references) @
+      (p.typed_conditions |> List.concat_map TAEQ.constituents_references)
     ;
     value parent_nonterminal p = p.name.PN.nonterm_name ;
     value child_nonterminals p =
@@ -1308,8 +1318,13 @@ module AGOps = struct
   value locally_acyclic m =
     let ag = m.NTOps.ag in
     ag |> AG.all_productions |> List.for_all (fun p ->
-        let ddp = POps.direct_reference_graph p in
-        not Tsort0.(cyclic (nodes ddp) (mkadj ddp))
+        true_or_exn ~{exnf=fun () ->
+            Ploc.raise ag.AG.loc
+              (Failure Fmt.(str "locally_acyclic: production %s is locally cyclic\n%a"
+                              (PN.unparse p.P.name)
+                              P.pp_hum p))}
+          (let ddp = POps.direct_reference_graph p in
+        not Tsort0.(cyclic (nodes ddp) (mkadj ddp)))
       )
   ;
 
@@ -1519,7 +1534,7 @@ module AGOps = struct
     let fallback_migrate_expr = dt.migrate_expr in
     let migrate_expr dt e =
       let pn = p.P.name in
-      try e |> TAR.expr_to_tar pn |> replace_rhs_tar cattr |> TAR.tar_to_expr (loc_of_expr e)
+      try e |> TAR.of_expr pn |> replace_rhs_tar cattr |> TAR.to_expr (loc_of_expr e)
       with _ -> fallback_migrate_expr dt e in
     let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
     dt.migrate_expr dt e
@@ -1636,6 +1651,22 @@ module AGOps = struct
       {(ag) with
        attribute_types = [("condition", AT.mk <:ctyp< bool >>) :: ag.attribute_types]}
     else ag
+  ;
+
+
+  value add_new_attribute ag (new_attr, ty) ntl =
+    let open AG in
+    let ag = {
+      (ag) with
+      attribute_types = [(new_attr, AT.mk ty) :: ag.attribute_types]
+    } in
+    let ag = {
+      (ag) with
+      node_attributes =
+        ag.node_attributes |> List.map (fun (nt, al) ->
+            (nt, if List.mem nt ntl then [new_attr :: al] else al))
+    } in
+    ag
   ;
 
   module RUA = struct
@@ -1775,21 +1806,6 @@ module AGOps = struct
 
   *)
 
-  value add_new_attribute ag (new_attr, ty) ntl =
-    let open AG in
-    let ag = {
-      (ag) with
-      attribute_types = [(new_attr, AT.mk ty) :: ag.attribute_types]
-    } in
-    let ag = {
-      (ag) with
-      node_attributes =
-        ag.node_attributes |> List.map (fun (nt, al) ->
-            (nt, if List.mem nt ntl then [new_attr :: al] else al))
-    } in
-    ag
-  ;
-
   value rua_copy_equation loc (cnr, new_attr) (parent, p_attr) =
     let lhs = TAR.NT cnr new_attr in
     let rhs = TAR.NT (TNR.PARENT parent) p_attr in
@@ -1798,7 +1814,7 @@ module AGOps = struct
       ; lhs = lhs
       ; msg = None
       ; rhs_nodes = [rhs]
-      ; rhs_expr = TAR.tar_to_expr loc rhs
+      ; rhs_expr = TAR.to_expr loc rhs
       }
   ;
 
@@ -1811,12 +1827,12 @@ module AGOps = struct
     ]
   ;
 
-  value replace_rhs_rua p rua new_tar e =
+  value replace_rhs_expr_rua p rua new_tar e =
     let dt = Camlp5_migrate.make_dt () in
     let fallback_migrate_expr = dt.migrate_expr in
     let pn = p.P.name in
     let migrate_expr dt e =
-      try e |> TAR.expr_to_tar pn |> replace_rua_tar rua new_tar |> TAR.tar_to_expr (loc_of_expr e)
+      try e |> TAR.of_expr pn |> replace_rua_tar rua new_tar |> TAR.to_expr (loc_of_expr e)
       with _ -> fallback_migrate_expr dt e in
     let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
     dt.migrate_expr dt e
@@ -1872,7 +1888,7 @@ module AGOps = struct
       (True, _) ->
       (* parent has new attr, replace rhs with this TAR *)
       let new_tar = TAR.NT (TNR.PARENT parent) new_attr in
-      let new_rhs_expr = replace_rhs_rua p rua new_tar e.TAEQ.rhs_expr in
+      let new_rhs_expr = replace_rhs_expr_rua p rua new_tar e.TAEQ.rhs_expr in
       let new_rhs_nodes = e.rhs_nodes |> List.map (fun [
           TAR.REMOTE _ as r when r = rua -> new_tar
         | x -> x
@@ -1893,7 +1909,7 @@ module AGOps = struct
     | (False, Some attrna) ->
       (* parent satisfies RUA, use that to rewrite rhs *)
       let new_tar = TAR.NT (TNR.PARENT parent) attrna in
-      let new_rhs_expr = replace_rhs_rua p rua new_tar e.rhs_expr in
+      let new_rhs_expr = replace_rhs_expr_rua p rua new_tar e.rhs_expr in
       let new_rhs_nodes = e.rhs_nodes |> List.map (fun [
           TAR.REMOTE _ as r when r = rua -> new_tar
         | x -> x
@@ -1945,31 +1961,321 @@ module AGOps = struct
   ;
   end
   ;
-  (** replace constituents: do this for each constituent attribute-set
 
-      (0) So, first compute all unique constituent reference (CR),
-     then do the following for each CR, e.g. {X.a, Y.b}
+  module Constituents = struct
+
+    (** A constituents reference (CR) is a triple
+
+        CONSTITUENTS <nodes> ATTRIBUTES <attributes> SHIELD
+       <nonterminals>
+
+        viz
+
+        CONSTITUENTS $1, $2 ATTRIBUTES X.a, Y,b SHIELD Z
+
+        The latter two components together are a constituents
+       attribute reference (CAR)
+
+        To replace CRs:
+
+        (0) So, first compute all unique constituent attribute
+       references (CAR), then do the following for each CAR:
 
       (1) compute new attribute name in same manner as for RUA (sort
-     (CR.attrs, CR.shield), concat with "__")
+       (CAR.attrs, CAR.shield), concat with "__")
 
-      (2) from nodes X that mention CR in equations/conditions, do a
-     DFS that computes whether it saw one of CR.attrs during the DFS.
-     For this, we need a CRASEEN set of nonterminals that during the
-     DFS from those nodes, a CR.attrs was seen.
+      (2) compute set of nonterminals START that mention that CAR.
 
-        (a) start CRASEEN as {nodes with attrs in CR.attrs}
+      (3) initialize CARREACH = {}
 
-        (b) for each production with X as an LHS, DFS thru the
-     nonterminal children that are neither already in CRASEEN nor in
-     CR.shield.
+      (4) DFS from nodes in START, following lhs->rhs relation in
+       productions, but with a special first-step:
 
-        (c) After DFS thru children, if any child nodes are in
-     CRASEEN, then add X to CRASEEN.
+        (a.1) FIRST STEP: for each node X in START, for each
+       production with LHS of X, collect all CRs that match CAR.
+       Collect all "nodes" in these CRs, and these become the rhs we
+       visit.
 
-        (d) CRASEEN is the set of nodes that need the new attribute
+        (a.2) NORMAL STEP: starting from a node X, we visit all
+       nonterminal children.  The visit to rhs is thus:
+
+        (b) if rhs is in DFS stack, return
+
+        (c) if rhs is in CAR.shield, return
+
+        (d) if rhs is in CARREACH, return
+
+        (e) if rhs is in CAR.attrs, add to CARREACH
+
+        (f) else continue with DFS
+
+      (5) after DFS thru all rhs children, if any child is in
+       CARREACH, then add lhs to CARREACH
+
+      (6) CARREACH is the set of nodes that need the new attribute.  A
+       node X gets into CARREACH in two ways:
+
+        (a) X is in CAR.attrs
+
+        (b) In some production of X, a RHS nonterminal Y is in
+       CARREACH
 
   *)
+
+  value all_crs ag =
+    ag
+    |> AG.all_productions
+    |> List.concat_map P.constituents_references
+    |> List.sort_uniq Stdlib.compare
+  ;
+
+  module CAR = struct
+    type t = {
+      attributes : list (string * string)
+    ; shield : list string
+    } ;
+    value of_cr = fun [
+      TAR.CONSTITUENTS _ attributes shield -> { attributes=attributes ; shield=shield }
+    | _ -> assert False
+    ] ;
+
+    value to_attribute car = 
+      ((car.attributes |> List.concat_map (fun (a,b) -> [a;b]))@
+       car.shield) |> String.concat "__"
+    ;
+
+    value type_of ag car =
+    let aname =  car.attributes |> List.hd |> snd in
+    (AG.attribute_type ag aname).AT.ty
+    ;
+
+  end ;
+
+  value nts_mentioning_car ag car =
+    ag.AG.productions |> List.filter_map (fun (nt, pl) ->
+      if pl |> List.exists (fun p ->
+          List.mem car (List.map CAR.of_cr (P.constituents_references p))) then
+        Some nt else None
+    )
+  ;
+
+  value car_to_nt_aref ag nt car =
+    car.CAR.attributes |> List.find_map (fun [
+        (n, a) when n = nt && AG.node_attribute_exists ag (n,a) -> Some a
+      | _ -> None
+      ])
+  ;
+
+  value nt_satisfies_car ag nt car =
+    None <> car_to_nt_aref ag car nt
+  ;
+
+  value nts_needing_car_attribute ag car =
+    let acc = ref [] in
+
+    let rec dfsrec stk nt =
+      if List.mem nt stk then ()
+      else if List.mem nt acc.val then ()
+      else if List.mem nt car.CAR.shield then ()
+      else if nt_satisfies_car ag car nt then Std.push acc nt
+      else
+      let child_is_in = ref False in
+      let pl = AG.node_productions ag nt in do {
+        pl |> List.iter (fun p ->
+           p.P.typed_nodes |> List.iter (fun [
+             TNR.CHILD cnt _ -> do {
+                 Fmt.(pf stderr "dfsrec %s -> %s\n%!" nt cnt) ;
+                 dfsrec [nt :: stk] cnt ;
+                 if List.mem cnt acc.val then child_is_in.val := True else ()
+               }
+             | _ -> ()
+           ])) ;
+        if child_is_in.val && not (List.mem nt acc.val) then
+          Std.push acc nt
+        else ()
+      } in
+
+    let dfs1 nt =
+      let visit_children =
+        nt
+      |> AG.node_productions ag
+      |> List.concat_map P.constituents_references
+      |> List.filter (fun cr -> car = CAR.of_cr cr)
+      |> List.concat_map (fun [ TAR.CONSTITUENTS nodes _ _ -> nodes | _ -> assert False ])
+      |> List.map (fun [ TNR.CHILD cnt _ -> cnt | _ -> assert False ])
+      |> List.sort_uniq Stdlib.compare
+      |> List.stable_sort Stdlib.compare in do {
+        Fmt.(pf stderr "dfs1: %s -> visit_children: %a\n%!"
+               nt
+               (list ~{sep=const string " "} string) visit_children) ;
+        visit_children |> List.iter (fun nt -> dfsrec [] nt)
+      }
+    in
+    let start = nts_mentioning_car ag car in do {
+      List.iter dfs1 start;
+      let carreach = List.stable_sort Stdlib.compare acc.val in
+      Fmt.(pf stderr "start: %a\ncarreach: %a\n%!"
+             (list ~{sep=const string " "} string) start
+             (list ~{sep=const string " "} string) carreach
+          ) ;
+      (start, carreach)
+    }
+  ;
+
+  (** how to rewrite CAR to normal copychain
+
+      (0) declare the new CAR attribute
+
+      (1) for all NT in CARREACH, add the new CAR attribute to the NT
+
+      (2) for each NT in CARREACH:
+
+        (a) IF it satisfies CAR (it is in CAR.attrs) then add copy
+     equation from satisfying attr to new CAR attribute
+
+        (b) otherwise children must be in CARREACH: concatenate new CR
+     attribute values of all children NTs in CARREACH, assign to NT's
+     CAR attribute value.
+
+      (3) For each NT in START, for each production, for each
+     equation/condition, for each CR:
+
+        (a) rewrite CR reference to reference the CAR attribute on all
+      CR.nodes, concatenating them all.
+
+  *)
+
+  value stitch_production_copychain ag car new_attr carreach nt p =
+    let loc = ag.AG.loc in
+    match car_to_nt_aref ag nt car with [
+      Some sat_attr ->
+      let rhs = TAR.NT (TNR.PARENT nt) sat_attr in
+      let rhs_expr = <:expr< [%nterm 0;] . $lid:sat_attr$ >> in
+      let lhs = TAR.NT (TNR.PARENT nt) new_attr in
+      let copy_eq = {
+        TAEQ.loc = loc
+      ; lhs = lhs
+      ; msg = None
+      ; rhs_nodes = [rhs]
+      ; rhs_expr = rhs_expr
+      } in
+      {(p) with P.typed_equations = [copy_eq :: p.P.typed_equations]}
+    | None ->
+      let rhs_nodes = (List.tl p.P.typed_nodes) |> List.filter_map (fun [
+          (TNR.CHILD cnt _) as cnr when List.mem cnt carreach ->
+          Some (TAR.NT cnr new_attr)
+        | _ -> None
+        ]) in
+      let rhs_expr = <:expr< List.concat ($Ppxutil.convert_up_list_expr loc (List.map (TAR.to_expr loc) rhs_nodes)$) >> in
+      let lhs = TAR.NT (TNR.PARENT nt) new_attr in
+      let copy_eq = {
+        TAEQ.loc = loc
+      ; lhs = lhs
+      ; msg = None
+      ; rhs_nodes = rhs_nodes
+      ; rhs_expr = rhs_expr
+      } in
+      {(p) with P.typed_equations = [copy_eq :: p.P.typed_equations]}
+    ]
+  ;
+
+  value stitch_car_copychains ag car new_attr carreach =
+    ag |> AG.map_productions (fun nt p ->
+      if List.mem nt carreach then stitch_production_copychain ag car new_attr carreach nt p
+      else p)
+  ;
+
+
+  value replace_cr crmap fallback cr =
+    let open TAR in
+    let open TNR in
+    match List.assoc cr crmap with [
+      (_, e) -> e
+    | exception Not_found -> fallback
+    ]
+  ;
+
+  value replace_rhs_expr_cr p (crmap : list (TAR.t * (list TAR.t * MLast.expr))) e =
+    let dt = Camlp5_migrate.make_dt () in
+    let fallback_migrate_expr = dt.migrate_expr in
+    let pn = p.P.name in
+    let migrate_expr dt e =
+      try e |> TAR.of_expr pn |> replace_cr crmap e
+      with _ -> fallback_migrate_expr dt e in
+    let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
+    dt.migrate_expr dt e
+  ;
+
+  value compute_replacements_for_cr loc new_attr cr = match cr with [
+    (TAR.CONSTITUENTS nodes _ _) as cr ->
+    let new_tars = List.map (fun tnr -> TAR.NT tnr new_attr) nodes in
+    let new_expr =
+      new_tars
+      |> List.map (TAR.to_expr loc)
+      |> Ppxutil.convert_up_list_expr loc
+      |> (fun e -> <:expr< List.concat $e$ >>)
+    in
+    (new_tars, new_expr)
+  | _ -> assert False
+  ]
+  ;
+
+  value replace_teqn_car ag car p e =
+    let open AG in
+    let open P in
+    let open TAEQ in
+    let loc = p.P.loc in
+    let crs =
+      e
+      |> constituents_references
+      |> List.filter (fun cr -> car = (CAR.of_cr cr)) in
+    let new_attr = CAR.to_attribute car in
+    let crmap = crs |> List.map (fun cr ->
+      (cr, compute_replacements_for_cr loc new_attr cr)) in
+
+    if [] = crmap then e else
+
+    let new_rhs_expr = replace_rhs_expr_cr p crmap e.TAEQ.rhs_expr in
+    let new_rhs_nodes = e.rhs_nodes |> List.concat_map (fun tar -> match List.assoc tar crmap with [
+        (l,_) -> l
+      | exception Not_found -> [tar]
+      ]) in
+    { (e) with
+      rhs_expr = new_rhs_expr
+    ; rhs_nodes = new_rhs_nodes
+    }
+  ;
+
+  value replace_rhs_car ag car =
+    let open AG in
+    let open P in
+    ag |> AG.map_productions (fun nt p ->
+        p |> P.map_typed_equations (replace_teqn_car ag car p)
+        |> P.map_typed_conditions (replace_teqn_car ag car p)
+      )
+  ;
+
+  value rewrite1_car ag car =
+    let loc = ag.AG.loc in
+    let (start, carreach) = nts_needing_car_attribute ag car in
+    let ty = CAR.type_of ag car in
+    let new_attr = CAR.to_attribute car in
+    let ag = add_new_attribute ag (new_attr, ty) carreach in
+    let ag = stitch_car_copychains ag car new_attr carreach in
+    replace_rhs_car ag car
+  ;
+
+  value rewrite_crs ag =
+    let cars =
+      ag
+      |> all_crs
+      |> List.map CAR.of_cr
+      |> List.sort_uniq Stdlib.compare
+      |> List.stable_sort Stdlib.compare in
+    List.fold_left rewrite1_car ag cars
+  ;
+  end
+  ;
 
 end
 ;
