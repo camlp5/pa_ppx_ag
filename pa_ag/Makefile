@@ -16,7 +16,7 @@ IMPORT_PACKAGES := $(PACKAGES),pa_ppx.deriving,pa_ppx.deriving_plugins.show,pa_p
 PACKAGES := $(IMPORT_PACKAGES),pa_ppx.deriving_plugins.params,pa_ppx_unique.link,ocamlgraph
 
 ML=\
-	camlp5_migrate.ml ag_types.ml ag_tsort.ml pa_deriving_attributed.ml pa_deriving_ag.ml pa_ppx_ag_runtime.ml
+	camlp5_migrate.ml pa_ag.ml ag_types.ml ag_tsort.ml pa_deriving_attributed.ml pa_deriving_ag.ml pa_ppx_ag_runtime.ml
 
 CMO := $(ML:.ml=.cmo)
 CMI := $(ML:.ml=.cmi)
@@ -53,6 +53,16 @@ camlp5_migrate.cmo: camlp5_migrate.ml
 
 camlp5_migrate.cmx: camlp5_migrate.ml
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $<
+
+
+pa_ag.cmo: pa_ag.ml
+	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.parser_quotations,$(PRPACKAGE) -syntax $(SYNTAX) $< > $*_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.parser_quotations -syntax $(SYNTAX) -c $*_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.parser_quotations -syntax $(SYNTAX) -c $<
+
+pa_ag.cmx: pa_ag.ml
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),camlp5.extend,camlp5.parser_quotations -syntax $(SYNTAX) -c $<
+
 
 EXTERNAL := $(shell $(OCAMLFIND) query -predicates byte -format '%m' $(PACKAGES) | grep local-install)
 $(CMO) $(CMI) $(CMX): $(EXTERNAL)
