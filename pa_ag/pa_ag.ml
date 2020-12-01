@@ -1,11 +1,12 @@
 
 open Pcaml ;
 open Pa_ppx_utils ;
+open Pa_ppx_base ;
 
 type ag_element_t = [
-  ATTRIBUTES of list (string * MLast.ctyp * bool)
-| RULE of string and string and list MLast.ctyp and list MLast.expr
-]
+  ATTRIBUTES of list (string * (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) * bool)
+| RULE of string and string and list (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) and list (MLast.expr [@equal Reloc.eq_expr;][@printer Pp_MLast.pp_expr;])
+] [@@deriving (show,eq);]
 ;
 
 value make_attribute_types loc el = do {

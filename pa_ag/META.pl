@@ -20,16 +20,16 @@ description = "pa_ppx_ag deriver"
   version = "$Version::version"
   description = "syntax extension for writing AGs"
 
-  requires(toploop) = "camlp5"
+  requires(toploop) = "camlp5,pa_ppx"
   archive(toploop)      = "pa_ag.cmo"
 
-  requires(syntax,preprocessor) = "camlp5"
+  requires(syntax,preprocessor) = "camlp5,pa_ppx"
   archive(syntax,preprocessor,-native) = "pa_ag.cmo"
   archive(syntax,preprocessor,native) = "pa_ag.cmx"
   requires = "camlp5"
 
   package "link" (
-    requires = "camlp5"
+    requires = "camlp5,pa_ppx.base.link"
     archive(byte) = "pa_ag.cmo"
     archive(native) = "pa_ag.cmx"
   )
