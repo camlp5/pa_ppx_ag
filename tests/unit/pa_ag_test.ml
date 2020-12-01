@@ -10,11 +10,16 @@ value pa_ag s =
 value pa_ag_element s =
   s |> Stream.of_string |> Grammar.Entry.parse attribute_grammar_element ;
 
-value test_simple _ =
+value test_simple _ = do {
   let loc = Ploc.dummy in
-  assert_equal ~{cmp=equal_ag_element_t}
+  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (pa_ag_element "ATTRIBUTE x : int ;")
     (ATTRIBUTES [("x", <:ctyp< int >>, False)])
+;   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (pa_ag_element "CHAIN rpn : list string ;")
+    (ATTRIBUTES [("rpn", <:ctyp< list string >>, True)])
+; ()
+}
 ;
 
 

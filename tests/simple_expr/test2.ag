@@ -8,7 +8,7 @@ ATTRIBUTE_GRAMMAR
   AXIOM prog ;
 
 ATTRIBUTE value_ : int ;
-CHAIN rpn : string list ;
+CHAIN rpn : list string ;
 
 ATTRIBUTES
   bin_oper : int -> int -> int ;
