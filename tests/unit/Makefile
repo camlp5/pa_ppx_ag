@@ -13,7 +13,7 @@ OCAMLFIND=$(LAUNCH) ocamlfind
 NOT_OCAMLFIND=$(LAUNCH) not-ocamlfind
 MKCAMLP5=$(LAUNCH) mkcamlp5
 PACKAGES := $(PACKAGES),ounit2,fmt,pcre,rresult,compiler-libs.common,sexplib,uint,pa_ppx.utils,pa_ppx.testutils
-PACKAGES := $(PACKAGES),camlp5.pa_r.link,pa_ppx_ag.parser.link
+PACKAGES := $(PACKAGES),camlp5.pa_r.link,pa_ppx_ag.parser.link,camlp5.parser_quotations
 R_PACKAGES := $(PACKAGES)
 
 TESTS= \

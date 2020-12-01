@@ -2,15 +2,19 @@
 open OUnit2 ;
 open Pa_ppx_testutils ;
 open Papr_util ;
+open Pa_ag ;
 
 value pa_ag s =
-  s |> Stream.of_string |> Grammar.Entry.parse Pa_ag.attribute_grammar_body ;
+  s |> Stream.of_string |> Grammar.Entry.parse attribute_grammar_body ;
 
 value pa_ag_element s =
-  s |> Stream.of_string |> Grammar.Entry.parse Pa_ag.attribute_grammar_element ;
+  s |> Stream.of_string |> Grammar.Entry.parse attribute_grammar_element ;
 
 value test_simple _ =
-  ignore(pa_ag_element "ATTRIBUTE x : int ;")
+  let loc = Ploc.dummy in
+  assert_equal ~{cmp=equal_ag_element_t}
+    (pa_ag_element "ATTRIBUTE x : int ;")
+    (ATTRIBUTES [("x", <:ctyp< int >>, False)])
 ;
 
 
