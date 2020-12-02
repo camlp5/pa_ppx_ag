@@ -39,6 +39,22 @@ END ;
        [ <:expr< [%nterm 0;].value_ := [%child 1;] >>
        ; <:expr< [%nterm 0;].rpn := [(string_of_int [%child 1;]) :: [%nterm 0;].rpn] >> ]
     )
+;   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (pa_ag_element {foo|
+RULE PROG : prog := block1
+COMPUTE
+  $[0].value_ := $[1].value_ ;
+  CHAINSTART $[1].rpn := [] ;
+  $[0].rpn_notation := List.rev $[1].rpn ;
+END ;
+ |foo})
+    (Pa_ag.RULE "PROG" "prog" [<:ctyp< block1 >>]
+       [
+         <:expr< [%nterm 0;].value_ := [%child 1;].value_ >>
+           ; <:expr< (CHAINSTART ([%child 1;].rpn)) := [] >>
+           ; <:expr< [%nterm 0;].rpn_notation := List.rev [%child 1;].rpn >>
+       ]
+    )
 ; ()
 }
 ;
