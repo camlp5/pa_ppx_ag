@@ -13,18 +13,38 @@ value pa_ag_element s =
 value test_simple _ = do {
   let loc = Ploc.dummy in
   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
-    (pa_ag_element "ATTRIBUTE x : int ;")
     (ATTRIBUTES [("x", <:ctyp< int >>, False)])
+    (pa_ag_element "ATTRIBUTE x : int ;")
 ;   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
-    (pa_ag_element "CHAIN rpn : list string ;")
     (ATTRIBUTES [("rpn", <:ctyp< list string >>, True)])
+    (pa_ag_element "CHAIN rpn : list string ;")
+;   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (ATTRIBUTES [
+        ("bin_oper", <:ctyp< int -> int -> int >>, False)
+      ; ("env", <:ctyp< list (string * int) >>, False)
+      ])
+    (pa_ag_element {foo| ATTRIBUTES
+  bin_oper : int -> int -> int ;
+  env : list (string * int) ;
+END ; |foo})
+;   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (pa_ag_element {foo|
+RULE INT : expr := int
+COMPUTE
+  $[0].value_ := $[1] ;
+  $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
+END ;
+ |foo})
+    (Pa_ag.RULE "INT" "expr" [<:ctyp< int >>]
+       [ <:expr< [%nterm 0;].value_ := [%child 1;] >>
+       ; <:expr< [%nterm 0;].rpn := [(string_of_int [%child 1;]) :: [%nterm 0;].rpn] >> ]
+    )
 ; ()
 }
 ;
 
-
 value suite = "AG Syntax Test" >::: [
-    "test_simple"           >:: test_simple
+  "test_simple"           >:: test_simple
   ]
 ;
 

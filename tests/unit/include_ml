@@ -7,22 +7,21 @@
 #require "pcre";;
 #require "bos";;
 #require "str";;
-
+(*
 #require "camlp5.pa_o";;
 Pcaml.inter_phrases := Some ";;\n";;
-(*
+*)
 #require "camlp5.pa_r";;
 Pcaml.inter_phrases := Some ";\n";;
-*)
 
+(*
 #require "camlp5.pr_o";;
-
-(*
-#require "camlp5.pr_r";;
 *)
 
+#require "camlp5.pr_r";;
+
+#require "camlp5.parser_quotations";;
 (*
-#require "camlp5.quotations";;
 #require "camlp5.extfun";;
 
 #require "camlp5.extend";;
@@ -117,7 +116,7 @@ open Longident ;;
 let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %s >>" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));;
 let pp_expr ty = Fmt.(pf stdout "#<expr< %s >>" (Eprinter.apply Pcaml.pr_expr Pprintf.empty_pc ty));;
 let pp_patt ty = Fmt.(pf stdout "#<patt< %s >>" (Eprinter.apply Pcaml.pr_patt Pprintf.empty_pc ty));;
-let pp_type_decl ty = Fmt.(pf stdout "#<patt< %s >>" (Pr_o.type_decl Pprintf.empty_pc ty));;
+let pp_type_decl ty = Fmt.(pf stdout "#<patt< %s >>" (Pr_r.type_decl Pprintf.empty_pc ty));;
 
 (*
 let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %a >>" Pa_ppx_base.Pp_MLast.pp_ctyp ty);;
@@ -129,89 +128,26 @@ let pp_patt ty = Fmt.(pf stdout "#<patt< %a >>" Pa_ppx_base.Pp_MLast.pp_patt ty)
 #install_printer pp_patt ;;
 
 print_string "================ START ================\n";; flush stdout ;;
-
+(*
 Pa_ppx_base.Pa_passthru.debug := true ;;
 
 #directory "../../pa_ag";;
-#require "ocamlgraph";;
-#require "pa_ppx.import" ;;
-Pa_import.add_include "." ;;
 
 #require "pa_ppx_ag" ;;
+#require "pa_ppx_ag.parser" ;;
 #print_depth 10000 ;;
 #print_length 10000 ;;
-open Ag_types ;;
-#install_printer AG.PN.pp_top ;;
-(*
-#install_printer AG.NR.pp_top ;;
-#install_printer AG.TNR.pp_top ;;
-*)
-(*
-#install_printer AG.P.pp_top ;;
-*)
-#install_printer AG.TAR.pp_top ;;
-#install_printer AG.AT.pp_top ;;
-#install_printer AG.AEQ.pp_top ;;
-#install_printer AG.TAEQ.pp_top ;;
-(*
-#trace Demarshal.tuple2production ;;
-#trace Demarshal.productions ;;
-#trace Demarshal.parse_prodname ;;
-#trace AGOps.POps.defining_occurrences ;;
-#trace AGOps.POps.inherited_occurrences ;;
-#trace AGOps.POps.synthesized_occurrences ;;
-#trace Demarshal.expr_to_attribute_reference ;;
-#trace Ag_tsort.compile_teqn_body ;;
-#trace Ag_tsort.lookup_var ;;
-#trace Ag_tsort.lookup_tnr ;;
-#trace Ag_tsort.typed_equation_to_deps;;
-#trace Ag_types.AGOps.POps.defining_occurrences ;;
-#trace Ag_tsort.attribute_function ;;
-#trace Pa_deriving_attributed.AC.generate_attributed_constructor ;;
-*)
-open Ag_types ;;
-open Ag_types.AG ;;
-open NR ;;
-open AEQ ;;
-(*
-#trace Ag_types.Demarshal.productions ;;
-#trace Ag_types.AGOps.well_formed ;;
-#trace Ag_types.AGOps.well_formed2 ;;
-#trace Ag_types.AGOps.well_formed_chains ;;
-#trace Ag_types.AGOps.chain_attributes_of ;;
-#trace Ag_types.AGOps.covers_with ;;
-#trace Ag_types.AGOps.covers_chain ;;
-#trace Ag_types.AG.P.typed_equation ;;
-#trace well_formed_equation ;;
-*)
-open Ag_types.AGOps ;;
-#trace NTOps.mk_memo ;;
-open Constituents ;;
-(*
-#trace all_crefs ;;
-#trace nts_mentioning_cr ;;
-#trace nts_needing_cr_attribute ;;
-#trace replace_rhs_cr ;;
-#trace replace_teqn_cr ;;
-#trace AG.TAR.to_expr ;;
-#trace AG.TAR.of_expr ;;
-#trace P.typed_attribute ;;
-#trace nts_needing_car_attribute ;;
-#trace CAR.type_of ;;
-#trace stitch_car_copychains ;;
-#trace replace_rhs_car ;;
-#trace rewrite1_car ;;
-#trace add_new_attribute ;;
-*)
-#trace nts_needing_car_attribute ;;
-#trace replace_rhs_expr_cr ;;
 
-(*
-"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
-  |> Rresult.R.get_ok |> PAPR.Implem.pa1
-  |> PAPR.Implem.pr |> print_string ;;
+#load "pa_ag_test.cmo";;
+open OUnit2 ;;
+open Pa_ppx_testutils ;;
+open Papr_util ;;
+open Pa_ag ;;
+open Pa_ag_test ;;
 *)
-
+let a = {| [%"nterm"] |} |> Stream.of_string |> Grammar.Entry.parse Pcaml.expr ;;
+let b = {|   [%"nterm"] |} |> Stream.of_string |> Grammar.Entry.parse Pcaml.expr ;;
+Reloc.eq_expr a b ;;
 (*
 ;;; Local Variables: ***
 ;;; mode:tuareg ***
