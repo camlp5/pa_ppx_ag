@@ -79,6 +79,21 @@ END ;
       (Std.except [%prim 1;] [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"nterm" 3;]};]) >>
        ]
     )
+;   assert_equal ~{cmp=[%eq: list (string * string)]} ~{printer=[%show: list (string * string)]}
+    (rule_to_node_attributes (rule_replace_child (pa_ag_element {foo|
+RULE LET_BINDING : let_expr := string and expr and expr
+COMPUTE
+  $[0].value_ := $[3].value_ ;
+  $[3].rpn := [(Printf.sprintf "bind %s" $[1]) :: $[2].rpn] ;
+  $[0].env := [($[1], $[2].value_) :: INCLUDING ( block1.env, let_expr.env )] ;
+  $[0].freevars :=
+    Std.union
+      (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[2])
+      (Std.except $[1] (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[3])) ;
+END ;
+ |foo})))
+    [("expr", "rpn"); ("expr", "value_"); ("let_expr", "env");
+     ("let_expr", "freevars"); ("let_expr", "value_")]
 ; ()
 }
 ;

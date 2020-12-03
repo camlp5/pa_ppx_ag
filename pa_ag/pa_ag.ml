@@ -57,6 +57,50 @@ value rule_replace_child age = match age with [
 ]
 ;
 
+value equation_to_node_attributes rule e = match rule with [
+  RULE prodna tyna tyl eqns ->
+  let acc = ref [] in
+  let dt = Camlp5_migrate.make_dt () in
+  let fallback_migrate_expr = dt.migrate_expr in
+  let migrate_expr dt e = match e with [
+    <:expr:< [%nterm $int:n$;] . $lid:attrna$ >> -> do {
+      let n = int_of_string n in
+      if 0 = n then Std.push acc (tyna, attrna)
+      else if n > List.length tyl then
+        Ploc.raise loc (Failure Fmt.(str "rule_to_node_attributes: node-number %d out-of-bounds" n))
+      else
+        let tyid = match List.nth tyl (n-1) with [
+          <:ctyp< $lid:id$ >> -> id
+        | ty ->
+          Ploc.raise (MLast.loc_of_ctyp ty)
+            (Failure Fmt.(str "rule_to_node_attributes: unrecognized nonterminal type %a"
+                         Pp_MLast.pp_ctyp ty))
+        ] in
+          Std.push acc (tyid, attrna) ;
+      e
+    }
+
+  | e -> fallback_migrate_expr dt e
+  ] in
+  let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in do {
+    ignore(dt.migrate_expr dt e) ;
+    acc.val
+  }
+
+| _ -> assert False
+]
+;
+
+value rule_to_node_attributes rule = match rule with [
+  RULE prodna tyna tyl eqns ->
+    eqns
+    |> List.concat_map (equation_to_node_attributes rule)
+    |> List.sort_uniq Stdlib.compare
+
+| _ -> assert False
+]
+;
+
 value make_ag_str_item loc modname amodel axiom l = do {
   let attribute_types = make_attribute_types loc l in
   <:str_item< declare end >>

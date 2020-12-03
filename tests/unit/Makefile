@@ -14,6 +14,7 @@ NOT_OCAMLFIND=$(LAUNCH) not-ocamlfind
 MKCAMLP5=$(LAUNCH) mkcamlp5
 PACKAGES := $(PACKAGES),ounit2,fmt,pcre,rresult,compiler-libs.common,sexplib,uint,pa_ppx.utils,pa_ppx.testutils
 PACKAGES := $(PACKAGES),camlp5.pa_r.link,pa_ppx_ag.parser.link,camlp5.parser_quotations,pa_ppx.deriving.link
+PACKAGES := $(PACKAGES),pa_ppx.deriving_plugins.std
 R_PACKAGES := $(PACKAGES)
 
 TESTS= \
@@ -46,10 +47,9 @@ clean::
 	rm -f  *.ppo.*
 
 EXTERNAL := $(shell $(OCAMLFIND) query -predicates byte -format '%m' $(PACKAGES) | grep local-install)
-$(CMO): $(EXTERNAL)
 
 depend::
-	echo "$(CMO): $(EXTERNAL)" > .depend.NEW
+	echo "$(CMO) $(CMI) $(CMX): $(EXTERNAL)" > .depend.NEW
 	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) $(OCAMLCFLAGS) -package $(PACKAGES) -syntax camlp5r \
 	pa_ag_test.ml \
 	>> .depend.NEW
