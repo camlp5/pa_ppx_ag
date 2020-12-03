@@ -20,16 +20,16 @@ description = "pa_ppx_ag deriver"
   version = "$Version::version"
   description = "syntax extension for writing AGs"
 
-  requires(toploop) = "camlp5,pa_ppx"
+  requires(toploop) = "camlp5,pa_ppx,pa_ppx_ag"
   archive(toploop)      = "pa_ag.cmo"
 
-  requires(syntax,preprocessor) = "camlp5,pa_ppx"
+  requires(syntax,preprocessor) = "camlp5,pa_ppx,pa_ppx_ag"
   archive(syntax,preprocessor,-native) = "pa_ag.cmo"
   archive(syntax,preprocessor,native) = "pa_ag.cmx"
   requires = "camlp5"
 
   package "link" (
-    requires = "camlp5,pa_ppx.base.link"
+    requires = "camlp5,pa_ppx.base.link,pa_ppx_ag.link"
     archive(byte) = "pa_ag.cmo"
     archive(native) = "pa_ag.cmx"
   )
@@ -43,8 +43,9 @@ description = "pa_ppx_ag deriver"
     archive(syntax,preprocessor,native) = "camlp5_migrate.cmx ag_types.cmx ag_tsort.cmx pa_deriving_attributed.cmx pa_deriving_ag.cmx"
 
   package "link" (
-  requires(byte) = "camlp5,pa_ppx.deriving_plugins.show.link,pa_ppx.params_runtime,pa_ppx_unique.link,ocamlgraph"
+  requires = "camlp5,pa_ppx.deriving_plugins.show.link,pa_ppx.params_runtime,pa_ppx_unique.link,ocamlgraph"
   archive(byte) = "camlp5_migrate.cmo ag_types.cmo ag_tsort.cmo pa_deriving_attributed.cmo pa_deriving_ag.cmo"
+  archive(native) = "camlp5_migrate.cmx ag_types.cmx ag_tsort.cmx pa_deriving_attributed.cmx pa_deriving_ag.cmx"
   )
 
 EOF

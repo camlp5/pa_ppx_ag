@@ -55,6 +55,30 @@ END ;
            ; <:expr< [%nterm 0;].rpn_notation := List.rev [%child 1;].rpn >>
        ]
     )
+;   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (rule_replace_child (pa_ag_element {foo|
+RULE LET_BINDING : let_expr := string and expr and expr
+COMPUTE
+  $[0].value_ := $[3].value_ ;
+  $[3].rpn := [(Printf.sprintf "bind %s" $[1]) :: $[2].rpn] ;
+  $[0].env := [($[1], $[2].value_) :: INCLUDING ( block1.env, let_expr.env )] ;
+  $[0].freevars :=
+    Std.union
+      (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[2])
+      (Std.except $[1] (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[3])) ;
+END ;
+ |foo}))
+    (Pa_ag.RULE "LET_BINDING" "let_expr" [<:ctyp< string >>; <:ctyp< expr >>; <:ctyp< expr >>]
+       [
+         <:expr< [%nterm 0;].value_ := [%nterm 3;].value_ >>
+       ; <:expr< [%nterm 3;].rpn := [(Printf.sprintf "bind %s" [%prim 1;]) :: [%nterm 2;].rpn] >>
+       ; <:expr< [%nterm 0;].env := [([%prim 1;], [%nterm 2;].value_) :: [%"remote" (block1.env, let_expr.env);]] >>
+       ; <:expr< [%nterm 0;].freevars :=
+    Std.union
+      [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"nterm" 2;]};]
+      (Std.except [%prim 1;] [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"nterm" 3;]};]) >>
+       ]
+    )
 ; ()
 }
 ;

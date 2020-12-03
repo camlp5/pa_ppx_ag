@@ -2,6 +2,7 @@
 open Pcaml ;
 open Pa_ppx_utils ;
 open Pa_ppx_base ;
+open Ag_types ;
 
 type ag_element_t = [
   ATTRIBUTES of list (string * (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) * bool)
@@ -22,6 +23,38 @@ value make_attribute_types loc el = do {
   assert (Std.distinct (List.map fst attribute_types)) ;
   attribute_types
 }
+;
+
+value child_to_ar rule =
+  let types = match rule with [ RULE _ _ l _  -> l | _ -> assert False ] in
+  fun [
+    <:expr:< [%child $int:n$;] >> ->
+      let i = int_of_string n in
+      if is_builtin_ctyp (List.nth types (i-1)) then
+        <:expr< [%prim $int:n$;] >>
+      else
+        <:expr< [%nterm $int:n$;] >>
+    | _ -> failwith "caught"
+  ]
+;
+
+value rewrite_eqn rule e =
+  let dt = Camlp5_migrate.make_dt () in
+  let fallback_migrate_expr = dt.migrate_expr in
+  let migrate_expr dt e = match child_to_ar rule e with [
+    x -> x
+  | exception Failure _ -> fallback_migrate_expr dt e
+  ] in
+  let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
+  dt.migrate_expr dt e
+;
+
+value rule_replace_child age = match age with [
+  RULE prodna tyna tyl eqns ->
+  let new_eqns = List.map (rewrite_eqn age) eqns in
+  RULE prodna tyna tyl new_eqns
+  | _ -> assert False
+]
 ;
 
 value make_ag_str_item loc modname amodel axiom l = do {
@@ -88,7 +121,7 @@ EXTEND
 
   aref: [ [ nt = LIDENT ; "." ; a = LIDENT -> (nt, a) ] ] ;
 
-  node: [ [ "$" ; n = INT -> <:expr< [%child $int:n$ ;] >> ] ] ; 
+  node: [ [ "$" ; "[" ; n = INT ; "]" -> <:expr< [%child $int:n$ ;] >> ] ] ; 
   nodes: [ [ e = node -> e
            | "(" ; h = node ; "," ; l = LIST1 node SEP "," ; ")" ->
              <:expr< ( $list:[h::l]$ ) >>

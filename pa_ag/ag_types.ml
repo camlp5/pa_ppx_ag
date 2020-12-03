@@ -25,6 +25,7 @@ value builtin_types =
   ; <:ctyp< char >>
   ]
 ;
+value is_builtin_ctyp z = List.mem (canon_ctyp z) builtin_types ;
 
 module Pp_hum = struct
   value ctyp pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));
@@ -772,7 +773,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
         let v = Printf.sprintf "v_%d" (i+1) in
         (<:patt< $lid:v$ >>, (v, TNR.CHILD tyname aliasnum), (v, i+1))
       }
-    | <:ctyp:< $lid:tyname$ >> as z when List.mem (canon_ctyp z) builtin_types -> do {
+    | <:ctyp:< $lid:tyname$ >> as z when is_builtin_ctyp z -> do {
         let aliasnum = NA.next_prim_number node_aliases tyname in
         NA.add node_aliases (TNR.PRIM tyname aliasnum, NR.PRIM None (i+1)) ;
         Std.push typed_nodes (TNR.PRIM tyname aliasnum) ;

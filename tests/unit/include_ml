@@ -128,8 +128,6 @@ let pp_patt ty = Fmt.(pf stdout "#<patt< %a >>" Pa_ppx_base.Pp_MLast.pp_patt ty)
 #install_printer pp_patt ;;
 
 print_string "================ START ================\n";; flush stdout ;;
-(*
-Pa_ppx_base.Pa_passthru.debug := true ;;
 
 #directory "../../pa_ag";;
 
@@ -144,10 +142,13 @@ open Pa_ppx_testutils ;;
 open Papr_util ;;
 open Pa_ag ;;
 open Pa_ag_test ;;
-*)
+
+(*
 let a = {| [%"nterm"] |} |> Stream.of_string |> Grammar.Entry.parse Pcaml.expr ;;
 let b = {|   [%"nterm"] |} |> Stream.of_string |> Grammar.Entry.parse Pcaml.expr ;;
 Reloc.eq_expr a b ;;
+*)
+
 (*
 ;;; Local Variables: ***
 ;;; mode:tuareg ***

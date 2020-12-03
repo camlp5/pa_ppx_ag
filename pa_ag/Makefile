@@ -16,7 +16,7 @@ IMPORT_PACKAGES := $(PACKAGES),pa_ppx.deriving,pa_ppx.deriving_plugins.show,pa_p
 PACKAGES := $(IMPORT_PACKAGES),pa_ppx.deriving_plugins.params,pa_ppx.base,pa_ppx_unique.link,ocamlgraph
 
 ML=\
-	camlp5_migrate.ml pa_ag.ml ag_types.ml ag_tsort.ml pa_deriving_attributed.ml pa_deriving_ag.ml pa_ppx_ag_runtime.ml
+	camlp5_migrate.ml ag_types.ml ag_tsort.ml pa_deriving_attributed.ml pa_deriving_ag.ml pa_ag.ml pa_ppx_ag_runtime.ml
 
 CMO := $(ML:.ml=.cmo)
 CMI := $(ML:.ml=.cmi)
@@ -69,7 +69,7 @@ $(CMO) $(CMI) $(CMX): $(EXTERNAL)
 
 depend::
 	echo "$(CMO) $(CMI) $(CMX): $(EXTERNAL)" > .depend.NEW
-	$(OCAMLFIND) ocamldep -package $(PACKAGES) -syntax camlp5r ag_*.ml pa*.ml  >> .depend.NEW
+	$(OCAMLFIND) ocamldep -package $(PACKAGES),camlp5.extend,pa_ppx.deriving_plugins.std -syntax camlp5r ag_*.ml pa_deriving_ag.ml pa_deriving_attributed.ml pa_ag.ml  >> .depend.NEW
 	$(OCAMLFIND) ocamldep -package $(IMPORT_PACKAGES) -syntax camlp5o camlp5_migrate.ml  >> .depend.NEW
 	mv .depend.NEW .depend
 
