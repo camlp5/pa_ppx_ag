@@ -763,9 +763,9 @@ value eval_function memo =
       x -> x
     | exception Not_found -> assert False
     ]
-      |> List.map (fun attrna ->
-          <:expr< AttrTable. $lid:attr_accessor_name axiom attrna$ attrs t >>
-        ) |> (fun l -> Expr.tuple loc l) in
+    |> List.map (fun attrna ->
+         <:expr< AttrTable. $lid:attr_accessor_name axiom attrna$ attrs t >>
+       ) |> (fun l -> Expr.tuple loc l) in
   (<:patt< evaluate >>,
    Reloc.expr (fun _ -> Ploc.dummy) 0
    <:expr< fun t ->

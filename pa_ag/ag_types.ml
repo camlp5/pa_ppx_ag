@@ -941,7 +941,7 @@ module AGOps = struct
         | TAR.NT (TNR.PARENT n) attrna when n = ntname -> Some attrna
         | _ -> None
         ])
-      |> Std2.hash_uniq
+      |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare
     ;
 
     value _inherited_attributes_of ag ntname =
@@ -952,7 +952,7 @@ module AGOps = struct
           TAR.NT (TNR.CHILD n _) attrna when n = ntname -> Some attrna
         | _ -> None
         ])
-      |> Std2.hash_uniq
+      |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare
     ;
     value _synthesized_attributes_of ag ntname =
       ag
@@ -962,7 +962,7 @@ module AGOps = struct
           TAR.NT (TNR.PARENT n) attrna when n = ntname -> Some attrna
         | _ -> None
         ])
-      |> Std2.hash_uniq
+      |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare
     ;
 
   module G = Graph.Persistent.Digraph.ConcreteBidirectionalLabeled(

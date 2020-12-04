@@ -14,19 +14,19 @@ let pa_prog_attributed s =
   |> Grammar.Entry.parse Test1_pa.prog_attributed_eoi
 
 let test_hashtables ctxt =
-  let printer = [%show: int * string list] in
-  assert_equal ~printer (3,["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"])
+  let printer = [%show: string list * int] in
+  assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
     ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> UN.AG.evaluate)
-; assert_equal ~printer (0,["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"])
+; assert_equal ~printer (["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"],0)
     ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> UN.AG.evaluate)
 ; assert_raises (Failure "rhs must be nonzero")
     (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_unique |> UN.AG.evaluate)
 
 let test_records ctxt =
-  let printer = [%show: int * string list] in
-  assert_equal ~printer (3,["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"])
+  let printer = [%show: string list * int] in
+  assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
     ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_attributed |> REC.AG.evaluate)
-; assert_equal ~printer (0,["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"])
+; assert_equal ~printer (["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"],0)
     ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> REC.AG.evaluate)
 ; assert_raises (Failure "rhs must be nonzero")
     (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_attributed |> REC.AG.evaluate)
