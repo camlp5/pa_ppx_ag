@@ -1615,6 +1615,7 @@ module AGOps = struct
   end
   ;
 
+  module Condition = struct
   value add_condition_attributes ag =
     let open AG in
     let open P in
@@ -1653,7 +1654,8 @@ module AGOps = struct
        attribute_types = [("condition", AT.mk <:ctyp< bool >>) :: ag.attribute_types]}
     else ag
   ;
-
+  end
+  ;
 
   value add_new_attribute ag (new_attr, ty) ntl =
     let open AG in

@@ -1,0 +1,40 @@
+
+ATTRIBUTE_GRAMMAR
+  MODULE AG ;
+  ATTRIBUTION_MODEL Attributed {
+    attributed_module_name = AT
+  } ;
+
+  AXIOM z ;
+
+ATTRIBUTES
+  a : string ;
+  b : string ;
+  c : string ;
+  d : string ;
+END ;
+
+RULE P : z := x
+COMPUTE
+  $[1].a := f() ;
+  $[1].c := g $[1].b ;
+  h ($[1].d) ;
+END ;
+
+RULE R : x
+COMPUTE
+  $[0].b := g($[0].a) ;
+  $[0].d := g($[0].c) ;
+END ;
+
+RULE Q : x := x and x
+COMPUTE
+  $[0].b := g($[0].a) ;
+  $[1].a := g($[0].c) ;
+  $[2].a := g($[0].c) ;
+  $[1].c := g($[1].b) ;
+  $[2].c := g($[2].b) ;
+  $[0].d := s($[1].d, $[2].d) ;
+END ;
+
+END ;

@@ -212,6 +212,11 @@ open Constituents ;;
   |> PAPR.Implem.pr |> print_string ;;
 *)
 
+#require "pa_ppx_migrate";;
+"test2_migrate.ml" |> Fpath.v |> Bos.OS.File.read
+  |> Rresult.R.get_ok |> PAPR.Implem.pa1
+  |> PAPR.Implem.pr |> print_string ;;
+
 (*
 ;;; Local Variables: ***
 ;;; mode:tuareg ***

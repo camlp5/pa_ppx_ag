@@ -143,9 +143,9 @@ value str_item_gen_ag name arg = fun [
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
     let ag = AGOps.Chain.(augment_chains_with_copychains ag) in
     let ag = AGOps.Chain.(replace_chains_with_pre_post ag) in
-    let ag = AGOps.add_condition_attributes ag in
     let ag = AGOps.RUA.replace_ruas ag in
     let ag = AGOps.Constituents.rewrite_crs ag in
+    let ag = AGOps.Condition.add_condition_attributes ag in
     let (rc, uu_st, uu_open_st) =
       let rc0 = AGC.{
           (rc0) with
