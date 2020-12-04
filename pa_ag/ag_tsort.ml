@@ -384,8 +384,7 @@ value actual_dep_function_declarations memo =
   (ag.productions |> List.map (fun (nt, pl) ->
        let branches = pl |> List.map (fun p ->
            let deps =
-             (p.P.typed_equations |> List.concat_map typed_equation_to_deps)@
-             (p.P.typed_conditions |> List.concat_map typed_equation_to_deps)
+             (p.P.typed_equations |> List.concat_map typed_equation_to_deps)
            in
            let deps = Std2.hash_uniq deps in
            let aref_to_exp = fun [
@@ -607,63 +606,6 @@ value synthesized_attribute_branch ag p teqn = do {
 }
 ;
 
-value condition_branch_body ag p tcond = do {
-  let open AG in
-  let open P in
-  let open TAEQ in
-  let open TNR in
-  let loc = tcond.loc in
-  match tcond.lhs with [
-    TAR.PROD pn attrna -> do {
-      assert (attrna = "condition") ;
-      let prodname = PN.unparse pn in 
-      let nt = pn.PN.nonterm_name in
-      let attrcons = attr_constructor attrna in
-      let ntcons = node_constructor nt in
-      let nthash = node_hash_module nt in
-      let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-      let check_deps_set = tcond.rhs_nodes |> List.filter_map (fun tar -> match tar with [
-          TAR.NT (CHILD _ _ | PARENT _) _ ->
-          Some <:expr< assert $attr_isset_expression loc ag p tar$ >>
-
-        | TAR.NT (PRIM _ _) _ -> None
-        ]) in
-      let body = compile_teqn_tcond_body ag p tcond.rhs_expr in
-      let the_condition =
-        let msg = match tcond.msg with [ None -> "condition check failed" | Some msg -> msg ] in
-        <:expr< if not ($body$) then failwith $str:msg$ else () >> in
-      let l = check_deps_set@[the_condition] in
-      <:expr< let parent = lhs in do { $list:l$ } >>
-    }
-  | _ -> assert False
-  ]
-}
-;
-
-value condition_branch ag p = do {
-  let open AG in
-  let open P in
-  let open TAEQ in
-  let loc = p.P.loc in
-  if p.typed_conditions = [] then None
-  else
-  let condl = List.map (condition_branch_body ag p) p.typed_conditions in
-  let pn = p.name in
-  let prodname = PN.unparse pn in 
-  let nt = pn.PN.nonterm_name in
-  let attrna = "condition" in
-  let tar = TAR.PROD pn attrna in
-  let attrcons = attr_constructor ~{prodname=prodname} attrna in
-  let ntcons = node_constructor nt in
-
-  let lhs = match ag.storage_mode with [ Hashtables -> <:expr< lhs >> | Records -> <:expr< prod_attrs >> ] in
-  let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p tar$) >> in
-  let set_lhs = attr_setter_expression loc ag p tar <:expr< True >> in
-  let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
-  Some (patt, <:vala< None >>, <:expr< let parent = lhs in do { $list:[check_lhs_unset]@condl@[set_lhs]$ } >>)
-}
-;
-
 value synthesized_attribute_function memo =
   let open AGOps.NTOps in
   let open AG in
@@ -676,12 +618,8 @@ value synthesized_attribute_function memo =
     ag.productions |> List.concat_map (fun (nt, pl) -> pl |> List.concat_map (fun p ->
         p.typed_equations |> List.filter_map (synthesized_attribute_branch ag p)
       )) in
-  let cond_branches =
-    ag.productions |> List.concat_map (fun (nt, pl) -> pl |> List.filter_map (fun p ->
-        condition_branch ag p
-      )) in
   (<:patt< compute_synthesized_attribute >>,
-   <:expr< fun attrs -> fun (node, attrna) -> match (node, attrna) with [ $list:attr_branches@cond_branches$ ] >>,
+   <:expr< fun attrs -> fun (node, attrna) -> match (node, attrna) with [ $list:attr_branches$ ] >>,
    <:vala< [] >>)
 ;
 

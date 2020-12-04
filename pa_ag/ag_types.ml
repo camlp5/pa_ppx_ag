@@ -383,36 +383,35 @@ module AG = struct
     type t = {
       loc : Ploc.t
     ; lhs : AR.t
-    ; msg : option string
     ; rhs_nodes : list AR.t
     ; rhs_expr : MLast.expr
     }
     ;
-    value pp_hum ?{is_condition=False} pps x =
-      if is_condition then do {
-        assert (match x.lhs with [ AR.PROD _ "condition" -> True | _ -> False ]) ;
-        Fmt.(pf pps "assert %a %a"
-               (option Dump.string) x.msg
-               Pp_hum.expr x.rhs_expr) ;
-      }
-      else
-        Fmt.(pf pps "%a := %a%a" AR.pp_hum x.lhs Pp_hum.expr x.rhs_expr
-               (option (wrap_comment Dump.string)) x.msg) ;
-    value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
+    value pp_hum pps x =
+        Fmt.(pf pps "%a := %a" AR.pp_hum x.lhs Pp_hum.expr x.rhs_expr) ;
+    value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" pp_hum x) ;
   end ;
 
-  type production_action_t = [
-      Equation of AEQ.t
-    | Condition of AEQ.t
-    | Chainstart of AEQ.t
-  ]
-  ;
+  module ACond = struct
+    type t = {
+      loc : Ploc.t
+    ; msg : string
+    ; rhs_nodes : list AR.t
+    ; rhs_expr : MLast.expr
+    }
+    ;
+    value pp_hum pps x =
+      Fmt.(pf pps "assert %a %a"
+             (wrap_comment Dump.string) x.msg
+             Pp_hum.expr x.rhs_expr)
+    ;
+    value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" pp_hum x) ;
+  end ;
 
   module TAEQ = struct
     type t = {
       loc : Ploc.t
     ; lhs : TAR.t
-    ; msg : option string
     ; rhs_nodes : list TAR.t
     ; rhs_expr : MLast.expr
     }
@@ -420,18 +419,9 @@ module AG = struct
     value lhs e = e.lhs ;
     value rhs_expr e = e.rhs_expr ;
     value rhs_nodes e = e.rhs_nodes ;
-    value pp_hum ?{is_condition=False} pps x =
-      if is_condition then do {
-        assert (match x.lhs with [ TAR.PROD _ "condition" -> True | _ -> False ]) ;
-        Fmt.(pf pps "assert %a %a"
-               (option (wrap_comment Dump.string)) x.msg
-               Pp_hum.expr x.rhs_expr
-            )
-      }
-      else
-        Fmt.(pf pps "%a := %a%a" TAR.pp_hum x.lhs Pp_hum.expr x.rhs_expr
-               (option (wrap_comment Dump.string)) x.msg) ;
-    value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" (pp_hum ~{is_condition=False}) x) ;
+    value pp_hum pps x =
+      Fmt.(pf pps "%a := %a" TAR.pp_hum x.lhs Pp_hum.expr x.rhs_expr) ;
+    value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" pp_hum x) ;
 
     value remote_upward_attributes e =
       e.rhs_nodes |> List.filter (fun [ TAR.REMOTE _ -> True | _ -> False ])
@@ -441,6 +431,25 @@ module AG = struct
     ;
   end ;
 
+  module TCond = struct
+    type t = {
+      loc : Ploc.t
+    ; msg : string
+    ; rhs_nodes : list TAR.t
+    ; rhs_expr : MLast.expr
+    }
+    ;
+    value rhs_expr e = e.rhs_expr ;
+    value rhs_nodes e = e.rhs_nodes ;
+    value pp_hum pps x =
+      Fmt.(pf pps "assert %a %a"
+             (wrap_comment Dump.string) x.msg
+             Pp_hum.expr x.rhs_expr
+          )
+    ;
+    value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" pp_hum x) ;
+  end ;
+
   module P = struct
     type t = {
       name : PN.t
@@ -448,7 +457,7 @@ module AG = struct
     ; typed_nodes : list TNR.t
     ; typed_node_names : list (NR.t * TNR.t)
     ; typed_equations : list TAEQ.t
-    ; typed_conditions : list TAEQ.t
+    ; typed_conditions : list TCond.t
     ; patt : MLast.patt
     ; patt_var_to_noderef : list (string * TNR.t)
     ; rev_patt_var_to_noderef : list (TNR.t * string)
@@ -460,7 +469,7 @@ module AG = struct
              PN.pp_hum x.name
              Pp_hum.patt x.patt
              (list ~{sep=sp} TAEQ.pp_hum) x.typed_equations
-             (list ~{sep=sp} TAEQ.pp_hum) x.typed_conditions
+             (list ~{sep=sp} TCond.pp_hum) x.typed_conditions
           ) ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
 
@@ -495,23 +504,29 @@ module AG = struct
       let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
       dt.migrate_expr dt e
     ;
-    value typed_equation p aeq =
-      let { AEQ.loc = loc; lhs = lhs ; msg = msg ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
+    value typed_condition p aeq =
+      let { ACond.loc = loc ; msg = msg ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
       {
-        TAEQ.loc = loc
-      ; lhs = typed_attribute loc p lhs
+        TCond.loc = loc
       ; msg = msg
       ; rhs_nodes = List.map (typed_attribute loc p) rhs_nodes
       ; rhs_expr = typed_rhs loc p rhs_expr
       }
     ;
+    value typed_equation p aeq =
+      let { AEQ.loc = loc; lhs = lhs ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
+      {
+        TAEQ.loc = loc
+      ; lhs = typed_attribute loc p lhs
+      ; rhs_nodes = List.map (typed_attribute loc p) rhs_nodes
+      ; rhs_expr = typed_rhs loc p rhs_expr
+      }
+    ;
     value remote_upward_attributes p =
-      (p.typed_equations |> List.concat_map TAEQ.remote_upward_attributes) @
-      (p.typed_conditions |> List.concat_map TAEQ.remote_upward_attributes)
+      (p.typed_equations |> List.concat_map TAEQ.remote_upward_attributes)
     ;
     value constituents_references p =
-      (p.typed_equations |> List.concat_map TAEQ.constituents_references) @
-      (p.typed_conditions |> List.concat_map TAEQ.constituents_references)
+      (p.typed_equations |> List.concat_map TAEQ.constituents_references)
     ;
     value parent_nonterminal p = p.name.PN.nonterm_name ;
     value child_nonterminals p =
@@ -552,7 +567,7 @@ module AG = struct
   ; production_attributes : list (string * (list string))
   ; nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
-  ; conditions : list (PN.t * (list AEQ.t))
+  ; conditions : list (PN.t * (list ACond.t))
   ; productions : list (string * list P.t)
   }
   ;
@@ -650,27 +665,24 @@ value extract_attribute_references pn e =
 
 value assignment_to_equation_or_condition pn e = match e with [
     <:expr:< $lhs$ . val := $rhs$ >> | <:expr:< $lhs$ := $rhs$ >> ->
-    (True, {
+    Left {
       AG.AEQ.loc = loc
     ; lhs = AG.AR.expr_to_ar pn lhs
-    ; msg = None
     ; rhs_nodes = extract_attribute_references pn rhs
-    ; rhs_expr = rhs })
+    ; rhs_expr = rhs }
 
   | <:expr:< condition $str:msg$ $e$ >> ->
-    (False, { 
-      AG.AEQ.loc = loc
-    ; msg = Some msg
-    ; lhs = AG.AR.PROD pn "condition"
+    Right { 
+      AG.ACond.loc = loc
+    ; msg = msg
     ; rhs_nodes = extract_attribute_references pn e
-    ; rhs_expr = e })
+    ; rhs_expr = e }
   | <:expr:< condition $e$ >> ->
-    (False, { 
-      AG.AEQ.loc = loc
-    ; msg = None
-    ; lhs = AG.AR.PROD pn "condition"
+    Right { 
+      AG.ACond.loc = loc
+    ; msg = Fmt.(str "condition %a failed" Pp_MLast.pp_expr e)
     ; rhs_nodes = extract_attribute_references pn e
-    ; rhs_expr = e })
+    ; rhs_expr = e }
 
   | _ -> Ploc.raise (MLast.loc_of_expr e)
       (Failure Fmt.(str "assignment_to_equation_or_condition: neither assignment nor condition@ %a"
@@ -691,7 +703,7 @@ value parse_prodname loc s =
   ]
 ;
 
-value extract_attribute_equations_and_conditions loc l : (list (AG.PN.t * (list (bool * AG.AEQ.t)))) =
+value extract_attribute_equations_and_conditions loc l : (list (AG.PN.t * (list (choice AG.AEQ.t AG.ACond.t)))) =
   l |> List.map (fun (prodname, e) ->
     let prodname = parse_prodname loc prodname in
     match e with [
@@ -708,13 +720,13 @@ value extract_attribute_equations_and_conditions loc l : (list (AG.PN.t * (list 
 value extract_attribute_equations loc l : (list (AG.PN.t * (list AG.AEQ.t))) =
   extract_attribute_equations_and_conditions loc l
   |> List.map (fun (n, l) ->
-                (n, l |> Std.filter (fun (iseqn, _) -> iseqn) |> List.map snd))
+                (n, l |> List.filter_map (fun [ Left e -> Some e | _ -> None ])))
 ;
 
-value extract_attribute_conditions loc l : (list (AG.PN.t * (list AG.AEQ.t))) =
+value extract_attribute_conditions loc l : (list (AG.PN.t * (list AG.ACond.t))) =
   extract_attribute_equations_and_conditions loc l
   |> List.map (fun (n, l) ->
-                (n, l |> Std.filter (fun (iseqn, _) -> not iseqn) |> List.map snd))
+                (n, l |> List.filter_map (fun [ Right c -> Some c | _ -> None ])))
 ;
 
 value compute_name2nodename type_decls =
@@ -806,7 +818,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   ; patt_var_to_childnum = List.map Std.third3 patt_nref_l
   } in
   let typed_equations = List.map (P.typed_equation p) equations in
-  let typed_conditions = List.map (P.typed_equation p) conditions in
+  let typed_conditions = List.map (P.typed_condition p) conditions in
   { (p) with
     P.typed_equations = typed_equations
   ; typed_conditions = typed_conditions
@@ -889,8 +901,7 @@ module AGOps = struct
       |> List.concat ;
 
     value defining_occurrences p =
-      (List.map (fun teq -> teq.TAEQ.lhs) p.P.typed_equations)@
-      (if p.P.typed_conditions <> [] then [(List.hd p.P.typed_conditions).TAEQ.lhs] else [])
+      (List.map (fun teq -> teq.TAEQ.lhs) p.P.typed_equations)
     ;
 
     value inherited_occurrences p =
@@ -915,11 +926,7 @@ module AGOps = struct
       (p.P.typed_equations
        |> List.concat_map (fun teq ->
            let open TAEQ in
-           List.map (fun rhs_ar -> (rhs_ar, teq.lhs)) teq.rhs_nodes))@
-      (p.P.typed_conditions
-       |> List.concat_map (fun tcond ->
-           let open TAEQ in
-           List.map (fun rhs_ar -> (rhs_ar, tcond.lhs)) tcond.rhs_nodes))
+           List.map (fun rhs_ar -> (rhs_ar, teq.lhs)) teq.rhs_nodes))
     ;
 
   end ;
@@ -1170,23 +1177,8 @@ module AGOps = struct
     true_or_exn ~{exnf=fun () ->
         Ploc.raise teq.loc (Failure Fmt.(str "not a well-formed equation in production %a: %a"
                                            PN.pp_hum pn
-                                           (TAEQ.pp_hum ~{is_condition=False}) teq))}
+                                           TAEQ.pp_hum teq))}
       (well_formed_equation0 ag pn teq)
-  ;
-
-  value well_formed_condition0 typed_attributes pn tcond =
-    let open AG.TAEQ in
-    well_formed_aref tcond.loc typed_attributes tcond.lhs &&
-    List.for_all (well_formed_aref tcond.loc typed_attributes) tcond.rhs_nodes
-  ;
-
-  value well_formed_condition typed_attributes pn tcond =
-    let open AG.TAEQ in
-    true_or_exn ~{exnf=fun () ->
-        Ploc.raise tcond.loc (Failure Fmt.(str "not a well-formed condition in production %a: %a"
-                                             PN.pp_hum pn
-                                             (TAEQ.pp_hum ~{is_condition=True}) tcond))}
-      (well_formed_condition0 typed_attributes pn tcond)
   ;
 
   value chain_attributes_of ag nt =
@@ -1236,7 +1228,7 @@ module AGOps = struct
     let ag = m.NTOps.ag in
     ag |> AG.all_productions |> List.for_all (fun p ->
          p.P.typed_equations |> List.for_all (well_formed_equation ag p.P.name) &&
-         p.P.typed_conditions |> List.for_all (well_formed_condition ag p.P.name)
+         [] = p.P.typed_conditions
        )
   ;
 
@@ -1440,7 +1432,6 @@ module AGOps = struct
               [TAEQ.{
                 lhs = TAR.NT cnr cattr
               ; loc = loc
-              ; msg = None
               ; rhs_nodes = [TAR.NT prev_nr cattr]
               ; rhs_expr = prev_expr
               } :: acc] in
@@ -1455,7 +1446,6 @@ module AGOps = struct
         [TAEQ.{
             lhs=TAR.NT (TNR.PARENT pnt) cattr
           ; loc = p.P.loc
-          ; msg = None
           ; rhs_nodes = [TAR.NT (TNR.PARENT pnt) cattr]
           ; rhs_expr = <:expr< [%nterm $lid:pnt$;] . $lid:cattr$ >>
           }]
@@ -1464,7 +1454,6 @@ module AGOps = struct
         [TAEQ.{
             lhs=TAR.NT (TNR.PARENT pnt) cattr
           ; loc = loc
-          ; msg = None
           ; rhs_nodes = [TAR.NT last_nr cattr]
           ; rhs_expr = last_expr
           }] in
@@ -1570,11 +1559,8 @@ module AGOps = struct
     let open P in
     let new_typed_equations =
       List.map (replace_equation ag cattr p) p.typed_equations in
-    let new_typed_conditions =
-      List.map (replace_equation ag cattr p) p.typed_conditions in
     {(p) with
       typed_equations = new_typed_equations
-    ; typed_conditions = new_typed_conditions
     }
   ;
 
@@ -1620,23 +1606,20 @@ module AGOps = struct
   value rewrite_condition_production ag p = do {
     let open AG in
     let open P in
-    let open TAEQ in
     let loc = ag.AG.loc in
     assert (production_attribute_exists ag (p.name, "condition")) ;
     assert ([] <> p.typed_conditions) ;
     let new_rhs_expr =
       List.fold_right (fun c rhs ->
-          let msg = match c.msg with [ None -> "condition check failed" | Some msg -> msg ] in
-          <:expr< if $c.rhs_expr$ then failwith $str:msg$ else $rhs$ >>)
+          <:expr< if not $c.TCond.rhs_expr$ then failwith $str:c.TCond.msg$ else $rhs$ >>)
         p.typed_conditions <:expr< () >> in
     let new_rhs_nodes =
       p.typed_conditions
-      |> List.concat_map TAEQ.rhs_nodes
+      |> List.concat_map TCond.rhs_nodes
       |> List.sort_uniq Stdlib.compare in
     let new_eqn = {
       TAEQ.loc = MLast.loc_of_expr new_rhs_expr
     ; lhs = TAR.PROD p.name "condition"
-    ; msg = None
     ; rhs_nodes = new_rhs_nodes
     ; rhs_expr = new_rhs_expr
     } in
@@ -1856,7 +1839,6 @@ module AGOps = struct
     Some {
         TAEQ.loc = loc
       ; lhs = lhs
-      ; msg = None
       ; rhs_nodes = [rhs]
       ; rhs_expr = TAR.to_expr loc rhs
       }
@@ -1970,7 +1952,6 @@ module AGOps = struct
     let open P in
     ag |> AG.map_productions (fun nt p ->
         p |> P.map_typed_equations (replace_teqn_rua ag rua p)
-        |> P.map_typed_conditions (replace_teqn_rua ag rua p)
       )
   ;
 
@@ -2191,7 +2172,6 @@ module AGOps = struct
       let copy_eq = {
         TAEQ.loc = loc
       ; lhs = lhs
-      ; msg = None
       ; rhs_nodes = [rhs]
       ; rhs_expr = rhs_expr
       } in
@@ -2207,7 +2187,6 @@ module AGOps = struct
       let copy_eq = {
         TAEQ.loc = loc
       ; lhs = lhs
-      ; msg = None
       ; rhs_nodes = rhs_nodes
       ; rhs_expr = rhs_expr
       } in
@@ -2287,7 +2266,6 @@ module AGOps = struct
     let open P in
     ag |> AG.map_productions (fun nt p ->
         p |> P.map_typed_equations (replace_teqn_car ag car p)
-        |> P.map_typed_conditions (replace_teqn_car ag car p)
       )
   ;
 

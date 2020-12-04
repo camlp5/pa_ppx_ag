@@ -63,7 +63,7 @@ type t = {
 *)
 ; raw_attribution: (alist lident expr) [@name attribution;]
 ; equations: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
-; conditions: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
+; conditions: (alist AG.PN.t (list AG.ACond.t)) [@computed Demarshal.extract_attribute_conditions loc raw_attribution;]
 ; name2nodename : (alist lident lident) [@computed Demarshal.compute_name2nodename type_decls;]
 ; rev_name2nodename : (alist lident lident) [@computed List.map (fun (a,b) -> (b,a)) name2nodename;]
 ; type_decls : list (string * MLast.type_decl) [@computed type_decls;]
@@ -141,11 +141,11 @@ value str_item_gen_ag name arg = fun [
         rc.AGC.equations
         rc.AGC.conditions in
     let ag = Demarshal.productions ag0 rc.AGC.type_decls in do {
+    let ag = AGOps.Condition.rewrite_conditions ag in
     let ag = AGOps.Chain.(augment_chains_with_copychains ag) in
     let ag = AGOps.Chain.(replace_chains_with_pre_post ag) in
     let ag = AGOps.RUA.replace_ruas ag in
     let ag = AGOps.Constituents.rewrite_crs ag in
-    let ag = AGOps.Condition.rewrite_conditions ag in
     let (rc, uu_st, uu_open_st) =
       let rc0 = AGC.{
           (rc0) with
