@@ -12,6 +12,9 @@ value file_contents fname =
   |> Rresult.R.get_ok
 ;
 
+value show_str_item si =
+  Fmt.(str "#<str_Item< %s >>" (Eprinter.apply Pcaml.pr_str_item Pprintf.empty_pc si));
+
 value pa_str_item s =
   s |> Stream.of_string |> Grammar.Entry.parse Pcaml.str_item ;
 
@@ -136,7 +139,7 @@ END ;
 value test_ag _ = do {
   ()
 ; let loc = Ploc.dummy in
-  assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=Pp_MLast.show_str_item}
+  assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ R ] >>
     ({foo|
 ATTRIBUTE_GRAMMAR
@@ -155,10 +158,32 @@ END ;
 
 |foo} |> pa_str_item)
 ; let loc = Ploc.dummy in
-  assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=Pp_MLast.show_str_item}
+  assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ Q of x and x | R ]
               and z = [ P of x ] >>
     ("kastens116.ag" |> file_contents |> pa_str_item)
+; let loc = Ploc.dummy in
+  assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
+  <:str_item< type binop = [ MINUS | PERCENT | PLUS | SLASH | STAR ]
+and block1 =
+  [ BLOCK1 of block2 ]
+and block2 =
+  [ BLOCK2 of expr ]
+and expr =
+  [ BINOP of binop and expr and expr
+  | INT of int
+  | LET of let_expr
+  | REF of ref_expr
+  | SEQ of expr and expr
+  | UNOP of unop and expr ]
+and let_expr =
+  [ LET_BINDING of string and expr and expr ]
+and prog =
+  [ PROG of block1 ]
+and ref_expr =
+  [ REF_EXPR of string ]
+and unop = [ UMINUS | UPLUS ] >>
+    ("../simple_expr/test2.ag" |> file_contents |> pa_str_item)
 }
 ;
 

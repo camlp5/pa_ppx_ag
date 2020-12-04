@@ -15,7 +15,7 @@ ATTRIBUTES
   env : (string * int) list ;
   result : int ;
   rhs_must_be_nonzero : bool ;
-  un_oper int -> int ;
+  un_oper : int -> int ;
   rpn_notation : string list ;
   operator_text : string ;
   freevars : string list ;

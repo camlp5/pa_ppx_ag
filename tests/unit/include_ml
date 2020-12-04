@@ -136,6 +136,10 @@ print_string "================ START ================\n";; flush stdout ;;
 #print_depth 10000 ;;
 #print_length 10000 ;;
 
+#require "pa_ppx.runtime_fat";;
+#require "pa_ppx.params_runtime";;
+Pa_ppx_base.Pp_MLast.Ploc.pp_loc_verbose := true;;
+
 #load "pa_ag_test.cmo";;
 open OUnit2 ;;
 open Pa_ppx_testutils ;;
