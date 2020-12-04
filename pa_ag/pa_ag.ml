@@ -23,7 +23,8 @@ value make_attribute_types loc el = do {
         let ty = if is_chain then <:ctyp< $aty$ [@chain] >> else aty in
         (<:patt< $lid:aname$ >>, <:expr< [%typ: $type:aty$] >>)) in
   assert (Std.distinct (List.map fst attribute_types)) ;
-  attribute_types
+  if [] = attribute_types then <:expr< () >>
+  else <:expr< { $list:attribute_types$ } >>
 }
 ;
 
@@ -154,7 +155,18 @@ value make_typedecls loc rules =
 ;
 
 value make_deriving_attribute loc modname amodel axiom l =
-  <:attribute_body< "deriving" ag ; >>
+  let storage_mode = match amodel with [
+    <:expr< Unique $_$ >> -> <:expr< Hashtables >>
+  | <:expr< Attributed $_$ >> -> <:expr< Records >>
+  ] in
+  let attribute_types = make_attribute_types loc l in
+  <:attribute_body< "deriving" ag {
+                    module_name = $uid:modname$
+                    ; attribution_model = $amodel$
+                    ; storage_mode = $storage_mode$
+                    ; axiom = $lid:axiom$
+                    ; attribute_types = $attribute_types$
+                    } ; >>
 ;
 
 value attach_attribute tdl attr =
@@ -168,7 +180,6 @@ value attach_attribute tdl attr =
 ;
 
 value make_ag_str_item loc modname amodel axiom l = do {
-  let attribute_types = make_attribute_types loc l in
   let tdl = make_typedecls loc l in
   let attr = make_deriving_attribute loc modname amodel axiom l in
   let tdl = attach_attribute tdl attr in

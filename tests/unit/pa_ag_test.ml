@@ -140,7 +140,9 @@ value test_ag _ = do {
   ()
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
-  <:str_item< type x = [ R ][@@deriving ag;] >>
+  <:str_item< type x = [ R ][@@deriving ag { module_name = AG;
+     attribution_model = Attributed { attributed_module_name = AT };
+     storage_mode = Records ; axiom = x; attribute_types = () };] >>
     ({foo|
 ATTRIBUTE_GRAMMAR
   MODULE AG ;
@@ -160,7 +162,12 @@ END ;
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ Q of x and x | R ]
-              and z = [ P of x ][@@deriving ag;] >>
+              and z = [ P of x ][@@deriving ag { module_name = AG;
+     attribution_model = Attributed { attributed_module_name = AT };
+     storage_mode = Records; axiom = z;
+     attribute_types =
+       {a = [%"typ": int]; b = [%"typ": int]; c = [%"typ": int];
+        d = [%"typ": int]} };] >>
     ("kastens116.ag" |> file_contents |> pa_str_item)
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
@@ -182,7 +189,24 @@ and prog =
   [ PROG of block1 ]
 and ref_expr =
   [ REF_EXPR of string ]
-and unop = [ UMINUS | UPLUS ][@@deriving ag;] >>
+and unop = [ UMINUS | UPLUS ][@@deriving ag {
+              module_name = AG ;
+              attribution_model = Attributed { attributed_module_name = AT } ;
+              storage_mode = Records;
+              axiom = prog;
+              attribute_types = {
+              value_ = [%"typ": int];
+              rpn = [%"typ": list string];
+              bin_oper = [%"typ": int → int → int];
+              env = [%"typ": (string * int) list];
+              result = [%"typ": int];
+              rhs_must_be_nonzero = [%"typ": bool];
+              un_oper = [%"typ": int → int];
+              rpn_notation = [%"typ": string list];
+              operator_text = [%"typ": string];
+              freevars = [%"typ": string list]
+              }
+              };] >>
     ("../simple_expr/test2.ag" |> file_contents |> pa_str_item)
 }
 ;
