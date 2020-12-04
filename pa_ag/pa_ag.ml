@@ -209,6 +209,7 @@ value make_prod_attributes loc l =
 value make_attribution loc l =
   l
   |> List.filter (fun [ RULE _ _ _ _ _ -> True | _ -> False ])
+  |> List.map rule_replace_child
   |> List.map rule_to_equations
   |> List.stable_sort Stdlib.compare
   |> List.map (fun ((tyna, prodna), l) ->

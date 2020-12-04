@@ -179,20 +179,20 @@ END ;
               attribution = {
               x__Q = do {
               [%"nterm" 0;].b := g [%"nterm" 0;].a;
-              [%"child" 1;].a := g [%"nterm" 0;].c;
-              [%"child" 2;].a := g [%"nterm" 0;].c;
-              [%"child" 1;].c := g [%"child" 1;].b;
-              [%"child" 2;].c := g [%"child" 2;].b;
-              [%"nterm" 0;].d := s ([%"child" 1;].d, [%"child" 2;].d)
+              [%"nterm" 1;].a := g [%"nterm" 0;].c;
+              [%"nterm" 2;].a := g [%"nterm" 0;].c;
+              [%"nterm" 1;].c := g [%"nterm" 1;].b;
+              [%"nterm" 2;].c := g [%"nterm" 2;].b;
+              [%"nterm" 0;].d := s ([%"nterm" 1;].d, [%"nterm" 2;].d)
               };
               x__R = do {
               [%"nterm" 0;].b := g [%"nterm" 0;].a;
               [%"nterm" 0;].d := g [%"nterm" 0;].c
               };
               z__P = do {
-              [%"child" 1;].a := f ();
-              [%"child" 1;].c := g [%"child" 1;].b;
-              h [%"child" 1;].d
+              [%"nterm" 1;].a := f ();
+              [%"nterm" 1;].c := g [%"nterm" 1;].b;
+              h [%"nterm" 1;].d
               }
               }
               };] >>
@@ -271,64 +271,64 @@ and unop = [ UMINUS | UPLUS ][@@deriving ag {
               [%"nterm" 0;].rhs_must_be_nonzero := false;
               [%"nterm" 0;].operator_text := "*"
               };
-              block1__BLOCK1 = [%"nterm" 0;].value_ := [%"child" 1;].value_;
-              block2__BLOCK2 = [%"nterm" 0;].value_ := [%"child" 1;].value_;
+              block1__BLOCK1 = [%"nterm" 0;].value_ := [%"nterm" 1;].value_;
+              block2__BLOCK2 = [%"nterm" 0;].value_ := [%"nterm" 1;].value_;
               expr__BINOP = do {
               [%"nterm" 0;].value_ := [%"local" result;];
               [%"local" result;] :=
-              [%"child" 1;].bin_oper [%"child" 2;].value_ [%"child" 3;].value_;
+              [%"nterm" 1;].bin_oper [%"nterm" 2;].value_ [%"nterm" 3;].value_;
               [%"nterm" 0;].rpn :=
-              [[%"child" 1;].operator_text :: [%"child" 3;].rpn];
+              [[%"nterm" 1;].operator_text :: [%"nterm" 3;].rpn];
               condition "rhs must be nonzero"
-              (if [%"child" 1;].rhs_must_be_nonzero then
-               0 <> [%"child" 3;].value_
+              (if [%"nterm" 1;].rhs_must_be_nonzero then
+               0 <> [%"nterm" 3;].value_
               else true)
               };
               expr__INT = do {
-              [%"nterm" 0;].value_ := [%"child" 1;];
+              [%"nterm" 0;].value_ := [%"prim" 1;];
               [%"nterm" 0;].rpn :=
-              [string_of_int [%"child" 1;] :: [%"nterm" 0;].rpn]
+              [string_of_int [%"prim" 1;] :: [%"nterm" 0;].rpn]
               };
               expr__LET = do {
-              [%"nterm" 0;].value_ := [%"child" 1;].value_;
-              [%"nterm" 0;].rpn := [%"child" 1;].rpn
+              [%"nterm" 0;].value_ := [%"nterm" 1;].value_;
+              [%"nterm" 0;].rpn := [%"nterm" 1;].rpn
               };
-              expr__REF = [%"nterm" 0;].value_ := [%"child" 1;].value_;
+              expr__REF = [%"nterm" 0;].value_ := [%"nterm" 1;].value_;
               expr__SEQ = do {
-              [%"nterm" 0;].value_ := [%"child" 2;].value_;
-              [%"nterm" 0;].rpn := [";" :: [%"child" 2;].rpn]
+              [%"nterm" 0;].value_ := [%"nterm" 2;].value_;
+              [%"nterm" 0;].rpn := [";" :: [%"nterm" 2;].rpn]
               };
               expr__UNOP = do {
-              [%"nterm" 0;].value_ := [%"child" 1;].un_oper [%"child" 2;].value_;
+              [%"nterm" 0;].value_ := [%"nterm" 1;].un_oper [%"nterm" 2;].value_;
               [%"nterm" 0;].rpn :=
-              [[%"child" 1;].operator_text :: [%"child" 2;].rpn]
+              [[%"nterm" 1;].operator_text :: [%"nterm" 2;].rpn]
               };
               let_expr__LET_BINDING = do {
-              [%"nterm" 0;].value_ := [%"child" 3;].value_;
-              [%"child" 3;].rpn :=
-              [Printf.sprintf "bind %s" [%"child" 1;] :: [%"child" 2;].rpn];
+              [%"nterm" 0;].value_ := [%"nterm" 3;].value_;
+              [%"nterm" 3;].rpn :=
+              [Printf.sprintf "bind %s" [%"prim" 1;] :: [%"nterm" 2;].rpn];
               [%"nterm" 0;].env :=
-              [([%"child" 1;], [%"child" 2;].value_) ::
+              [([%"prim" 1;], [%"nterm" 2;].value_) ::
               [%"remote" (block1.env, let_expr.env);]];
               [%"nterm" 0;].freevars :=
               Std.union
-              [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"child" 2;]};]
-              (Std.except [%"child" 1;]
-                 [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"child" 3;]};])
+              [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"nterm" 2;]};]
+              (Std.except [%"prim" 1;]
+                 [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"nterm" 3;]};])
               };
               prog__PROG = do {
-              [%"child" 1;].env := [("x", 1); ("y", 2); ("z", 3); ("w", 4)];
-              [%"nterm" 0;].value_ := [%"child" 1;].value_;
-              [%chainstart 1;].rpn := [];
-              [%"nterm" 0;].rpn_notation := List.rev [%"child" 1;].rpn;
+              [%"nterm" 1;].env := [("x", 1); ("y", 2); ("z", 3); ("w", 4)];
+              [%"nterm" 0;].value_ := [%"nterm" 1;].value_;
+              [%"chainstart" 1;].rpn := [];
+              [%"nterm" 0;].rpn_notation := List.rev [%"nterm" 1;].rpn;
               [%"nterm" 0;].freevars :=
-              [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"child" 1;]};]
+              [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"nterm" 1;]};]
               };
               ref_expr__REF_EXPR = do {
               [%"nterm" 0;].value_ :=
-              List.assoc [%"child" 1;] [%"remote" (block1.env, let_expr.env);];
-              [%"nterm" 0;].rpn := [[%"child" 1;] :: [%"nterm" 0;].rpn];
-              [%"nterm" 0;].freevars := [[%"child" 1;]]
+              List.assoc [%"prim" 1;] [%"remote" (block1.env, let_expr.env);];
+              [%"nterm" 0;].rpn := [[%"prim" 1;] :: [%"nterm" 0;].rpn];
+              [%"nterm" 0;].freevars := [[%"prim" 1;]]
               };
               unop__UMINUS = do {
               [%"nterm" 0;].un_oper := fun x → -x;
