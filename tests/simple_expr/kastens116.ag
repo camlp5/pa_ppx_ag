@@ -1,4 +1,9 @@
 
+value f() = "f()";
+value g x = Fmt.(str "g(%s)" x) ;
+value h x = Fmt.(str "h(%s)" x) ;
+value s (x,y) = Fmt.(str "s(%s,%s)" x y) ;
+
 ATTRIBUTE_GRAMMAR
   MODULE AG ;
   ATTRIBUTION_MODEL Attributed {
@@ -19,6 +24,10 @@ COMPUTE
   $[1].a := f() ;
   $[1].c := g $[1].b ;
   h ($[1].d) ;
+  $[0].a := $[1].a ;
+  $[0].b := $[1].b ;
+  $[0].c := $[1].c ;
+  $[0].d := $[1].c ;
 END ;
 
 RULE R : x
@@ -38,3 +47,53 @@ COMPUTE
 END ;
 
 END ;
+
+value gram = Grammar.gcreate (Plexer.gmake ());
+value z = Grammar.Entry.create gram "z";
+value z_eoi = Grammar.Entry.create gram "z_eoi";
+value x = Grammar.Entry.create gram "x";
+EXTEND
+  GLOBAL: x z z_eoi ;
+
+  x: [
+    [ UIDENT "R" -> AT.make_x R
+    | UIDENT "Q" ; v1 = x ; v2 = x -> AT.make_x (Q v1 v2)
+    ]
+  ]
+  ;
+  z: [ [ UIDENT "P" ; v1 = x; EOI -> AT.make_z (AT.make_z__P v1) ] ];
+
+  z_eoi: [ [ v = z; EOI -> v ] ];
+
+END;
+
+value pa_z s =
+  s
+  |> Stream.of_string
+  |> Grammar.Entry.parse z_eoi
+;
+
+open OUnit2 ;
+
+value test_simple ctxt =
+  assert_equal ~{printer=[%show: (string * string * string * string)]}
+    ("f()", "g(f())", "g(g(f()))", "g(g(f()))")
+   ({foo| P R |foo} |> pa_z |> AG.evaluate)
+;
+
+value suite = "kastens116" >::: [
+    "test_simple"           >:: test_simple
+]
+;
+
+if not Sys.interactive.val then
+  run_test_tt_main suite
+else ()
+;
+
+(*
+;;; Local Variables: ***
+;;; mode:tuareg ***
+;;; End: ***
+
+*)

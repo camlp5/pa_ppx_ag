@@ -156,8 +156,9 @@ value generate_attributed_constructor rc (name, td) =
   let attributes = List.assoc name rc.typed_attributes in
   let attribute_initializer = make_attribute_initializer loc name attributes in
   let consname = constructor_name rc name in
+  let node_name = Printf.sprintf "%s_node" name in
   let top_cons =
-    <:str_item< value $lid:consname$ x =
+    <:str_item< value $lid:consname$ ( x : $lid:node_name$) =
                 Pa_ppx_ag_runtime.Attributes.attributed ~{attributes = $attribute_initializer$} x >> in
   let prod_cons_list = match td.tdDef with [
     <:ctyp:< $_$ == [ $list:branches$ ] >> | <:ctyp:< [ $list:branches$ ] >> ->

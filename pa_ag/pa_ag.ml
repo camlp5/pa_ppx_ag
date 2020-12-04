@@ -233,6 +233,7 @@ value make_deriving_attribute loc modname amodel axiom l =
   let production_attributes = make_prod_attributes loc l in
   let attribution = make_attribution loc l in
   <:attribute_body< "deriving" ag {
+                    optional = True ;
                     module_name = $uid:modname$
                     ; attribution_model = $amodel$
                     ; storage_mode = $storage_mode$

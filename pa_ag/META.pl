@@ -35,6 +35,25 @@ description = "pa_ppx_ag deriver"
   )
   )
 
+  package "parser_debug" (
+  version = "$Version::version"
+  description = "syntax extension for writing AGs"
+
+  requires(toploop) = "camlp5,pa_ppx,ocamlgraph"
+  archive(toploop)      = "camlp5_migrate.cmo ag_types.cmo pa_ag.cmo"
+
+  requires(syntax,preprocessor) = "camlp5,pa_ppx,ocamlgraph"
+  archive(syntax,preprocessor,-native) = "camlp5_migrate.cmo ag_types.cmo pa_ag.cmo"
+  archive(syntax,preprocessor,native) = "camlp5_migrate.cmx ag_types.cmx pa_ag.cmx"
+  requires = "camlp5"
+
+  package "link" (
+    requires = "camlp5,pa_ppx.base.link,ocamlgraph"
+    archive(byte) = "camlp5_migrate.cmo ag_types.cmo pa_ag.cmo"
+    archive(native) = "camlp5_migrate.cmx ag_types.cmx pa_ag.cmx"
+  )
+  )
+
   requires(toploop) = "camlp5,pa_ppx.deriving_plugins.show,pa_ppx.params_runtime,pa_ppx_unique,ocamlgraph"
   archive(toploop) = "camlp5_migrate.cmo ag_types.cmo ag_tsort.cmo pa_deriving_attributed.cmo pa_deriving_ag.cmo"
 
