@@ -24,14 +24,14 @@ END ;
 RULE INT : expr := int
 COMPUTE
   $[0].value_ := $[1] ;
-  $[0].rpn := (string_of_int $[1]) :: $[0].rpn ;
+  $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
 END ;
 
 RULE BINOP : expr := binop and expr and expr
 COMPUTE
   $[0].value_ := $result ;
   $result := $[1].bin_oper $[2].value_ $[3].value_ ;
-  $[0].rpn := $[1].operator_text :: $[3].rpn ;
+  $[0].rpn := [$[1].operator_text :: $[3].rpn] ;
   condition "rhs must be nonzero"
     (if $[1].rhs_must_be_nonzero then
        0 <> $[3].value_
@@ -41,7 +41,7 @@ END ;
 RULE UNOP : expr := unop and expr
 COMPUTE
   $[0].value_ := $[1].un_oper $[2].value_ ;
-  $[0].rpn := $[1].operator_text :: $[2].rpn ;
+  $[0].rpn := [$[1].operator_text :: $[2].rpn] ;
 END ;
 
 RULE REF : expr := ref_expr
@@ -52,7 +52,7 @@ END ;
 RULE SEQ : expr := expr and expr
 COMPUTE
   $[0].value_ := $[2].value_ ;
-  $[0].rpn := ";" :: $[2].rpn ;
+  $[0].rpn := [";" :: $[2].rpn] ;
 END ;
 
 RULE LET : expr := let_expr
@@ -64,8 +64,8 @@ END ;
 RULE LET_BINDING : let_expr := string and expr and expr
 COMPUTE
   $[0].value_ := $[3].value_ ;
-  $[3].rpn := (Printf.sprintf "bind %s" $[1]) :: $[2].rpn ;
-  $[0].env := ($[1], $[2].value_) :: INCLUDING ( block1.env, let_expr.env ) ;
+  $[3].rpn := [(Printf.sprintf "bind %s" $[1]) :: $[2].rpn] ;
+  $[0].env := [($[1], $[2].value_) :: INCLUDING ( block1.env, let_expr.env )] ;
   $[0].freevars :=
     Std.union
       (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[2])
@@ -75,7 +75,7 @@ END ;
 RULE REF_EXPR : ref_expr := string
 COMPUTE
   $[0].value_ := List.assoc $[1] (INCLUDING (block1.env, let_expr.env)) ;
-  $[0].rpn := $[1] :: $[0].rpn ;
+  $[0].rpn := [$[1] :: $[0].rpn] ;
   $[0].freevars := [$[1]] ;
 END ;
 

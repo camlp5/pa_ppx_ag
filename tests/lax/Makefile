@@ -45,7 +45,7 @@ lax_tests.opt: lax_ast.cmx lax_variants.cmx lax_migrate.cmx lax_pa.cmx lax_ag.cm
 	-linkpkg -linkall -syntax camlp5o $^ -o $@
 
 clean::
-	rm -f  *.ppo.*
+	rm -f  *ppo.*
 
 EXTERNAL := $(shell $(OCAMLFIND) query -predicates byte -format '%m' $(PACKAGES) | grep local-install)
 

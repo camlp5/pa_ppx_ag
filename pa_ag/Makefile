@@ -47,8 +47,8 @@ clean::
 
 IMPORT_OCAMLCFLAGS += -ppopt -pa_import-package -ppopt camlp5
 camlp5_migrate.cmo: camlp5_migrate.ml
-	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate,camlp5.pr_o -syntax camlp5o $< > $@.ppo.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $@.ppo.ml
+#	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate,camlp5.pr_o -syntax camlp5o $< > $@.ppo.ml
+#	$(OCAMLFIND) ocamlc $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $@.ppo.ml
 	$(OCAMLFIND) ocamlc $(DEBUG) $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -package $(IMPORT_PACKAGES),pa_ppx.import,pa_ppx_migrate -syntax camlp5o -c $<
 
 camlp5_migrate.cmx: camlp5_migrate.ml
@@ -56,8 +56,8 @@ camlp5_migrate.cmx: camlp5_migrate.ml
 
 
 pa_ag.cmo: pa_ag.ml
-	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.deriving_plugins.std,camlp5.extend,camlp5.parser_quotations,$(PRPACKAGE) -syntax $(SYNTAX) $< > $*_ppo.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.deriving_plugins.std,camlp5.extend,camlp5.parser_quotations -syntax $(SYNTAX) -c $*_ppo.ml
+#	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.deriving_plugins.std,camlp5.extend,camlp5.parser_quotations,$(PRPACKAGE) -syntax $(SYNTAX) $< > $*_ppo.ml
+#	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.deriving_plugins.std,camlp5.extend,camlp5.parser_quotations -syntax $(SYNTAX) -c $*_ppo.ml
 	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(PACKAGES),pa_ppx.deriving_plugins.std,camlp5.extend,camlp5.parser_quotations -syntax $(SYNTAX) -c $<
 
 pa_ag.cmx: pa_ag.ml

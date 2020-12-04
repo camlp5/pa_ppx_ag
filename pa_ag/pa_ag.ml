@@ -4,9 +4,11 @@ open Pa_ppx_utils ;
 open Pa_ppx_base ;
 open Ag_types ;
 
+value fake_eq_loc (l1 : MLast.loc) l2 = True ;
+
 type ag_element_t = [
-  ATTRIBUTES of list (string * (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) * bool)
-| RULE of string and string and list (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) and list (MLast.expr [@equal Reloc.eq_expr;][@printer Pp_MLast.pp_expr;])
+    ATTRIBUTES of (MLast.loc[@equal fake_eq_loc;][@printer Pp_MLast.Ploc.pp;]) and list (string * (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) * bool)
+| RULE of (MLast.loc[@equal fake_eq_loc;][@printer Pp_MLast.Ploc.pp;]) and string and string and list (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) and list (MLast.expr [@equal Reloc.eq_expr;][@printer Pp_MLast.pp_expr;])
 ] [@@deriving (show,eq);]
 ;
 
@@ -14,8 +16,8 @@ value make_attribute_types loc el = do {
   let attribute_types =
     el
     |> List.concat_map (fun [
-        ATTRIBUTES l -> l
-      | RULE _ _ _ _ -> []
+        ATTRIBUTES _ l -> l
+      | RULE _ _ _ _ _ -> []
       ])
     |> List.map (fun (aname, aty, is_chain) ->
         let ty = if is_chain then <:ctyp< $aty$ [@chain] >> else aty in
@@ -26,7 +28,7 @@ value make_attribute_types loc el = do {
 ;
 
 value child_to_ar rule =
-  let types = match rule with [ RULE _ _ l _  -> l | _ -> assert False ] in
+  let types = match rule with [ RULE _ _ _ l _  -> l | _ -> assert False ] in
   fun [
     <:expr:< [%child $int:n$;] >> ->
       let i = int_of_string n in
@@ -38,10 +40,10 @@ value child_to_ar rule =
   ]
 ;
 
-value rewrite_eqn rule e =
+value rewrite_expr f e =
   let dt = Camlp5_migrate.make_dt () in
   let fallback_migrate_expr = dt.migrate_expr in
-  let migrate_expr dt e = match child_to_ar rule e with [
+  let migrate_expr dt e = match f e with [
     x -> x
   | exception Failure _ -> fallback_migrate_expr dt e
   ] in
@@ -49,20 +51,22 @@ value rewrite_eqn rule e =
   dt.migrate_expr dt e
 ;
 
+value rewrite_eqn rule e =
+  rewrite_expr (child_to_ar rule) e
+;
+
 value rule_replace_child age = match age with [
-  RULE prodna tyna tyl eqns ->
+  RULE loc prodna tyna tyl eqns ->
   let new_eqns = List.map (rewrite_eqn age) eqns in
-  RULE prodna tyna tyl new_eqns
+  RULE loc prodna tyna tyl new_eqns
   | _ -> assert False
 ]
 ;
 
 value equation_to_node_attributes rule e = match rule with [
-  RULE prodna tyna tyl eqns ->
+  RULE _ prodna tyna tyl eqns ->
   let acc = ref [] in
-  let dt = Camlp5_migrate.make_dt () in
-  let fallback_migrate_expr = dt.migrate_expr in
-  let migrate_expr dt e = match e with [
+  let collect_expr e = match e with [
     <:expr:< [%nterm $int:n$;] . $lid:attrna$ >> -> do {
       let n = int_of_string n in
       if 0 = n then Std.push acc (tyna, attrna)
@@ -80,19 +84,17 @@ value equation_to_node_attributes rule e = match rule with [
       e
     }
 
-  | e -> fallback_migrate_expr dt e
-  ] in
-  let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in do {
-    ignore(dt.migrate_expr dt e) ;
+  | e -> failwith "caught"
+  ] in do {
+    ignore(rewrite_expr collect_expr e) ;
     acc.val
   }
-
 | _ -> assert False
 ]
 ;
 
 value rule_to_node_attributes rule = match rule with [
-  RULE prodna tyna tyl eqns ->
+  RULE _ prodna tyna tyl eqns ->
     eqns
     |> List.concat_map (equation_to_node_attributes rule)
     |> List.sort_uniq Stdlib.compare
@@ -101,9 +103,60 @@ value rule_to_node_attributes rule = match rule with [
 ]
 ;
 
+value equation_to_prod_attributes rule e = match rule with [
+  RULE _ prodna tyna tyl eqns ->
+  let acc = ref [] in
+  let collect_expr e = match e with [
+    <:expr:< [%local $lid:attrna$;] >> -> do {
+      Std.push acc ((tyna,prodna), attrna) ;
+      e
+    }
+
+  | e -> failwith "caught"
+  ] in do {
+    ignore(rewrite_expr collect_expr e) ;
+    acc.val
+  }
+| _ -> assert False
+]
+;
+
+value rule_to_prod_attributes rule = match rule with [
+  RULE _ prodna tyna tyl eqns ->
+    eqns
+    |> List.concat_map (equation_to_prod_attributes rule)
+    |> List.sort_uniq Stdlib.compare
+
+| _ -> assert False
+]
+;
+
+value make_typedecls loc rules =
+  rules
+  |> List.filter_map (fun [
+    ATTRIBUTES _ _ -> None
+  | RULE _ prodna tyna tyl _ ->
+    Some (tyna, (loc, prodna, tyl))
+  ])
+  |> List.sort Stdlib.compare
+  |> Std.nway_partition (fun (ty1, _) (ty2, _) -> ty1=ty2)
+  |> List.sort Stdlib.compare
+  |> List.map (fun l ->
+      let tyna = fst (List.hd l) in
+      let branches =
+        l
+        |> List.map snd
+        |> List.stable_sort Stdlib.compare
+        |> List.map (fun (loc, cid, tyl) ->
+          <:constructor< $uid:cid$ of $list:tyl$ >>) in
+      <:type_decl< $lid:tyna$ = [ $list:branches$ ] >>
+    )
+;
+
 value make_ag_str_item loc modname amodel axiom l = do {
   let attribute_types = make_attribute_types loc l in
-  <:str_item< declare end >>
+  let tdl = make_typedecls loc l in
+  <:str_item< type $list:tdl$ >>
 }
 ;
 
@@ -115,8 +168,8 @@ EXTEND
 
   str_item: [ [
       "ATTRIBUTE_GRAMMAR" ;
-      ag = attribute_grammar_body ;
-      "END" -> ag
+      (modname, amodel, axiom, l) = attribute_grammar_body ;
+      "END" -> make_ag_str_item loc modname amodel axiom l
     ] ] ;
 
   attribute_grammar_body: [ [
@@ -124,21 +177,22 @@ EXTEND
       "ATTRIBUTION_MODEL" ; amodel = expr ; ";" ;
       "AXIOM" ; axiom = LIDENT ; ";" ;
       l = LIST1 attribute_grammar_element
-      -> make_ag_str_item loc modname amodel axiom l
+      -> (modname, amodel, axiom, l)
     ] ] ;
 
   attribute_grammar_element: [ [
       "ATTRIBUTE" ; aname = LIDENT ; ":" ; ty = ctyp ; ";" ->
-      ATTRIBUTES [(aname, ty, False)]
+      ATTRIBUTES loc [(aname, ty, False)]
     | "ATTRIBUTES" ; l = LIST1 [ aname = LIDENT ; ":" ; ty = ctyp ; ";" -> (aname, ty, False) ] ; "END" ; ";" ->
-      ATTRIBUTES l
+      ATTRIBUTES loc l
     | "CHAIN" ; aname = LIDENT ; ":" ; ty = ctyp ; ";" ->
-      ATTRIBUTES [(aname, ty, True)]
-    | "RULE" ; cid = UIDENT ; ":" ; tyna = LIDENT ; ":=" ; tl = LIST0 ctyp SEP "and" ;
+      ATTRIBUTES loc [(aname, ty, True)]
+    | "RULE" ; cid = UIDENT ; ":" ; tyna = LIDENT ;
+      tl = [ ":=" ; tl = LIST0 ctyp SEP "and" -> tl | -> [] ];
       "COMPUTE" ;
       comps = LIST1 [ e = expr LEVEL ":=" ; ";" -> e] ;
       "END" ; ";" ->
-      RULE cid tyna tl comps
+      RULE loc cid tyna tl comps
     ] ] ;
 
   expr: LEVEL "simple" [
