@@ -154,18 +154,67 @@ value make_typedecls loc rules =
     )
 ;
 
+value lid_to_expr loc x = <:expr< $lid:x$ >> ;
+
+value make_node_attributes loc l =
+  l
+  |> List.filter (fun [ RULE _ _ _ _ _ -> True | _ -> False ])
+  |> List.concat_map rule_to_node_attributes
+  |> List.sort Stdlib.compare
+  |> Std.nway_partition (fun (ty1, _) (ty2, _) -> ty1=ty2)
+  |> List.sort Stdlib.compare
+  |> List.map (fun l ->
+      let tyna = fst (List.hd l) in
+      let attrs = l
+                  |> List.map snd
+                  |> List.sort_uniq Stdlib.compare
+                  |> List.stable_sort Stdlib.compare
+                  |> List.map (lid_to_expr loc)
+                  |> Ppxutil.convert_up_list_expr loc in
+      (<:patt< $lid:tyna$ >>, attrs))
+  |> (fun l ->
+      if l = [] then <:expr< () >>
+      else <:expr< { $list:l$ } >>)
+;
+
+value make_prod_attributes loc l =
+  l
+  |> List.filter (fun [ RULE _ _ _ _ _ -> True | _ -> False ])
+  |> List.concat_map rule_to_prod_attributes
+  |> List.sort Stdlib.compare
+  |> Std.nway_partition (fun (ty1, _) (ty2, _) -> ty1=ty2)
+  |> List.sort Stdlib.compare
+  |> List.map (fun l ->
+      let (tyna,prodna) = fst (List.hd l) in
+      let key = Printf.sprintf "%s__%s" tyna prodna in
+      let attrs = l
+                  |> List.map snd
+                  |> List.sort_uniq Stdlib.compare
+                  |> List.stable_sort Stdlib.compare
+                  |> List.map (lid_to_expr loc)
+                  |> Ppxutil.convert_up_list_expr loc in
+      (<:patt< $lid:key$ >>, attrs))
+  |> (fun l ->
+      if l = [] then <:expr< () >>
+      else <:expr< { $list:l$ } >>)
+;
+
 value make_deriving_attribute loc modname amodel axiom l =
   let storage_mode = match amodel with [
     <:expr< Unique $_$ >> -> <:expr< Hashtables >>
   | <:expr< Attributed $_$ >> -> <:expr< Records >>
   ] in
   let attribute_types = make_attribute_types loc l in
+  let node_attributes = make_node_attributes loc l in
+  let production_attributes = make_prod_attributes loc l in
   <:attribute_body< "deriving" ag {
                     module_name = $uid:modname$
                     ; attribution_model = $amodel$
                     ; storage_mode = $storage_mode$
                     ; axiom = $lid:axiom$
                     ; attribute_types = $attribute_types$
+                    ; node_attributes = $node_attributes$
+                    ; production_attributes = $production_attributes$
                     } ; >>
 ;
 

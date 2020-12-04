@@ -141,8 +141,10 @@ value test_ag _ = do {
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ R ][@@deriving ag { module_name = AG;
-     attribution_model = Attributed { attributed_module_name = AT };
-     storage_mode = Records ; axiom = x; attribute_types = () };] >>
+              attribution_model = Attributed { attributed_module_name = AT };
+              storage_mode = Records ; axiom = x; attribute_types = ();
+              node_attributes = {x = [a; b]};
+              production_attributes = () };] >>
     ({foo|
 ATTRIBUTE_GRAMMAR
   MODULE AG ;
@@ -163,11 +165,13 @@ END ;
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ Q of x and x | R ]
               and z = [ P of x ][@@deriving ag { module_name = AG;
-     attribution_model = Attributed { attributed_module_name = AT };
-     storage_mode = Records; axiom = z;
-     attribute_types =
-       {a = [%"typ": int]; b = [%"typ": int]; c = [%"typ": int];
-        d = [%"typ": int]} };] >>
+              attribution_model = Attributed { attributed_module_name = AT };
+              storage_mode = Records; axiom = z;
+              attribute_types =
+              {a = [%"typ": int]; b = [%"typ": int]; c = [%"typ": int];
+              d = [%"typ": int]};
+              node_attributes = {x = [a; b; c; d]};
+              production_attributes = () };] >>
     ("kastens116.ag" |> file_contents |> pa_str_item)
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
@@ -205,7 +209,18 @@ and unop = [ UMINUS | UPLUS ][@@deriving ag {
               rpn_notation = [%"typ": string list];
               operator_text = [%"typ": string];
               freevars = [%"typ": string list]
-              }
+              };
+              node_attributes = {
+              binop = [bin_oper; operator_text; rhs_must_be_nonzero];
+              block1 = [value_];
+              block2 = [value_];
+              expr = [rpn; value_];
+              let_expr = [env; freevars; value_];
+              prog = [freevars; rpn_notation; value_];
+              ref_expr = [freevars; rpn; value_];
+              unop = [operator_text; un_oper]
+              };
+              production_attributes = {expr__BINOP = [result]}
               };] >>
     ("../simple_expr/test2.ag" |> file_contents |> pa_str_item)
 }
