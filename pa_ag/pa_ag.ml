@@ -153,9 +153,25 @@ value make_typedecls loc rules =
     )
 ;
 
+value make_deriving_attribute loc modname amodel axiom l =
+  <:attribute_body< "deriving" ag ; >>
+;
+
+value attach_attribute tdl attr =
+  let attr = <:vala< attr >> in
+  let (last_td, tdl) = Std.sep_last tdl in
+  let last_td = match last_td with [
+    <:type_decl:< $tp:(loc,tyna)$ = $tk$ >> ->
+    <:type_decl< $tp:(loc,tyna)$ = $tk$ $itemattrs:[attr]$ >>
+  ] in
+  tdl@[last_td]
+;
+
 value make_ag_str_item loc modname amodel axiom l = do {
   let attribute_types = make_attribute_types loc l in
   let tdl = make_typedecls loc l in
+  let attr = make_deriving_attribute loc modname amodel axiom l in
+  let tdl = attach_attribute tdl attr in
   <:str_item< type $list:tdl$ >>
 }
 ;

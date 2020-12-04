@@ -13,7 +13,7 @@ value file_contents fname =
 ;
 
 value show_str_item si =
-  Fmt.(str "#<str_Item< %s >>" (Eprinter.apply Pcaml.pr_str_item Pprintf.empty_pc si));
+  Fmt.(str "#<str_item< %s >>" (Eprinter.apply Pcaml.pr_str_item Pprintf.empty_pc si));
 
 value pa_str_item s =
   s |> Stream.of_string |> Grammar.Entry.parse Pcaml.str_item ;
@@ -140,7 +140,7 @@ value test_ag _ = do {
   ()
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
-  <:str_item< type x = [ R ] >>
+  <:str_item< type x = [ R ][@@deriving ag;] >>
     ({foo|
 ATTRIBUTE_GRAMMAR
   MODULE AG ;
@@ -160,7 +160,7 @@ END ;
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ Q of x and x | R ]
-              and z = [ P of x ] >>
+              and z = [ P of x ][@@deriving ag;] >>
     ("kastens116.ag" |> file_contents |> pa_str_item)
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
@@ -182,7 +182,7 @@ and prog =
   [ PROG of block1 ]
 and ref_expr =
   [ REF_EXPR of string ]
-and unop = [ UMINUS | UPLUS ] >>
+and unop = [ UMINUS | UPLUS ][@@deriving ag;] >>
     ("../simple_expr/test2.ag" |> file_contents |> pa_str_item)
 }
 ;
