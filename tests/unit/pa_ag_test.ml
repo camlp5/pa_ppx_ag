@@ -66,7 +66,7 @@ END ;
     (Pa_ag.RULE Ploc.dummy "PROG" "prog" [<:ctyp< block1 >>]
        [
          <:expr< [%nterm 0;].value_ := [%child 1;].value_ >>
-           ; <:expr< (CHAINSTART ([%child 1;].rpn)) := [] >>
+           ; <:expr< (([%chainstart 1;].rpn)) := [] >>
            ; <:expr< [%nterm 0;].rpn_notation := List.rev [%child 1;].rpn >>
        ]
     )
@@ -144,7 +144,11 @@ value test_ag _ = do {
               attribution_model = Attributed { attributed_module_name = AT };
               storage_mode = Records ; axiom = x; attribute_types = ();
               node_attributes = {x = [a; b]};
-              production_attributes = () };] >>
+              production_attributes = ();
+              attribution = {
+                x__R = ([%"nterm" 0;].b := [%"nterm" 0;].a)
+              }
+              };] >>
     ({foo|
 ATTRIBUTE_GRAMMAR
   MODULE AG ;
@@ -171,7 +175,27 @@ END ;
               {a = [%"typ": int]; b = [%"typ": int]; c = [%"typ": int];
               d = [%"typ": int]};
               node_attributes = {x = [a; b; c; d]};
-              production_attributes = () };] >>
+              production_attributes = ();
+              attribution = {
+              x__Q = do {
+              [%"nterm" 0;].b := g [%"nterm" 0;].a;
+              [%"child" 1;].a := g [%"nterm" 0;].c;
+              [%"child" 2;].a := g [%"nterm" 0;].c;
+              [%"child" 1;].c := g [%"child" 1;].b;
+              [%"child" 2;].c := g [%"child" 2;].b;
+              [%"nterm" 0;].d := s ([%"child" 1;].d, [%"child" 2;].d)
+              };
+              x__R = do {
+              [%"nterm" 0;].b := g [%"nterm" 0;].a;
+              [%"nterm" 0;].d := g [%"nterm" 0;].c
+              };
+              z__P = do {
+              [%"child" 1;].a := f ();
+              [%"child" 1;].c := g [%"child" 1;].b;
+              h [%"child" 1;].d
+              }
+              }
+              };] >>
     ("kastens116.ag" |> file_contents |> pa_str_item)
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
@@ -200,7 +224,7 @@ and unop = [ UMINUS | UPLUS ][@@deriving ag {
               axiom = prog;
               attribute_types = {
               value_ = [%"typ": int];
-              rpn = [%"typ": list string];
+              rpn = [%"typ": (list string [@chain])];
               bin_oper = [%"typ": int → int → int];
               env = [%"typ": (string * int) list];
               result = [%"typ": int];
@@ -220,7 +244,100 @@ and unop = [ UMINUS | UPLUS ][@@deriving ag {
               ref_expr = [freevars; rpn; value_];
               unop = [operator_text; un_oper]
               };
-              production_attributes = {expr__BINOP = [result]}
+              production_attributes = {expr__BINOP = [result]};
+              attribution =
+              {binop__MINUS = do {
+              [%"nterm" 0;].bin_oper := ( - );
+              [%"nterm" 0;].rhs_must_be_nonzero := false;
+              [%"nterm" 0;].operator_text := "-"
+              };
+              binop__PERCENT = do {
+              [%"nterm" 0;].bin_oper := ( mod );
+              [%"nterm" 0;].rhs_must_be_nonzero := true;
+              [%"nterm" 0;].operator_text := "%"
+              };
+              binop__PLUS = do {
+              [%"nterm" 0;].bin_oper := ( + );
+              [%"nterm" 0;].rhs_must_be_nonzero := false;
+              [%"nterm" 0;].operator_text := "+"
+              };
+              binop__SLASH = do {
+              [%"nterm" 0;].bin_oper := fun a b → if b = 0 then 0 else a / b;
+              [%"nterm" 0;].rhs_must_be_nonzero := true;
+              [%"nterm" 0;].operator_text := "/"
+              };
+              binop__STAR = do {
+              [%"nterm" 0;].bin_oper := fun a b → a * b;
+              [%"nterm" 0;].rhs_must_be_nonzero := false;
+              [%"nterm" 0;].operator_text := "*"
+              };
+              block1__BLOCK1 = [%"nterm" 0;].value_ := [%"child" 1;].value_;
+              block2__BLOCK2 = [%"nterm" 0;].value_ := [%"child" 1;].value_;
+              expr__BINOP = do {
+              [%"nterm" 0;].value_ := [%"local" result;];
+              [%"local" result;] :=
+              [%"child" 1;].bin_oper [%"child" 2;].value_ [%"child" 3;].value_;
+              [%"nterm" 0;].rpn :=
+              [[%"child" 1;].operator_text :: [%"child" 3;].rpn];
+              condition "rhs must be nonzero"
+              (if [%"child" 1;].rhs_must_be_nonzero then
+               0 <> [%"child" 3;].value_
+              else true)
+              };
+              expr__INT = do {
+              [%"nterm" 0;].value_ := [%"child" 1;];
+              [%"nterm" 0;].rpn :=
+              [string_of_int [%"child" 1;] :: [%"nterm" 0;].rpn]
+              };
+              expr__LET = do {
+              [%"nterm" 0;].value_ := [%"child" 1;].value_;
+              [%"nterm" 0;].rpn := [%"child" 1;].rpn
+              };
+              expr__REF = [%"nterm" 0;].value_ := [%"child" 1;].value_;
+              expr__SEQ = do {
+              [%"nterm" 0;].value_ := [%"child" 2;].value_;
+              [%"nterm" 0;].rpn := [";" :: [%"child" 2;].rpn]
+              };
+              expr__UNOP = do {
+              [%"nterm" 0;].value_ := [%"child" 1;].un_oper [%"child" 2;].value_;
+              [%"nterm" 0;].rpn :=
+              [[%"child" 1;].operator_text :: [%"child" 2;].rpn]
+              };
+              let_expr__LET_BINDING = do {
+              [%"nterm" 0;].value_ := [%"child" 3;].value_;
+              [%"child" 3;].rpn :=
+              [Printf.sprintf "bind %s" [%"child" 1;] :: [%"child" 2;].rpn];
+              [%"nterm" 0;].env :=
+              [([%"child" 1;], [%"child" 2;].value_) ::
+              [%"remote" (block1.env, let_expr.env);]];
+              [%"nterm" 0;].freevars :=
+              Std.union
+              [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"child" 2;]};]
+              (Std.except [%"child" 1;]
+                 [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"child" 3;]};])
+              };
+              prog__PROG = do {
+              [%"child" 1;].env := [("x", 1); ("y", 2); ("z", 3); ("w", 4)];
+              [%"nterm" 0;].value_ := [%"child" 1;].value_;
+              [%chainstart 1;].rpn := [];
+              [%"nterm" 0;].rpn_notation := List.rev [%"child" 1;].rpn;
+              [%"nterm" 0;].freevars :=
+              [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"child" 1;]};]
+              };
+              ref_expr__REF_EXPR = do {
+              [%"nterm" 0;].value_ :=
+              List.assoc [%"child" 1;] [%"remote" (block1.env, let_expr.env);];
+              [%"nterm" 0;].rpn := [[%"child" 1;] :: [%"nterm" 0;].rpn];
+              [%"nterm" 0;].freevars := [[%"child" 1;]]
+              };
+              unop__UMINUS = do {
+              [%"nterm" 0;].un_oper := fun x → -x;
+              [%"nterm" 0;].operator_text := "unary-"
+              };
+              unop__UPLUS = do {
+              [%"nterm" 0;].un_oper := fun x → x;
+              [%"nterm" 0;].operator_text := "unary+"
+              }}
               };] >>
     ("../simple_expr/test2.ag" |> file_contents |> pa_str_item)
 }

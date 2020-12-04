@@ -21,7 +21,7 @@ value make_attribute_types loc el = do {
       ])
     |> List.map (fun (aname, aty, is_chain) ->
         let ty = if is_chain then <:ctyp< $aty$ [@chain] >> else aty in
-        (<:patt< $lid:aname$ >>, <:expr< [%typ: $type:aty$] >>)) in
+        (<:patt< $lid:aname$ >>, <:expr< [%typ: $type:ty$] >>)) in
   assert (Std.distinct (List.map fst attribute_types)) ;
   if [] = attribute_types then <:expr< () >>
   else <:expr< { $list:attribute_types$ } >>
@@ -132,6 +132,13 @@ value rule_to_prod_attributes rule = match rule with [
 ]
 ;
 
+value rule_to_equations rule = match rule with [
+  RULE _ prodna tyna tyl eqns ->
+  ((tyna, prodna), eqns)
+| _ -> assert False
+]
+;
+
 value make_typedecls loc rules =
   rules
   |> List.filter_map (fun [
@@ -199,6 +206,22 @@ value make_prod_attributes loc l =
       else <:expr< { $list:l$ } >>)
 ;
 
+value make_attribution loc l =
+  l
+  |> List.filter (fun [ RULE _ _ _ _ _ -> True | _ -> False ])
+  |> List.map rule_to_equations
+  |> List.stable_sort Stdlib.compare
+  |> List.map (fun ((tyna, prodna), l) ->
+      let key = Printf.sprintf "%s__%s" tyna prodna in
+      let e = match l with [
+        [] -> <:expr< () >>
+      | [e] -> e
+      | _ -> <:expr< do { $list:l$ } >> ] in
+      (<:patt< $lid:key$ >>, e)
+    )
+  |> (fun l -> <:expr< { $list:l$ } >>)
+;
+
 value make_deriving_attribute loc modname amodel axiom l =
   let storage_mode = match amodel with [
     <:expr< Unique $_$ >> -> <:expr< Hashtables >>
@@ -207,6 +230,7 @@ value make_deriving_attribute loc modname amodel axiom l =
   let attribute_types = make_attribute_types loc l in
   let node_attributes = make_node_attributes loc l in
   let production_attributes = make_prod_attributes loc l in
+  let attribution = make_attribution loc l in
   <:attribute_body< "deriving" ag {
                     module_name = $uid:modname$
                     ; attribution_model = $amodel$
@@ -215,6 +239,7 @@ value make_deriving_attribute loc modname amodel axiom l =
                     ; attribute_types = $attribute_types$
                     ; node_attributes = $node_attributes$
                     ; production_attributes = $production_attributes$
+                    ; attribution = $attribution$
                     } ; >>
 ;
 
@@ -286,6 +311,15 @@ EXTEND
       <:expr< [%constituents { attributes = $e1$ ; nodes = $e2$ ; shield = $e3$ } ;] >>
     ]
   ] ;
+
+  dummy:
+    [ [ → () ] ]
+  ;
+
+  expr: LEVEL ":=" [ [
+    "CHAINSTART" ; "$" ; "[" ; n = INT ; "]" ; "." ; attrna = LIDENT; ":=" ; e2 = SELF ; dummy ->
+    <:expr< [%chainstart $int:n$;] . $lid:attrna$ := $e2$ >>
+  ] ] ;
 
   arefs: [ [ (nt, a) = aref -> <:expr< $lid:nt$ . $lid:a$ >>
            | "(" ; h = aref ; "," ; l = LIST1 aref SEP ","; ")" ->
