@@ -677,6 +677,13 @@ value assignment_to_equation_or_side_effect pn e = match e with [
     ; rhs_nodes = extract_attribute_references pn e
     ; rhs_expr = <:expr< if not $e$ then failwith $str:msg$ else () >> }
 
+  | e ->
+    let loc = MLast.loc_of_expr e in
+    Right { 
+      AG.ASide.loc = loc
+    ; rhs_nodes = extract_attribute_references pn e
+    ; rhs_expr = e }
+
   | _ -> Ploc.raise (MLast.loc_of_expr e)
       (Failure Fmt.(str "assignment_to_equation_or_side_effect: neither assignment nor condition/side-effect@ %a"
                       Pp_MLast.pp_expr e))

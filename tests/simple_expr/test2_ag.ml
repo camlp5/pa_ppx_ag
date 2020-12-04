@@ -35,8 +35,6 @@ and prog = PROG of block1
     ; rpn_notation = [%typ: string list]
     ; operator_text = [%typ: string]
     ; freevars = [%typ: string list]
-    ; local0 = [%typ: unit]
-    ; local1 = [%typ: unit]
     }
   ; node_attributes = {
       expr = [value_; rpn]
@@ -50,7 +48,6 @@ and prog = PROG of block1
     }
   ; production_attributes = {
       expr__BINOP = [result]
-    ; prog__PROG = [local0; local1]
     }
   ; attribution = {
       let_expr__LET_BINDING = (
@@ -101,8 +98,8 @@ and prog = PROG of block1
       ; [%chainstart 1].rpn := []
       ; [%nterm prog].rpn_notation := List.rev [%nterm 1].rpn
       ; [%nterm 0].freevars := [%constituents { nodes = [ [%nterm 1] ]; attributes = [ref_expr.freevars; let_expr.freevars]}]
-      ; [%local local0] := Std.push global_ref "before"
-      ; [%local local1] := let _ = [%nterm 0].value_ in Std.push global_ref "after"
+      ; Std.push global_ref "before"
+      ; let _ = [%nterm 0].value_ in Std.push global_ref "after"
       )
     ; block1__BLOCK1 = (
         [%nterm 0].value_ := [%nterm 1].value_
