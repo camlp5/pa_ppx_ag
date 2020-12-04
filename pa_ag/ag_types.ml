@@ -1616,6 +1616,42 @@ module AGOps = struct
   ;
 
   module Condition = struct
+
+  value rewrite_condition_production ag p = do {
+    let open AG in
+    let open P in
+    let open TAEQ in
+    let loc = ag.AG.loc in
+    assert (production_attribute_exists ag (p.name, "condition")) ;
+    assert ([] <> p.typed_conditions) ;
+    let new_rhs_expr =
+      List.fold_right (fun c rhs ->
+          let msg = match c.msg with [ None -> "condition check failed" | Some msg -> msg ] in
+          <:expr< if $c.rhs_expr$ then failwith $str:msg$ else $rhs$ >>)
+        p.typed_conditions <:expr< () >> in
+    let new_rhs_nodes =
+      p.typed_conditions
+      |> List.concat_map TAEQ.rhs_nodes
+      |> List.sort_uniq Stdlib.compare in
+    let new_eqn = {
+      TAEQ.loc = MLast.loc_of_expr new_rhs_expr
+    ; lhs = TAR.PROD p.name "condition"
+    ; msg = None
+    ; rhs_nodes = new_rhs_nodes
+    ; rhs_expr = new_rhs_expr
+    } in
+    {(p) with typed_conditions = [] ; typed_equations = [new_eqn :: p.typed_equations]}
+  }
+  ;
+
+  value rewrite_condition_equations ag =
+    ag |> AG.map_productions (fun nt p ->
+        if p.P.typed_conditions = [] then p
+        else
+          rewrite_condition_production ag p
+      )
+    ;
+
   value add_condition_attributes ag =
     let open AG in
     let open P in
@@ -1651,9 +1687,14 @@ module AGOps = struct
     let ag = {(ag) with productions = new_productions } in
     if not (AG.is_declared_attribute ag "condition") then
       {(ag) with
-       attribute_types = [("condition", AT.mk <:ctyp< bool >>) :: ag.attribute_types]}
+       attribute_types = [("condition", AT.mk <:ctyp< unit >>) :: ag.attribute_types]}
     else ag
   ;
+
+  value rewrite_conditions ag =
+    ag |> add_condition_attributes |> rewrite_condition_equations
+  ;
+
   end
   ;
 
