@@ -392,20 +392,17 @@ module AG = struct
     value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" pp_hum x) ;
   end ;
 
-  module ACond = struct
+  module ASide = struct
     type t = {
       loc : Ploc.t
-    ; msg : string
     ; rhs_nodes : list AR.t
     ; rhs_expr : MLast.expr
     }
     ;
     value pp_hum pps x =
-      Fmt.(pf pps "assert %a %a"
-             (wrap_comment Dump.string) x.msg
-             Pp_hum.expr x.rhs_expr)
+      Fmt.(pf pps "side-effect %a" Pp_hum.expr x.rhs_expr)
     ;
-    value pp_top pps x = Fmt.(pf pps "#<aeq< %a >>" pp_hum x) ;
+    value pp_top pps x = Fmt.(pf pps "#<side< %a >>" pp_hum x) ;
   end ;
 
   module TAEQ = struct
@@ -431,10 +428,9 @@ module AG = struct
     ;
   end ;
 
-  module TCond = struct
+  module TSide = struct
     type t = {
       loc : Ploc.t
-    ; msg : string
     ; rhs_nodes : list TAR.t
     ; rhs_expr : MLast.expr
     }
@@ -442,12 +438,11 @@ module AG = struct
     value rhs_expr e = e.rhs_expr ;
     value rhs_nodes e = e.rhs_nodes ;
     value pp_hum pps x =
-      Fmt.(pf pps "assert %a %a"
-             (wrap_comment Dump.string) x.msg
+      Fmt.(pf pps "side-effect %a"
              Pp_hum.expr x.rhs_expr
           )
     ;
-    value pp_top pps x = Fmt.(pf pps "#<taeq< %a >>" pp_hum x) ;
+    value pp_top pps x = Fmt.(pf pps "#<tside< %a >>" pp_hum x) ;
   end ;
 
   module P = struct
@@ -457,7 +452,7 @@ module AG = struct
     ; typed_nodes : list TNR.t
     ; typed_node_names : list (NR.t * TNR.t)
     ; typed_equations : list TAEQ.t
-    ; typed_conditions : list TCond.t
+    ; typed_side_effects : list TSide.t
     ; patt : MLast.patt
     ; patt_var_to_noderef : list (string * TNR.t)
     ; rev_patt_var_to_noderef : list (TNR.t * string)
@@ -469,7 +464,7 @@ module AG = struct
              PN.pp_hum x.name
              Pp_hum.patt x.patt
              (list ~{sep=sp} TAEQ.pp_hum) x.typed_equations
-             (list ~{sep=sp} TCond.pp_hum) x.typed_conditions
+             (list ~{sep=sp} TSide.pp_hum) x.typed_side_effects
           ) ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
 
@@ -504,11 +499,10 @@ module AG = struct
       let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
       dt.migrate_expr dt e
     ;
-    value typed_condition p aeq =
-      let { ACond.loc = loc ; msg = msg ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
+    value typed_side_effect p aeq =
+      let { ASide.loc = loc ; rhs_nodes = rhs_nodes ; rhs_expr = rhs_expr } = aeq in
       {
-        TCond.loc = loc
-      ; msg = msg
+        TSide.loc = loc
       ; rhs_nodes = List.map (typed_attribute loc p) rhs_nodes
       ; rhs_expr = typed_rhs loc p rhs_expr
       }
@@ -535,8 +529,8 @@ module AG = struct
     value map_typed_equations f p =
       {(p) with typed_equations = List.map f p.typed_equations }
     ;
-    value map_typed_conditions f p =
-      {(p) with typed_conditions = List.map f p.typed_conditions }
+    value map_typed_side_effects f p =
+      {(p) with typed_side_effects = List.map f p.typed_side_effects }
     ;
   end ;
   module Production = P ;
@@ -567,13 +561,13 @@ module AG = struct
   ; production_attributes : list (string * (list string))
   ; nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
-  ; conditions : list (PN.t * (list ACond.t))
+  ; side_effects : list (PN.t * (list ASide.t))
   ; productions : list (string * list P.t)
   }
   ;
   value mk0 loc storage_mode axiom nonterminals
     (attribute_types, node_attributes, production_attributes)
-    equations conditions = {
+    equations side_effects = {
     loc = loc
   ; storage_mode = storage_mode
   ; axiom = axiom
@@ -582,7 +576,7 @@ module AG = struct
   ; node_attributes = node_attributes
   ; production_attributes = production_attributes
   ; equations = equations
-  ; conditions = conditions
+  ; side_effects = side_effects
   ; productions = []
   }
   ;
@@ -663,7 +657,7 @@ value extract_attribute_references pn e =
   }
 ;
 
-value assignment_to_equation_or_condition pn e = match e with [
+value assignment_to_equation_or_side_effect pn e = match e with [
     <:expr:< $lhs$ . val := $rhs$ >> | <:expr:< $lhs$ := $rhs$ >> ->
     Left {
       AG.AEQ.loc = loc
@@ -673,19 +667,18 @@ value assignment_to_equation_or_condition pn e = match e with [
 
   | <:expr:< condition $str:msg$ $e$ >> ->
     Right { 
-      AG.ACond.loc = loc
-    ; msg = msg
+      AG.ASide.loc = loc
     ; rhs_nodes = extract_attribute_references pn e
-    ; rhs_expr = e }
+    ; rhs_expr = <:expr< if not $e$ then failwith $str:msg$ else () >> }
   | <:expr:< condition $e$ >> ->
+    let msg = Fmt.(str "condition %a failed" Pp_MLast.pp_expr e) in
     Right { 
-      AG.ACond.loc = loc
-    ; msg = Fmt.(str "condition %a failed" Pp_MLast.pp_expr e)
+      AG.ASide.loc = loc
     ; rhs_nodes = extract_attribute_references pn e
-    ; rhs_expr = e }
+    ; rhs_expr = <:expr< if not $e$ then failwith $str:msg$ else () >> }
 
   | _ -> Ploc.raise (MLast.loc_of_expr e)
-      (Failure Fmt.(str "assignment_to_equation_or_condition: neither assignment nor condition@ %a"
+      (Failure Fmt.(str "assignment_to_equation_or_side_effect: neither assignment nor condition/side-effect@ %a"
                       Pp_MLast.pp_expr e))
 ]
 ;
@@ -703,28 +696,28 @@ value parse_prodname loc s =
   ]
 ;
 
-value extract_attribute_equations_and_conditions loc l : (list (AG.PN.t * (list (choice AG.AEQ.t AG.ACond.t)))) =
+value extract_attribute_equations_and_side_effects loc l : (list (AG.PN.t * (list (choice AG.AEQ.t AG.ASide.t)))) =
   l |> List.map (fun (prodname, e) ->
     let prodname = parse_prodname loc prodname in
     match e with [
       <:expr< do { $list:l$ } >> ->
-      (prodname, List.map (assignment_to_equation_or_condition prodname) l)
+      (prodname, List.map (assignment_to_equation_or_side_effect prodname) l)
     | <:expr< $_$ . val := $_$ >> ->
-      (prodname, [assignment_to_equation_or_condition prodname e])
+      (prodname, [assignment_to_equation_or_side_effect prodname e])
     | _ -> Ploc.raise (MLast.loc_of_expr e)
-        (Failure Fmt.(str "extract_attribute_equations_and_conditions (production %a): unrecognized@ %a"
+        (Failure Fmt.(str "extract_attribute_equations_and_side_effects (production %a): unrecognized@ %a"
                         AG.PN.pp_hum prodname Pp_MLast.pp_expr e))
     ])
 ;
 
 value extract_attribute_equations loc l : (list (AG.PN.t * (list AG.AEQ.t))) =
-  extract_attribute_equations_and_conditions loc l
+  extract_attribute_equations_and_side_effects loc l
   |> List.map (fun (n, l) ->
                 (n, l |> List.filter_map (fun [ Left e -> Some e | _ -> None ])))
 ;
 
-value extract_attribute_conditions loc l : (list (AG.PN.t * (list AG.ACond.t))) =
-  extract_attribute_equations_and_conditions loc l
+value extract_attribute_side_effects loc l : (list (AG.PN.t * (list AG.ASide.t))) =
+  extract_attribute_equations_and_side_effects loc l
   |> List.map (fun (n, l) ->
                 (n, l |> List.filter_map (fun [ Right c -> Some c | _ -> None ])))
 ;
@@ -800,7 +793,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   let pn = { PN.nonterm_name = lhs_name ; case_name = case_name } in
   let typed_nodes = List.rev typed_nodes.val in
   let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
-  let conditions = match List.assoc pn ag.conditions with [ x -> x | exception Not_found -> [] ] in
+  let side_effects = match List.assoc pn ag.side_effects with [ x -> x | exception Not_found -> [] ] in
   let node_aliases = [(TNR.PARENT lhs_name, NR.PARENT None) :: NA.get node_aliases] in
   let typed_node_names = 
     (List.map (fun (tnr,_) -> (TNR.to_nr tnr, tnr)) node_aliases)
@@ -811,17 +804,17 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   ; typed_nodes = typed_nodes
   ; typed_node_names = typed_node_names
   ; typed_equations = []
-  ; typed_conditions = []
+  ; typed_side_effects = []
   ; patt = Patt.tuple loc (List.map Std.fst3 patt_nref_l)
   ; patt_var_to_noderef = List.map Std.snd3 patt_nref_l
   ; rev_patt_var_to_noderef = patt_nref_l |> List.map Std.snd3 |> List.map (fun (a,b) -> (b,a))
   ; patt_var_to_childnum = List.map Std.third3 patt_nref_l
   } in
   let typed_equations = List.map (P.typed_equation p) equations in
-  let typed_conditions = List.map (P.typed_condition p) conditions in
+  let typed_side_effects = List.map (P.typed_side_effect p) side_effects in
   { (p) with
     P.typed_equations = typed_equations
-  ; typed_conditions = typed_conditions
+  ; typed_side_effects = typed_side_effects
   }
 ;
 
@@ -884,7 +877,7 @@ value productions ag type_decls =
   { (ag) with
     AG.productions = productions
   ; equations = []
-  ; conditions = []
+  ; side_effects = []
   }
 ;
 
@@ -1228,7 +1221,7 @@ module AGOps = struct
     let ag = m.NTOps.ag in
     ag |> AG.all_productions |> List.for_all (fun p ->
          p.P.typed_equations |> List.for_all (well_formed_equation ag p.P.name) &&
-         [] = p.P.typed_conditions
+         [] = p.P.typed_side_effects
        )
   ;
 
@@ -1601,58 +1594,58 @@ module AGOps = struct
   end
   ;
 
-  module Condition = struct
+  module SideEffect = struct
 
-  value rewrite_condition_production ag p = do {
+  value rewrite_side_effect_production ag p = do {
     let open AG in
     let open P in
     let loc = ag.AG.loc in
-    assert (production_attribute_exists ag (p.name, "condition")) ;
-    assert ([] <> p.typed_conditions) ;
+    assert (production_attribute_exists ag (p.name, "side_effect")) ;
+    assert ([] <> p.typed_side_effects) ;
     let new_rhs_expr =
-      List.fold_right (fun c rhs ->
-          <:expr< if not $c.TCond.rhs_expr$ then failwith $str:c.TCond.msg$ else $rhs$ >>)
-        p.typed_conditions <:expr< () >> in
+      let sidel = List.map TSide.rhs_expr p.typed_side_effects in
+      let l = sidel @ [ <:expr< () >> ] in
+      <:expr< do { $list:l$ } >> in
     let new_rhs_nodes =
-      p.typed_conditions
-      |> List.concat_map TCond.rhs_nodes
+      p.typed_side_effects
+      |> List.concat_map TSide.rhs_nodes
       |> List.sort_uniq Stdlib.compare in
     let new_eqn = {
       TAEQ.loc = MLast.loc_of_expr new_rhs_expr
-    ; lhs = TAR.PROD p.name "condition"
+    ; lhs = TAR.PROD p.name "side_effect"
     ; rhs_nodes = new_rhs_nodes
     ; rhs_expr = new_rhs_expr
     } in
-    {(p) with typed_conditions = [] ; typed_equations = [new_eqn :: p.typed_equations]}
+    {(p) with typed_side_effects = [] ; typed_equations = [new_eqn :: p.typed_equations]}
   }
   ;
 
-  value rewrite_condition_equations ag =
+  value rewrite_side_effect_equations ag =
     ag |> AG.map_productions (fun nt p ->
-        if p.P.typed_conditions = [] then p
+        if p.P.typed_side_effects = [] then p
         else
-          rewrite_condition_production ag p
+          rewrite_side_effect_production ag p
       )
     ;
 
-  value add_condition_attributes ag =
+  value add_side_effect_attributes ag =
     let open AG in
     let open P in
     let open TAEQ in
     let loc = ag.AG.loc in
-    let condition_pns = ag |> AG.all_productions |> List.filter_map (fun p ->
-        if p.typed_conditions <> [] &&
-           not(production_attribute_exists ag (p.name, "condition")) then
+    let side_effect_pns = ag |> AG.all_productions |> List.filter_map (fun p ->
+        if p.typed_side_effects <> [] &&
+           not(production_attribute_exists ag (p.name, "side_effect")) then
           Some (PN.unparse p.name)
         else None
       ) in
-    let ag = condition_pns |> List.fold_left (fun ag pn ->
+    let ag = side_effect_pns |> List.fold_left (fun ag pn ->
         let old_al = AG.production_attributes ag pn in
         {(ag) with
          production_attributes =
            ag.production_attributes
            |> List.remove_assoc pn
-           |> (fun l -> [(pn, ["condition" :: old_al]) :: l])
+           |> (fun l -> [(pn, ["side_effect" :: old_al]) :: l])
         }
       ) ag in
     let new_productions =
@@ -1668,14 +1661,14 @@ module AGOps = struct
         {(p) with patt = new_patt }
       ))) in
     let ag = {(ag) with productions = new_productions } in
-    if not (AG.is_declared_attribute ag "condition") then
+    if not (AG.is_declared_attribute ag "side_effect") then
       {(ag) with
-       attribute_types = [("condition", AT.mk <:ctyp< unit >>) :: ag.attribute_types]}
+       attribute_types = [("side_effect", AT.mk <:ctyp< unit >>) :: ag.attribute_types]}
     else ag
   ;
 
-  value rewrite_conditions ag =
-    ag |> add_condition_attributes |> rewrite_condition_equations
+  value rewrite_side_effects ag =
+    ag |> add_side_effect_attributes |> rewrite_side_effect_equations
   ;
 
   end
