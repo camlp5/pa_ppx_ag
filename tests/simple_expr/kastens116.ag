@@ -5,6 +5,7 @@ value h x = Fmt.(str "h(%s)" x) ;
 value s (x,y) = Fmt.(str "s(%s,%s)" x y) ;
 
 ATTRIBUTE_GRAMMAR
+  DEBUG True ;
   MODULE AG ;
   ATTRIBUTION_MODEL Attributed {
     attributed_module_name = AT

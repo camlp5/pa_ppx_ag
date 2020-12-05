@@ -140,7 +140,7 @@ value test_ag _ = do {
   ()
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
-  <:str_item< type x = [ R ][@@deriving ag { module_name = AG;
+  <:str_item< type x = [ R ][@@deriving ag { optional = True ; module_name = AG;
               attribution_model = Attributed { attributed_module_name = AT };
               storage_mode = Records ; axiom = x; attribute_types = ();
               node_attributes = {x = [a; b]};
@@ -151,6 +151,7 @@ value test_ag _ = do {
               };] >>
     ({foo|
 ATTRIBUTE_GRAMMAR
+  DEBUG True ;
   MODULE AG ;
   ATTRIBUTION_MODEL Attributed {
     attributed_module_name = AT
@@ -168,7 +169,7 @@ END ;
 ; let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ Q of x and x | R ]
-              and z = [ P of x ][@@deriving ag { module_name = AG;
+              and z = [ P of x ][@@deriving ag { optional = False ; module_name = AG;
               attribution_model = Attributed { attributed_module_name = AT };
               storage_mode = Records; axiom = z;
               attribute_types =
@@ -218,7 +219,7 @@ and prog =
 and ref_expr =
   [ REF_EXPR of string ]
 and unop = [ UMINUS | UPLUS ][@@deriving ag {
-              module_name = AG ;
+              optional = False ; module_name = AG ;
               attribution_model = Attributed { attributed_module_name = AT } ;
               storage_mode = Records;
               axiom = prog;

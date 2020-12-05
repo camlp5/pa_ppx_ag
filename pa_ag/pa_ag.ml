@@ -223,7 +223,8 @@ value make_attribution loc l =
   |> (fun l -> <:expr< { $list:l$ } >>)
 ;
 
-value make_deriving_attribute loc modname amodel axiom l =
+value make_deriving_attribute loc debug modname amodel axiom l =
+  let optional = if debug then <:expr< True >> else <:expr< False >> in
   let storage_mode = match amodel with [
     <:expr< Unique $_$ >> -> <:expr< Hashtables >>
   | <:expr< Attributed $_$ >> -> <:expr< Records >>
@@ -233,7 +234,7 @@ value make_deriving_attribute loc modname amodel axiom l =
   let production_attributes = make_prod_attributes loc l in
   let attribution = make_attribution loc l in
   <:attribute_body< "deriving" ag {
-                    optional = True ;
+                    optional = $optional$ ;
                     module_name = $uid:modname$
                     ; attribution_model = $amodel$
                     ; storage_mode = $storage_mode$
@@ -255,9 +256,9 @@ value attach_attribute tdl attr =
   tdl@[last_td]
 ;
 
-value make_ag_str_item loc modname amodel axiom l = do {
+value make_ag_str_item loc debug modname amodel axiom l = do {
   let tdl = make_typedecls loc l in
-  let attr = make_deriving_attribute loc modname amodel axiom l in
+  let attr = make_deriving_attribute loc debug modname amodel axiom l in
   let tdl = attach_attribute tdl attr in
   <:str_item< type $list:tdl$ >>
 }
@@ -271,16 +272,17 @@ EXTEND
 
   str_item: [ [
       "ATTRIBUTE_GRAMMAR" ;
-      (modname, amodel, axiom, l) = attribute_grammar_body ;
-      "END" -> make_ag_str_item loc modname amodel axiom l
+      (debug, modname, amodel, axiom, l) = attribute_grammar_body ;
+      "END" -> make_ag_str_item loc debug modname amodel axiom l
     ] ] ;
 
   attribute_grammar_body: [ [
+      debug = [ "DEBUG" ; b = [ UIDENT "True" -> True | UIDENT "False" -> False ] ; ";" -> b | -> False ] ;
       "MODULE" ; modname = UIDENT ; ";" ;
       "ATTRIBUTION_MODEL" ; amodel = expr ; ";" ;
       "AXIOM" ; axiom = LIDENT ; ";" ;
       l = LIST1 attribute_grammar_element
-      -> (modname, amodel, axiom, l)
+      -> (debug, modname, amodel, axiom, l)
     ] ] ;
 
   attribute_grammar_element: [ [
