@@ -56,12 +56,12 @@ EXTEND
   GLOBAL: x z z_eoi ;
 
   x: [
-    [ UIDENT "R" -> AT.make_x R
-    | UIDENT "Q" ; v1 = x ; v2 = x -> AT.make_x (Q v1 v2)
+    [ UIDENT "R" -> AT.(make_x make_x__R)
+    | UIDENT "Q" ; v1 = x ; v2 = x -> AT.(make_x (make_x__Q v1 v2))
     ]
   ]
   ;
-  z: [ [ UIDENT "P" ; v1 = x; EOI -> AT.make_z (AT.make_z__P v1) ] ];
+  z: [ [ UIDENT "P" ; v1 = x; EOI -> AT.(make_z (make_z__P v1)) ] ];
 
   z_eoi: [ [ v = z; EOI -> v ] ];
 

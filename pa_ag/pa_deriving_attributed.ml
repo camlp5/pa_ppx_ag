@@ -150,7 +150,7 @@ value make_attribute_initializer loc name attributes =
 
 value to_expr loc v = <:expr< $lid:v$ >> ;
 
-value generate_attributed_constructor rc (name, td) =
+value generate_attributed_constructors rc (name, td) =
   let loc = loc_of_type_decl td in
   if uv td.tdPrm <> [] || not (List.mem_assoc name rc.typed_attributes) then <:str_item< declare end >> else
   let attributes = List.assoc name rc.typed_attributes in
@@ -164,20 +164,21 @@ value generate_attributed_constructor rc (name, td) =
     <:ctyp:< $_$ == [ $list:branches$ ] >> | <:ctyp:< [ $list:branches$ ] >> ->
       branches |> List.map (fun [
         <:constructor:< $uid:ci$ of $list:tl$ $algattrs:_$ >> ->
-          if List.mem_assoc (name^"__"^ci) rc.typed_attributes then
-            let attributes = List.assoc (name^"__"^ci) rc.typed_attributes in
-            let attribute_initializer = make_attribute_initializer loc (name^"__"^ci) attributes in
-            let consname = constructor_name rc (name^"__"^ci) in
-            let argvars = List.mapi (fun i _ -> Printf.sprintf "v_%d" i) tl in
-            let consbody = Expr.applist <:expr< $uid:ci$ >> (List.map (to_expr loc) argvars) in
-            let consbody = <:expr< $consbody$ $attribute_initializer$ >> in
-            let consexp = List.fold_right
-                (fun v rhs -> <:expr< fun $lid:v$ -> $rhs$ >>)
-                argvars consbody in
-            [<:str_item< value $lid:consname$ = $consexp$ >>]
-          else
-            []
-      ]) |> List.concat
+          let prodname = name^"__"^ci in
+          let consname = constructor_name rc prodname in
+          let argvars = List.mapi (fun i _ -> Printf.sprintf "v_%d" i) tl in
+          let consbody = Expr.applist <:expr< $uid:ci$ >> (List.map (to_expr loc) argvars) in
+          let consbody =
+            if List.mem_assoc prodname rc.typed_attributes then
+              let attributes = List.assoc prodname rc.typed_attributes in
+              let attribute_initializer = make_attribute_initializer loc prodname attributes in
+              <:expr< $consbody$ $attribute_initializer$ >>
+            else consbody in
+          let consexp = List.fold_right
+              (fun v rhs -> <:expr< fun $lid:v$ -> $rhs$ >>)
+              argvars consbody in
+          <:str_item< value $lid:consname$ = $consexp$ >>
+      ])
   ] in
   <:str_item< declare $list:[top_cons]@prod_cons_list$ end >>
 ;
@@ -306,7 +307,7 @@ value str_item_generate_attributed loc rc tdl =
                   type $list:normal_tdl$ ;
                   end >>)
   ] in
-  let attributed_constructors = List.map (AC.generate_attributed_constructor rc) rc.AC.type_decls in
+  let attributed_constructors = List.map (AC.generate_attributed_constructors rc) rc.AC.type_decls in
   let aa_st = <:str_item< declare
                   $stri:normal_module$ ;
                   module $uid:rc.attributed_module_name$ = struct
