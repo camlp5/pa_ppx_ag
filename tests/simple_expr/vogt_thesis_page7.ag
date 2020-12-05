@@ -129,6 +129,12 @@ value test_simple ctxt =
   assert_equal ~{printer=[%show: list int]}
     [1; 3; 3; 2]
    ({foo| let a,b,c in a,c,c,b end |foo} |> pa_root |> AG.evaluate)
+; assert_equal ~{printer=[%show: list int]}
+    []
+   ({foo| let in  end |foo} |> pa_root |> AG.evaluate)
+; assert_equal ~{printer=[%show: list int]}
+    [1;1]
+   ({foo| let a in a,a end |foo} |> pa_root |> AG.evaluate)
 ;
 
 value suite = "vogt_thesis_page7" >::: [
