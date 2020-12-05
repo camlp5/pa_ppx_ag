@@ -191,7 +191,7 @@ module AG = struct
     type nr_t = NR.t ;
     value params_nr_t = NR.expr_to_nterm ;
     type constituents_t = {
-      nodes : list nr_t [@default [];]
+      nodes : ne_list nr_t
     ; attributes : lident_pair_ne_list_t [@default [];]
     ; shield : list lident [@default [];]
     } [@@deriving params;]
@@ -316,7 +316,7 @@ module AG = struct
     type tnr_t = TNR.t ;
     value params_tnr_t = TNR.expr_to_nterm ;
     type constituents_t = {
-      nodes : list tnr_t [@default [];]
+      nodes : ne_list tnr_t
     ; attributes : AR.lident_pair_ne_list_t [@default [];]
     ; shield : list lident [@default [];]
     } [@@deriving params;]
@@ -709,7 +709,7 @@ value extract_attribute_equations_and_side_effects loc l : (list (AG.PN.t * (lis
     match e with [
       <:expr< do { $list:l$ } >> ->
       (prodname, List.map (assignment_to_equation_or_side_effect prodname) l)
-    | <:expr< $_$ . val := $_$ >> ->
+    | <:expr< $_$ . val := $_$ >> | <:expr< $_$ := $_$ >> ->
       (prodname, [assignment_to_equation_or_side_effect prodname e])
     | _ -> Ploc.raise (MLast.loc_of_expr e)
         (Failure Fmt.(str "extract_attribute_equations_and_side_effects (production %a): unrecognized@ %a"
@@ -1760,17 +1760,20 @@ module AGOps = struct
     None <> rua_to_nt_aref ag rua nt
   ;
 
+  value rua_production_step ag rua sofar p =
+    let parent_nt = P.parent_nonterminal p in
+    let child_nts = P.child_nonterminals p in
+    if not (List.mem parent_nt sofar) && not (nt_satisfies_rua ag rua parent_nt) &&
+       [] <> Std.intersect (P.child_nonterminals p) sofar then
+      Some parent_nt else None
+  ;
+
   value rua_nonterminals_step ag rua sofar =
     let open AG in
     let open P in
     let open TAEQ in
-    ag |> AG.all_productions |> List.concat_map (fun p ->
-        let parent_nt = P.parent_nonterminal p in
-        let child_nts = P.child_nonterminals p in
-        if not (List.mem parent_nt sofar) && not (nt_satisfies_rua ag rua parent_nt) &&
-           [] <> Std.intersect (P.child_nonterminals p) sofar then
-          [parent_nt] else []
-      )
+    ag |> AG.all_productions |> List.filter_map (rua_production_step ag rua sofar)
+    |> List.sort_uniq Stdlib.compare
   ;
 
   value production_uses_rua rua p =
@@ -1968,7 +1971,7 @@ module AGOps = struct
     let full_ntl = rua_nonterminals ag rua ntl in
     if List.mem ag.axiom full_ntl then
       Ploc.raise ag.loc
-        (Failure Fmt.(str "replace_rua: nonterminal %s is the axiom ([@<h>full set = { %a }@]), found during processing of remote upward attribute %a"
+        (Failure Fmt.(str "replace1_rua: nonterminal %s is the axiom (@[<h>full set = { %a }@]), found during processing of remote upward attribute %a"
                         ag.axiom
                         (list ~{sep=sp} string) full_ntl
                         TAR.pp_hum rua))

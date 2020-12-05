@@ -134,8 +134,6 @@ Pa_ppx_base.Pa_passthru.debug := true ;;
 
 #directory "../../pa_ag";;
 #require "ocamlgraph";;
-#require "pa_ppx.import" ;;
-Pa_import.add_include "." ;;
 
 #require "pa_ppx_ag" ;;
 #print_depth 10000 ;;
@@ -153,61 +151,27 @@ open Ag_types ;;
 #install_printer AG.AT.pp_top ;;
 #install_printer AG.AEQ.pp_top ;;
 #install_printer AG.TAEQ.pp_top ;;
-(*
-#trace Demarshal.tuple2production ;;
-#trace Demarshal.productions ;;
-#trace Demarshal.parse_prodname ;;
-#trace AGOps.POps.defining_occurrences ;;
-#trace AGOps.POps.inherited_occurrences ;;
-#trace AGOps.POps.synthesized_occurrences ;;
-#trace Demarshal.expr_to_attribute_reference ;;
-#trace Ag_tsort.compile_teqn_body ;;
-#trace Ag_tsort.lookup_var ;;
-#trace Ag_tsort.lookup_tnr ;;
-#trace Ag_tsort.typed_equation_to_deps;;
-#trace Ag_types.AGOps.POps.defining_occurrences ;;
-#trace Ag_tsort.attribute_function ;;
-#trace Pa_deriving_attributed.AC.generate_attributed_constructor ;;
-*)
 open Ag_types ;;
 open Ag_types.AG ;;
 open NR ;;
 open AEQ ;;
-(*
-#trace Ag_types.Demarshal.productions ;;
-#trace Ag_types.AGOps.well_formed ;;
-#trace Ag_types.AGOps.well_formed2 ;;
-#trace Ag_types.AGOps.well_formed_chains ;;
-#trace Ag_types.AGOps.chain_attributes_of ;;
-#trace Ag_types.AGOps.covers_with ;;
-#trace Ag_types.AGOps.covers_chain ;;
-#trace Ag_types.AG.P.typed_equation ;;
-#trace well_formed_equation ;;
-*)
 open Ag_types.AGOps ;;
 #trace NTOps.mk_memo ;;
 open Constituents ;;
-(*
-#trace all_crefs ;;
-#trace nts_mentioning_cr ;;
-#trace nts_needing_cr_attribute ;;
-#trace replace_rhs_cr ;;
-#trace replace_teqn_cr ;;
-#trace AG.TAR.to_expr ;;
-#trace AG.TAR.of_expr ;;
-#trace P.typed_attribute ;;
-#trace nts_needing_car_attribute ;;
-#trace CAR.type_of ;;
-#trace stitch_car_copychains ;;
-#trace replace_rhs_car ;;
-#trace rewrite1_car ;;
-#trace add_new_attribute ;;
-#trace nts_needing_car_attribute ;;
-#trace replace_rhs_expr_cr ;;
-*)
-#trace AGOps.Condition.rewrite_conditions ;;
 
-"test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
+let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
+#install_printer pp_ag ;;
+(*
+#trace RUA.rua_nonterminals ;;
+#trace RUA.rua_nonterminals_step ;;
+#trace RUA.rua_production_step ;;
+*)
+#trace Ag_types.AG.AR.params_constituents_t ;;
+#trace Ag_types.AG.TAR.params_constituents_t ;;
+
+#require "pa_ppx_ag.parser";;
+
+"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
 

@@ -1,5 +1,8 @@
 
+value global_ref = ref [] ;
+
 ATTRIBUTE_GRAMMAR
+  DEBUG True ;
   MODULE AG ;
   ATTRIBUTION_MODEL Attributed {
     attributed_module_name = AT
@@ -12,13 +15,13 @@ CHAIN rpn : list string ;
 
 ATTRIBUTES
   bin_oper : int -> int -> int ;
-  env : (string * int) list ;
+  env : list (string * int) ;
+  freevars : list string ;
+  operator_text : string ;
   result : int ;
   rhs_must_be_nonzero : bool ;
+  rpn_notation : list string ;
   un_oper : int -> int ;
-  rpn_notation : string list ;
-  operator_text : string ;
-  freevars : string list ;
 END ;
 
 RULE INT : expr := int
@@ -35,7 +38,7 @@ COMPUTE
   condition "rhs must be nonzero"
     (if $[1].rhs_must_be_nonzero then
        0 <> $[3].value_
-     else true) ;
+     else True) ;
 END ;
 
 RULE UNOP : expr := unop and expr
@@ -95,35 +98,35 @@ END ;
 RULE PLUS : binop
 COMPUTE
   $[0].bin_oper := (+) ;
-  $[0].rhs_must_be_nonzero := false ;
+  $[0].rhs_must_be_nonzero := False ;
   $[0].operator_text := "+" ;
 END ;
 
 RULE MINUS : binop
 COMPUTE
   $[0].bin_oper := (-) ;
-  $[0].rhs_must_be_nonzero := false ;
+  $[0].rhs_must_be_nonzero := False ;
   $[0].operator_text := "-" ;
 END ;
 
 RULE STAR : binop
 COMPUTE
   $[0].bin_oper := (fun a b -> a*b) ;
-  $[0].rhs_must_be_nonzero := false ;
+  $[0].rhs_must_be_nonzero := False ;
   $[0].operator_text := "*" ;
 END ;
 
 RULE SLASH : binop
 COMPUTE
   $[0].bin_oper := (fun a b -> if b = 0 then 0 else a / b) ;
-  $[0].rhs_must_be_nonzero := true ;
+  $[0].rhs_must_be_nonzero := True ;
   $[0].operator_text := "/" ;
 END ;
 
 RULE PERCENT : binop
 COMPUTE
   $[0].bin_oper := (mod) ;
-  $[0].rhs_must_be_nonzero := true ;
+  $[0].rhs_must_be_nonzero := True ;
   $[0].operator_text := "%" ;
 END ;
 
@@ -146,5 +149,38 @@ COMPUTE
   CHAINSTART $[1].rpn := [] ;
   $[0].rpn_notation := List.rev $[1].rpn ;
   $[0].freevars := CONCAT (ref_expr.freevars, let_expr.freevars) IN $[1] ;
+  Std.push global_ref "before" ;
+  (let _ = $[0].value_ in Std.push global_ref "after") ;
 END ;
 END ;
+
+open OUnit2 ;
+
+value test_records ctxt =
+  let printer = [%show: (list string * list string * int)] in do {
+    let e = AT.(make_prog (make_prog__PROG
+                            (make_block1 (BLOCK1
+                            (make_block2 (BLOCK2
+                             (make_expr (make_expr__BINOP
+                                           (make_binop PLUS)
+                                           (make_expr (REF (make_ref_expr (REF_EXPR "x"))))
+                                           (make_expr (REF (make_ref_expr (REF_EXPR "y")))))))))))) in
+    assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) (AG.evaluate e)
+}
+;
+
+value suite = "test3" >::: [
+    "test_records"           >:: test_records
+  ]
+;
+
+if not Sys.interactive.val then
+  run_test_tt_main suite
+else ()
+;
+(*
+;;; Local Variables: ***
+;;; mode:tuareg ***
+;;; End: ***
+
+*)

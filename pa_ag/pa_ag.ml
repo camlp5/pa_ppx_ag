@@ -21,7 +21,8 @@ value make_attribute_types loc el = do {
       ])
     |> List.map (fun (aname, aty, is_chain) ->
         let ty = if is_chain then <:ctyp< $aty$ [@chain] >> else aty in
-        (<:patt< $lid:aname$ >>, <:expr< [%typ: $type:ty$] >>)) in
+        (<:patt< $lid:aname$ >>, <:expr< [%typ: $type:ty$] >>))
+    |> List.stable_sort Stdlib.compare in
   assert (Std.distinct (List.map fst attribute_types)) ;
   if [] = attribute_types then <:expr< () >>
   else <:expr< { $list:attribute_types$ } >>
@@ -68,7 +69,7 @@ value equation_to_node_attributes rule e = match rule with [
   RULE _ prodna tyna tyl eqns ->
   let acc = ref [] in
   let collect_expr e = match e with [
-    <:expr:< [%nterm $int:n$;] . $lid:attrna$ >> -> do {
+    <:expr:< [%nterm $int:n$;] . $lid:attrna$ >>  | <:expr:< [%child $int:n$;] . $lid:attrna$ >> -> do {
       let n = int_of_string n in
       if 0 = n then Std.push acc (tyna, attrna)
       else if n > List.length tyl then
@@ -132,9 +133,16 @@ value rule_to_prod_attributes rule = match rule with [
 ]
 ;
 
+value cleanup_equation eqn = match eqn with [
+  <:expr< $_$ . val := $_$ >> | <:expr< $_$ . $lid:_$ := $_$ >> -> eqn
+| <:expr:< $e1$ := $e2$ >> -> <:expr< $e1$ . val := $e2$ >>
+| _ -> eqn
+]
+;
+
 value rule_to_equations rule = match rule with [
   RULE _ prodna tyna tyl eqns ->
-  ((tyna, prodna), eqns)
+  ((tyna, prodna), List.map cleanup_equation eqns)
 | _ -> assert False
 ]
 ;

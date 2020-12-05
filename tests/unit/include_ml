@@ -131,27 +131,19 @@ print_string "================ START ================\n";; flush stdout ;;
 
 #directory "../../pa_ag";;
 
-#require "pa_ppx_ag" ;;
-#require "pa_ppx_ag.parser" ;;
+#require "pa_ppx.deriving_plugins.params" ;;
+#require "pa_ppx.params_runtime" ;;
+#require "pa_ppx_ag.parser_debug" ;;
 #print_depth 10000 ;;
 #print_length 10000 ;;
 
-#require "pa_ppx.runtime_fat";;
-#require "pa_ppx.params_runtime";;
-Pa_ppx_base.Pp_MLast.Ploc.pp_loc_verbose := true;;
+#trace Pa_ag.equation_to_node_attributes ;;
+#trace Pa_ag.rule_to_node_attributes ;;
 
-#load "pa_ag_test.cmo";;
-open OUnit2 ;;
-open Pa_ppx_testutils ;;
-open Papr_util ;;
-open Pa_ag ;;
-open Pa_ag_test ;;
+"../simple_expr/test3.ag" |> Fpath.v |> Bos.OS.File.read
+  |> Rresult.R.get_ok |> PAPR.Implem.pa1
+  |> PAPR.Implem.pr |> print_string ;;
 
-(*
-let a = {| [%"nterm"] |} |> Stream.of_string |> Grammar.Entry.parse Pcaml.expr ;;
-let b = {|   [%"nterm"] |} |> Stream.of_string |> Grammar.Entry.parse Pcaml.expr ;;
-Reloc.eq_expr a b ;;
-*)
 
 (*
 ;;; Local Variables: ***

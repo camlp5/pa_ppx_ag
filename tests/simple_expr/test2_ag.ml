@@ -31,7 +31,7 @@ and prog = PROG of block1
     ; rhs_must_be_nonzero = [%typ: bool]
     ; un_oper = [%typ: int -> int]
     ; value_ = [%typ: int]
-    ; rpn = [%typ: (string list [@chain])]
+    ; rpn = [%typ: ((string list) [@chain])]
     ; rpn_notation = [%typ: string list]
     ; operator_text = [%typ: string]
     ; freevars = [%typ: string list]
@@ -56,7 +56,7 @@ and prog = PROG of block1
       ; [%nterm let_expr].env := ([%prim 1], [%nterm expr.(1)].value_) :: [%remote (block1.env, let_expr.env)]
       ; [%nterm 0].freevars :=
           Std.union
-            [%constituents { nodes = [ [%nterm 2] ]; attributes = [ref_expr.freevars; let_expr.freevars]}]
+            [%constituents { nodes = [%nterm 2]; attributes = [ref_expr.freevars; let_expr.freevars]}]
             (Std.except [%prim 1] [%constituents { nodes = [ [%nterm 3] ]; attributes = [ref_expr.freevars; let_expr.freevars]}])
       )
     ; expr__INT = (
