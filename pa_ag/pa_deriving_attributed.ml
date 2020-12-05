@@ -162,10 +162,10 @@ value generate_attributed_constructors rc (name, td) =
                 Pa_ppx_ag_runtime.Attributes.attributed ~{attributes = $attribute_initializer$} x >> in
   let prod_cons_list = match td.tdDef with [
     <:ctyp:< $_$ == [ $list:branches$ ] >> | <:ctyp:< [ $list:branches$ ] >> ->
-      branches |> List.map (fun [
+      branches |> List.concat_map (fun [
         <:constructor:< $uid:ci$ of $list:tl$ $algattrs:_$ >> ->
           let prodname = name^"__"^ci in
-          let consname = constructor_name rc prodname in
+          let prod_consname = constructor_name rc prodname in
           let argvars = List.mapi (fun i _ -> Printf.sprintf "v_%d" i) tl in
           let consbody = Expr.applist <:expr< $uid:ci$ >> (List.map (to_expr loc) argvars) in
           let consbody =
@@ -174,10 +174,16 @@ value generate_attributed_constructors rc (name, td) =
               let attribute_initializer = make_attribute_initializer loc prodname attributes in
               <:expr< $consbody$ $attribute_initializer$ >>
             else consbody in
-          let consexp = List.fold_right
-              (fun v rhs -> <:expr< fun $lid:v$ -> $rhs$ >>)
-              argvars consbody in
-          <:str_item< value $lid:consname$ = $consexp$ >>
+          [let consexp = List.fold_right
+               (fun v rhs -> <:expr< fun $lid:v$ -> $rhs$ >>)
+               argvars consbody in
+           <:str_item< value $lid:prod_consname^"_0"$ = $consexp$ >>
+         ; let consexp = List.fold_right
+               (fun v rhs -> <:expr< fun $lid:v$ -> $rhs$ >>)
+               argvars <:expr< $lid:consname$ $consbody$ >> in
+           let consexp = if [] = argvars then <:expr< fun () -> $consexp$ >> else consexp in
+           <:str_item< value $lid:prod_consname$ = $consexp$ >>
+          ]
       ])
   ] in
   <:str_item< declare $list:[top_cons]@prod_cons_list$ end >>

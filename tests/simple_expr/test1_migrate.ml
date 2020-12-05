@@ -445,7 +445,7 @@ module _ = Test1_variants
         ; dsttype = [%typ: Test1_ag.REC.AT.expr_node]
         ; custom_branches_code = (function
               BINOP (bop, x, y) ->
-              Test1_ag.REC.AT.make_expr__BINOP
+              Test1_ag.REC.AT.make_expr__BINOP_0
                 (__dt__.migrate_binop __dt__ bop)
                 (__dt__.migrate_expr __dt__ x)
                 (__dt__.migrate_expr __dt__ y)

@@ -205,7 +205,9 @@ value test_ag2 _ =
 value test_ag3 _ =
   let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
-  <:str_item< type binop = [ MINUS | PERCENT | PLUS | SLASH | STAR ]
+  <:str_item< module REC = struct
+value global_ref = ref [] ;
+type binop = [ MINUS | PERCENT | PLUS | SLASH | STAR ]
 and block1 =
   [ BLOCK1 of block2 ]
 and block2 =
@@ -349,7 +351,8 @@ and unop = [ UMINUS | UPLUS ][@@deriving ag {
       ; [%nterm 0;].operator_text := "unary+"
               }
     }
-  };] >>
+  };] ;
+end >>
     ("../simple_expr/test3.ag" |> file_contents |> pa_str_item)
 ;
 

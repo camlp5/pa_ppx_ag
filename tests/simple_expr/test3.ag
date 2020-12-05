@@ -1,4 +1,6 @@
 
+module REC = struct
+
 value global_ref = ref [] ;
 
 ATTRIBUTE_GRAMMAR
@@ -154,23 +156,70 @@ COMPUTE
 END ;
 END ;
 
+end ;
+
+open REC ;
+open AT ;
+value gram = Grammar.gcreate (Plexer.gmake ());
+value expr = Grammar.Entry.create gram "expr";
+value prog = Grammar.Entry.create gram "prog";
+value prog_eoi = Grammar.Entry.create gram "prog_eoi";
+
+EXTEND
+  GLOBAL: expr prog prog_eoi;
+
+  expr: [
+    "top" [ e1 = expr ; ";" ; e2 = expr -> make_expr__SEQ e1 e2 ]
+  | [ e1 = expr ; "+" ; e2 = expr -> make_expr__BINOP (make_binop__PLUS ()) e1 e2
+    | e1 = expr ; "-" ; e2 = expr -> make_expr__BINOP (make_binop__MINUS()) e1 e2
+    ]
+  | [ e1 = expr ; "*" ; e2 = expr -> make_expr__BINOP (make_binop__STAR()) e1 e2
+    | e1 = expr ; "/" ; e2 = expr -> make_expr__BINOP (make_binop__SLASH()) e1 e2
+    | e1 = expr ; "%" ; e2 = expr -> make_expr__BINOP (make_binop__PERCENT()) e1 e2
+    ]
+  | [ "+" ; e = expr -> make_expr__UNOP (make_unop__UPLUS()) e
+    | "-" ; e = expr -> make_expr__UNOP (make_unop__UMINUS()) e
+    ]
+  | [ n = INT -> make_expr__INT (int_of_string n)
+    | id = LIDENT -> make_expr__REF (make_ref_expr__REF_EXPR id)
+    | "(" ; e = expr ; ")" -> e
+    | "let" ; id = LIDENT ; "=" ; e1 = expr LEVEL "top" ; "in" ; e2 = expr LEVEL "top" -> make_expr__LET (make_let_expr__LET_BINDING id e1 e2)
+    ]
+  ]
+  ;
+  prog: [ [ x = expr; EOI -> make_prog__PROG (make_block1__BLOCK1 (make_block2__BLOCK2 x)) ] ];
+
+  prog_eoi: [ [ x = prog; EOI -> x ] ];
+
+END;
+
+value pa_prog s =
+  s
+  |> Stream.of_string
+  |> Grammar.Entry.parse prog_eoi
+;
+
 open OUnit2 ;
 
 value test_records ctxt =
   let printer = [%show: (list string * list string * int)] in do {
-    let e = AT.(make_prog (make_prog__PROG
-                            (make_block1 (BLOCK1
-                            (make_block2 (BLOCK2
-                             (make_expr (make_expr__BINOP
-                                           (make_binop PLUS)
-                                           (make_expr (REF (make_ref_expr (REF_EXPR "x"))))
-                                           (make_expr (REF (make_ref_expr (REF_EXPR "y")))))))))))) in
-    assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) (AG.evaluate e)
+  assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) ({foo| x + y |foo} |> pa_prog |> AG.evaluate)
+; assert_equal ~{printer} (["w"], ["1"; "w"; "+"], 5) ({foo| 1 + w |foo} |> pa_prog |> AG.evaluate)
+; assert_equal ~{printer} ([], ["6"; "bind z"; "1"; "z"; "+"], 7) ({foo| let z = 6 in 1 + z |foo} |> pa_prog |> AG.evaluate)
 }
+;
+
+value test_side_effect ctxt =
+  let printer = [%show: (list string * list string * int)] in do {
+    global_ref.val := [] ;
+    assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) ({foo| x + y |foo} |> pa_prog |> AG.evaluate) ;
+    assert_equal ~{printer=[%show: list string]} ["after"; "before"] global_ref.val
+  }
 ;
 
 value suite = "test3" >::: [
     "test_records"           >:: test_records
+  ; "test_side_effect"           >:: test_side_effect
   ]
 ;
 

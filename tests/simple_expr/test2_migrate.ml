@@ -168,7 +168,7 @@ and block2_node = [%import: Test2_ag.block2]
         ; dsttype = [%typ: Test2_ag.AT.expr_node]
         ; custom_branches_code = (function
               BINOP (bop, x, y) ->
-              Test2_ag.AT.make_expr__BINOP
+              Test2_ag.AT.make_expr__BINOP_0
                 (__dt__.migrate_binop __dt__ bop)
                 (__dt__.migrate_expr __dt__ x)
                 (__dt__.migrate_expr __dt__ y)
@@ -208,7 +208,7 @@ and block2_node = [%import: Test2_ag.block2]
         ; dsttype = [%typ: Test2_ag.AT.prog_node]
         ; custom_branches_code = (function
               PROG x ->
-              Test2_ag.AT.make_prog__PROG
+              Test2_ag.AT.make_prog__PROG_0
                 (__dt__.migrate_block1 __dt__ x)
           )
         }
