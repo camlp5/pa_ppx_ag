@@ -25,6 +25,7 @@ TESTS= \
 	test2.byte \
 	kastens116.byte \
 	test3.byte \
+	vogt_thesis_page7.byte \
 
 ML=\
 	test1_ast.ml test1_variants.ml test1_ag.ml test1_migrate.ml test1_pa.ml test1.ml \
@@ -58,22 +59,6 @@ test2.opt: test2_ag.cmx test2_migrate.cmx test2_pa.cmx test2.cmx
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES),camlp5.pa_o.link \
 	-linkpkg -linkall -syntax camlp5o $^ -o $@
 
-kastens116.byte: kastens116.cmo
-	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) -package $(PACKAGES) \
-	-linkpkg -linkall -syntax camlp5r $^ -o $@
-
-kastens116.opt: kastens116.cmx
-	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES) \
-	-linkpkg -linkall -syntax camlp5r $^ -o $@
-
-test3.byte: test3.cmo
-	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) -package $(PACKAGES) \
-	-linkpkg -linkall -syntax camlp5r $^ -o $@
-
-test3.opt: test3.cmx
-	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES) \
-	-linkpkg -linkall -syntax camlp5r $^ -o $@
-
 clean::
 	rm -f  *ppo.*
 
@@ -105,21 +90,32 @@ test2_pa.cmo: test2_pa.ml
 test2_pa.cmx: test2_pa.ml
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf -syntax camlp5r -c $<
 
-kastens116.cmo: kastens116.ag
-	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5r -ppopt -impl $< > $*_ppo.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c $*_ppo.ml
+vogt_thesis_page7.byte: vogt_thesis_page7.ag
+	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5r -ppopt -impl $< > vogt_thesis_page7_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c vogt_thesis_page7_ppo.ml
 	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c -ppopt -impl -impl $<
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
 
-kastens116.cmx: kastens116.ag
-	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c -ppopt -impl -impl $<
+vogt_thesis_page7.opt: vogt_thesis_page7.ag
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
 
-test3.cmo: test3.ag
-	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5r -ppopt -impl $< > $*_ppo.ml
-	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c $*_ppo.ml
+kastens116.byte: kastens116.ag
+	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5r -ppopt -impl $< > kastens116_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c kastens116_ppo.ml
 	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c -ppopt -impl -impl $<
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
 
-test3.cmx: test3.ag
-	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c -ppopt -impl -impl $<
+kastens116.opt: kastens116.ag
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
+
+test3.byte: test3.ag
+	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5r -ppopt -impl $< > test3_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c test3_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c -ppopt -impl -impl $<
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
+
+test3.opt: test3.ag
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
 
 .ml.cmo:
 	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) $(IMPORT_OCAMLCFLAGS) -ppopt -sep -ppopt ";;\n" -package $(PACKAGES),pa_ppx.import,camlp5.pr_o -syntax $(SYNTAX) $< > $*_ppo.ml

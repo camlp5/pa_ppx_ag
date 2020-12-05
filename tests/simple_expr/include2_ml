@@ -7,19 +7,19 @@
 #require "pcre";;
 #require "bos";;
 #require "str";;
-
+(*
 #require "camlp5.pa_o";;
 Pcaml.inter_phrases := Some ";;\n";;
-(*
+*)
 #require "camlp5.pa_r";;
 Pcaml.inter_phrases := Some ";\n";;
-*)
-
-#require "camlp5.pr_o";;
 
 (*
-#require "camlp5.pr_r";;
+#require "camlp5.pr_o";;
 *)
+
+#require "camlp5.pr_r";;
+
 
 (*
 #require "camlp5.quotations";;
@@ -128,6 +128,9 @@ let pp_patt ty = Fmt.(pf stdout "#<patt< %a >>" Pa_ppx_base.Pp_MLast.pp_patt ty)
 #install_printer pp_expr ;;
 #install_printer pp_patt ;;
 
+#print_length 10000 ;;
+#print_depth 10000 ;;
+
 print_string "================ START ================\n";; flush stdout ;;
 
 #require "pa_ppx_unique.runtime";;
@@ -135,31 +138,17 @@ print_string "================ START ================\n";; flush stdout ;;
 #require "hashcons";;
 #require "ocamlgraph";;
 
-#load "test2_ag.cmo";;
-#load "test2_migrate.cmo";;
-#load "test2_pa.cmo";;
+(*
+#load "kastens116.cmo";;
+Kastens116.("P R" |> pa_z |> AG.evaluate);;
+*)
 
-#print_length 10000 ;;
-#print_depth 10000 ;;
+(*
+#load "test3.cmo";;
+Test3.("1+w" |> pa_prog |> REC.AG.evaluate);;
+*)
 
-let pp_expr e =
-  let n = e.Pa_ppx_ag_runtime.Attributes.id in
-  let e = Test2_migrate.FromAttributed.expr e in
-  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test2_pa.Pr.expr Pprintf.empty_pc e))
-;;
-#install_printer pp_expr ;;
-
-let pp_prog e =
-  let n = e.Pa_ppx_ag_runtime.Attributes.id in
-  let e = Test2_migrate.FromAttributed.prog e in
-  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test2_pa.Pr.prog Pprintf.empty_pc e))
-;;
-#install_printer pp_prog ;;
-
-let prog0 = {| let z = 6 in 1 + z |} |> Stream.of_string |> Grammar.Entry.parse Test2_pa.prog_attributed_eoi ;;
-
-#trace compute_attribute ;;
-Test2_ag.AG.evaluate prog0 ;;
+#load "vogt_thesis_page7.cmo";;
 
 (*
 ;;; Local Variables: ***
