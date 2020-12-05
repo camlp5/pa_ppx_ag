@@ -1,0 +1,122 @@
+
+
+
+ATTRIBUTE_GRAMMAR
+  DEBUG True ;
+  MODULE AG ;
+  ATTRIBUTION_MODEL Attributed {
+    attributed_module_name = AT
+  } ;
+
+  AXIOM root ;
+
+ATTRIBUTES
+  pp : string ;
+  value_ : int ;
+END ;
+
+RULE ROOT : root := expr
+COMPUTE
+  $[0].pp := $[1].pp ;
+  $[0].value_ := $[1].value_ ;
+END
+;
+
+RULE ADD : expr := expr and expr
+COMPUTE
+  $[0].pp := "("^ $[1].pp ^" + "^ $[2].pp ^")" ;
+  $[0].value_ := $[1].value_ + $[2].value_ ;
+END
+;
+
+RULE SUB : expr := expr and expr
+COMPUTE
+  $[0].pp := "("^ $[1].pp ^" - "^ $[2].pp ^")" ;
+  $[0].value_ := $[1].value_ - $[2].value_ ;
+END
+;
+
+RULE MUL : expr := expr and expr
+COMPUTE
+  $[0].pp := "("^ $[1].pp ^" * "^ $[2].pp ^")" ;
+  $[0].value_ := $[1].value_ * $[2].value_ ;
+END
+;
+
+RULE DIV : expr := expr and expr
+COMPUTE
+  $[0].pp := "("^ $[1].pp ^" / "^ $[2].pp ^")" ;
+  $[0].value_ := $[1].value_ / $[2].value_ ;
+END
+;
+
+RULE INT : expr := int
+COMPUTE
+  $[0].pp := string_of_int $[1] ;
+  $[0].value_ := $[1] ;
+END
+;
+
+END ;
+
+value gram = Grammar.gcreate (Plexer.gmake ());
+value root_eoi = Grammar.Entry.create gram "root_eoi";
+open AT ;
+
+EXTEND
+  GLOBAL: root_eoi ;
+
+  root: [ [
+    e = expr -> make_root__ROOT e
+  ] ] ;
+
+  expr: [
+    "+" [
+      e1 = expr ; "+" ; e2 = expr -> make_expr__ADD e1 e2
+    | e1 = expr ; "-" ; e2 = expr -> make_expr__SUB e1 e2
+    ]
+  | "*" [
+      e1 = expr ; "*" ; e2 = expr -> make_expr__MUL e1 e2
+    | e1 = expr ; "/" ; e2 = expr -> make_expr__DIV e1 e2
+    ]
+  | "simple" [
+      n = INT -> make_expr__INT (int_of_string n)
+    | "(" ; e = expr ; ")" -> e
+    ]
+  ] ;
+
+  root_eoi: [ [ v = root; EOI -> v ] ];
+
+END;
+
+value pa_root s =
+  s
+  |> Stream.of_string
+  |> Grammar.Entry.parse root_eoi
+;
+
+open OUnit2 ;
+
+value test_simple ctxt = do {
+  assert_equal ~{printer=[%show: (string * int)]}
+    ("(1 + (2 * 3))",7)
+   ({foo| 1 + 2 * 3 |foo} |> pa_root |> AG.evaluate)
+}
+;
+
+value suite = "vogt_thesis_page7" >::: [
+    "test_simple"           >:: test_simple
+]
+;
+
+if not Sys.interactive.val then
+  run_test_tt_main suite
+else ()
+;
+
+(*
+;;; Local Variables: ***
+;;; mode:tuareg ***
+;;; End: ***
+
+*)
