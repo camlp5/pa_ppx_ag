@@ -54,6 +54,10 @@ END ; |foo})
 value test_ag_elements4 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (Pa_ag.RULE Ploc.dummy "INT" (None, "expr") [(None, <:ctyp< int >>)]
+       [ <:expr< [%node 0;].value_ := [%node 1;] >>
+       ; <:expr< [%node 0;].rpn := [(string_of_int [%node 1;]) :: [%node 0;].rpn] >> ]
+    )
     (pa_ag_element {foo|
 RULE INT : expr := int
 COMPUTE
@@ -61,31 +65,34 @@ COMPUTE
   $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
 END ;
  |foo})
-    (Pa_ag.RULE Ploc.dummy "INT" (None, "expr") [(None, <:ctyp< int >>)]
-       [ <:expr< [%nterm 0;].value_ := [%child 1;] >>
-       ; <:expr< [%nterm 0;].rpn := [(string_of_int [%child 1;]) :: [%nterm 0;].rpn] >> ]
-    )
 ;
 
 value test_ag_elements4' _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (Pa_ag.RULE Ploc.dummy "INT" (Some "l", "expr") [(Some "r", <:ctyp< int >>)]
+       [ <:expr< [%node l;].value_ := [%node r;] >>
+       ; <:expr< [%node l;].rpn := [(string_of_int [%node r;]) :: [%node l;].rpn] >> ]
+    )
     (pa_ag_element {foo|
 RULE INT : l:expr := r:int
 COMPUTE
-  $[0].value_ := $[1] ;
-  $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
+  $[l].value_ := $[r] ;
+  $[l].rpn := [(string_of_int $[r]) :: $[l].rpn] ;
 END ;
  |foo})
-    (Pa_ag.RULE Ploc.dummy "INT" (Some "l", "expr") [(Some "r", <:ctyp< int >>)]
-       [ <:expr< [%nterm 0;].value_ := [%child 1;] >>
-       ; <:expr< [%nterm 0;].rpn := [(string_of_int [%child 1;]) :: [%nterm 0;].rpn] >> ]
-    )
 ;
 
 value test_ag_elements5 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (Pa_ag.RULE Ploc.dummy "PROG" (None, "prog") [(None, <:ctyp< block1 >>)]
+       [
+         <:expr< [%node 0;].value_ := [%node 1;].value_ >>
+           ; <:expr< (([%chainstart 1;].rpn)) := [] >>
+           ; <:expr< [%node 0;].rpn_notation := List.rev [%node 1;].rpn >>
+       ]
+    )
     (pa_ag_element {foo|
 RULE PROG : prog := block1
 COMPUTE
@@ -94,22 +101,15 @@ COMPUTE
   $[0].rpn_notation := List.rev $[1].rpn ;
 END ;
  |foo})
-    (Pa_ag.RULE Ploc.dummy "PROG" (None, "prog") [(None, <:ctyp< block1 >>)]
-       [
-         <:expr< [%nterm 0;].value_ := [%child 1;].value_ >>
-           ; <:expr< (([%chainstart 1;].rpn)) := [] >>
-           ; <:expr< [%nterm 0;].rpn_notation := List.rev [%child 1;].rpn >>
-       ]
-    )
 ;
 
 value test_ag_elements6 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
-    (rule_replace_child (pa_ag_element {foo|
+    (rule_replace_node (pa_ag_element {foo|
 RULE LET_BINDING : l:let_expr := s:string and e1:expr and e2:expr
 COMPUTE
-  $[0].value_ := $[3].value_ ;
+  $[l].value_ := $[3].value_ ;
   $[3].rpn := [(Printf.sprintf "bind %s" $[1]) :: $[2].rpn] ;
   $[0].env := [($[1], $[2].value_) :: INCLUDING ( block1.env, let_expr.env )] ;
   $[0].freevars :=
@@ -134,7 +134,7 @@ END ;
 value test_ag_elements7 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=[%eq: list (string * string)]} ~{printer=[%show: list (string * string)]}
-    (rule_to_node_attributes (rule_replace_child (pa_ag_element {foo|
+    (rule_to_node_attributes (rule_replace_node (pa_ag_element {foo|
 RULE LET_BINDING : let_expr := string and expr and expr
 COMPUTE
   $[0].value_ := $[3].value_ ;
@@ -149,7 +149,7 @@ END ;
     [("expr", "rpn"); ("expr", "value_"); ("let_expr", "env");
      ("let_expr", "freevars"); ("let_expr", "value_")]
 ; assert_equal ~{cmp=[%eq: list ((string * string) * string)]} ~{printer=[%show: list ((string * string) * string)]}
-    (rule_to_prod_attributes (rule_replace_child (pa_ag_element {foo|
+    (rule_to_prod_attributes (rule_replace_node (pa_ag_element {foo|
 RULE BINOP : expr := binop and expr and expr
 COMPUTE
   $[0].value_ := $result ;
@@ -167,15 +167,15 @@ END ;
 value test_ag_elements8 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (Pa_ag.RULE Ploc.dummy "R" (None, "x") []
+       [ <:expr< [%node 0;].b := [%node 0;].a >> ]
+    )
     (pa_ag_element {foo|
 RULE R : x
 COMPUTE
   $[0].b := $[0].a ;
 END ;
  |foo})
-    (Pa_ag.RULE Ploc.dummy "R" (None, "x") []
-       [ <:expr< [%nterm 0;].b := [%nterm 0;].a >> ]
-    )
 ;
 
 value test_ag1 _ =

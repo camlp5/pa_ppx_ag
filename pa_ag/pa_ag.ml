@@ -4,6 +4,17 @@ open Pa_ppx_utils ;
 open Pa_ppx_base ;
 open Ag_types ;
 
+value rec find_mapi i f = fun [
+    [] -> None
+  | [x :: l] ->
+     match f i x with [
+         Some _ as result -> result
+       | None -> find_mapi (i+1) f l
+       ]
+  ]
+;
+value find_mapi f l = find_mapi 0 f l ;
+
 value fake_eq_loc (l1 : MLast.loc) l2 = True ;
 
 type ag_element_t = [
@@ -34,16 +45,34 @@ value make_attribute_types loc el = do {
 }
 ;
 
-value child_to_ar rule =
-  let types = match rule with [ RULE _ _ _ l _  -> l | _ -> assert False ] in
+value node_to_ar rule =
+  let ((lhsna_opt, lhsty), types) = match rule with [ RULE _ _ tyna l _  -> (tyna, l) | _ -> assert False ] in
   fun [
-    <:expr:< [%child $int:n$;] >> ->
+    <:expr:< [%node 0;] >> ->
+        <:expr< [%nterm 0;] >>
+
+  | <:expr:< [%node $lid:id$;] >> when Some id = lhsna_opt ->
+        <:expr< [%nterm 0;] >>
+
+  | <:expr:< [%node $int:n$;] >> ->
       let i = int_of_string n in
       if is_builtin_ctyp (snd (List.nth types (i-1))) then
         <:expr< [%prim $int:n$;] >>
       else
         <:expr< [%nterm $int:n$;] >>
-    | _ -> failwith "caught"
+
+  | <:expr:< [%node $lid:id$;] >> ->
+      match types |> find_mapi (fun i -> fun [
+          (Some id', ty) when id = id' -> Some (i+1, ty)
+        | _ -> None
+        ]) with [
+        Some (n, ty) ->
+          if is_builtin_ctyp ty then
+            <:expr< [%prim $int:string_of_int n$;] >>
+          else
+            <:expr< [%nterm $int:string_of_int n$;] >>
+      ]
+  | _ -> failwith "caught"
   ]
 ;
 
@@ -59,10 +88,10 @@ value rewrite_expr f e =
 ;
 
 value rewrite_eqn rule e =
-  rewrite_expr (child_to_ar rule) e
+  rewrite_expr (node_to_ar rule) e
 ;
 
-value rule_replace_child age = match age with [
+value rule_replace_node age = match age with [
   RULE loc prodna tyna tyl eqns ->
   let new_eqns = List.map (rewrite_eqn age) eqns in
   RULE loc prodna tyna tyl new_eqns
@@ -74,7 +103,7 @@ value equation_to_node_attributes rule e = match rule with [
   RULE _ prodna tyna tyl eqns ->
   let acc = ref [] in
   let collect_expr e = match e with [
-    <:expr:< [%nterm $int:n$;] . $lid:attrna$ >>  | <:expr:< [%child $int:n$;] . $lid:attrna$ >> -> do {
+    <:expr:< [%nterm $int:n$;] . $lid:attrna$ >>  | <:expr:< [%node $int:n$;] . $lid:attrna$ >> -> do {
       let n = int_of_string n in
       if 0 = n then Std.push acc (snd tyna, attrna)
       else if n > List.length tyl then
@@ -222,7 +251,7 @@ value make_prod_attributes loc l =
 value make_attribution loc l =
   l
   |> List.filter (fun [ RULE _ _ _ _ _ -> True | _ -> False ])
-  |> List.map rule_replace_child
+  |> List.map rule_replace_node
   |> List.map rule_to_equations
   |> List.stable_sort Stdlib.compare
   |> List.map (fun ((tyna, prodna), l) ->
@@ -336,10 +365,8 @@ EXTEND
 
   expr: LEVEL "simple" [
     [
-      "$" ; "[" ; n = INT ; "]" ->
-      if 0 = int_of_string n then 
-        <:expr< [%nterm $int:n$;] >>
-      else <:expr< [%child $int:n$;] >>
+      "$" ; "[" ; n = INT ; "]" -> <:expr< [%node $int:n$;] >>
+    | "$" ; "[" ; id = LIDENT ; "]" -> <:expr< [%node $lid:id$;] >>
 
     | "$" ; id = LIDENT -> <:expr< [%local $lid:id$;] >>
     | "INCLUDING" ; e = arefs -> <:expr< [%remote $exp:e$ ;] >>
@@ -357,6 +384,8 @@ EXTEND
   expr: LEVEL ":=" [ [
     "CHAINSTART" ; "$" ; "[" ; n = INT ; "]" ; "." ; attrna = LIDENT; ":=" ; e2 = SELF ; dummy ->
     <:expr< [%chainstart $int:n$;] . $lid:attrna$ := $e2$ >>
+  | "CHAINSTART" ; "$" ; "[" ; id = LIDENT ; "]" ; "." ; attrna = LIDENT; ":=" ; e2 = SELF ; dummy ->
+    <:expr< [%chainstart $lid:id$;] . $lid:attrna$ := $e2$ >>
   ] ] ;
 
   arefs: [ [ (nt, a) = aref -> <:expr< $lid:nt$ . $lid:a$ >>
@@ -367,7 +396,10 @@ EXTEND
 
   aref: [ [ nt = LIDENT ; "." ; a = LIDENT -> (nt, a) ] ] ;
 
-  node: [ [ "$" ; "[" ; n = INT ; "]" -> <:expr< [%child $int:n$ ;] >> ] ] ; 
+  node: [ [
+      "$" ; "[" ; n = INT ; "]" -> <:expr< [%node $int:n$ ;] >>
+    | "$" ; "[" ; id = LIDENT ; "]" -> <:expr< [%node $lid:id$ ;] >>
+    ] ] ; 
   nodes: [ [ e = node -> e
            | "(" ; h = node ; "," ; l = LIST1 node SEP "," ; ")" ->
              <:expr< ( $list:[h::l]$ ) >>
