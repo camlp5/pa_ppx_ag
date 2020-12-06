@@ -67,6 +67,22 @@ END ;
     )
 ;
 
+value test_ag_elements4' _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (pa_ag_element {foo|
+RULE INT : l:expr := r:int
+COMPUTE
+  $[0].value_ := $[1] ;
+  $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
+END ;
+ |foo})
+    (Pa_ag.RULE Ploc.dummy "INT" (Some "l", "expr") [(Some "r", <:ctyp< int >>)]
+       [ <:expr< [%nterm 0;].value_ := [%child 1;] >>
+       ; <:expr< [%nterm 0;].rpn := [(string_of_int [%child 1;]) :: [%nterm 0;].rpn] >> ]
+    )
+;
+
 value test_ag_elements5 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
@@ -91,7 +107,7 @@ value test_ag_elements6 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (rule_replace_child (pa_ag_element {foo|
-RULE LET_BINDING : let_expr := string and expr and expr
+RULE LET_BINDING : l:let_expr := s:string and e1:expr and e2:expr
 COMPUTE
   $[0].value_ := $[3].value_ ;
   $[3].rpn := [(Printf.sprintf "bind %s" $[1]) :: $[2].rpn] ;
@@ -102,7 +118,7 @@ COMPUTE
       (Std.except $[1] (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[3])) ;
 END ;
  |foo}))
-    (Pa_ag.RULE Ploc.dummy "LET_BINDING" (None, "let_expr") [(None, <:ctyp< string >>); (None, <:ctyp< expr >>); (None, <:ctyp< expr >>)]
+    (Pa_ag.RULE Ploc.dummy "LET_BINDING" (Some "l", "let_expr") [(Some"s", <:ctyp< string >>); (Some"e1", <:ctyp< expr >>); (Some"e2", <:ctyp< expr >>)]
        [
          <:expr< [%nterm 0;].value_ := [%nterm 3;].value_ >>
        ; <:expr< [%nterm 3;].rpn := [(Printf.sprintf "bind %s" [%prim 1;]) :: [%nterm 2;].rpn] >>
@@ -387,6 +403,7 @@ value suite = "AG Syntax Test" >::: [
 ; "test_ag_elements2"           >:: test_ag_elements2
 ; "test_ag_elements3"           >:: test_ag_elements3
 ; "test_ag_elements4"           >:: test_ag_elements4
+; "test_ag_elements4'"           >:: test_ag_elements4'
 ; "test_ag_elements5"           >:: test_ag_elements5
 ; "test_ag_elements6"           >:: test_ag_elements6
 ; "test_ag_elements7"           >:: test_ag_elements7
