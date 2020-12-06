@@ -50,7 +50,7 @@ COMPUTE
   $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
 END ;
  |foo})
-    (Pa_ag.RULE Ploc.dummy "INT" "expr" [<:ctyp< int >>]
+    (Pa_ag.RULE Ploc.dummy "INT" (None, "expr") [(None, <:ctyp< int >>)]
        [ <:expr< [%nterm 0;].value_ := [%child 1;] >>
        ; <:expr< [%nterm 0;].rpn := [(string_of_int [%child 1;]) :: [%nterm 0;].rpn] >> ]
     )
@@ -63,7 +63,7 @@ COMPUTE
   $[0].rpn_notation := List.rev $[1].rpn ;
 END ;
  |foo})
-    (Pa_ag.RULE Ploc.dummy "PROG" "prog" [<:ctyp< block1 >>]
+    (Pa_ag.RULE Ploc.dummy "PROG" (None, "prog") [(None, <:ctyp< block1 >>)]
        [
          <:expr< [%nterm 0;].value_ := [%child 1;].value_ >>
            ; <:expr< (([%chainstart 1;].rpn)) := [] >>
@@ -83,7 +83,7 @@ COMPUTE
       (Std.except $[1] (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[3])) ;
 END ;
  |foo}))
-    (Pa_ag.RULE Ploc.dummy "LET_BINDING" "let_expr" [<:ctyp< string >>; <:ctyp< expr >>; <:ctyp< expr >>]
+    (Pa_ag.RULE Ploc.dummy "LET_BINDING" (None, "let_expr") [(None, <:ctyp< string >>); (None, <:ctyp< expr >>); (None, <:ctyp< expr >>)]
        [
          <:expr< [%nterm 0;].value_ := [%nterm 3;].value_ >>
        ; <:expr< [%nterm 3;].rpn := [(Printf.sprintf "bind %s" [%prim 1;]) :: [%nterm 2;].rpn] >>
@@ -130,7 +130,7 @@ COMPUTE
   $[0].b := $[0].a ;
 END ;
  |foo})
-    (Pa_ag.RULE Ploc.dummy "R" "x" []
+    (Pa_ag.RULE Ploc.dummy "R" (None, "x") []
        [ <:expr< [%nterm 0;].b := [%nterm 0;].a >> ]
     )
 }

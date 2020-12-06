@@ -8,7 +8,12 @@ value fake_eq_loc (l1 : MLast.loc) l2 = True ;
 
 type ag_element_t = [
     ATTRIBUTES of (MLast.loc[@equal fake_eq_loc;][@printer Pp_MLast.Ploc.pp;]) and list (string * (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) * bool)
-| RULE of (MLast.loc[@equal fake_eq_loc;][@printer Pp_MLast.Ploc.pp;]) and string and string and list (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;]) and list (MLast.expr [@equal Reloc.eq_expr;][@printer Pp_MLast.pp_expr;])
+| RULE of
+    (MLast.loc[@equal fake_eq_loc;][@printer Pp_MLast.Ploc.pp;]) and
+  string and
+  (option string * string) and
+  list (option string * (MLast.ctyp [@equal Reloc.eq_ctyp;][@printer Pp_MLast.pp_ctyp;])) and
+  list (MLast.expr [@equal Reloc.eq_expr;][@printer Pp_MLast.pp_expr;])
 ] [@@deriving (show,eq);]
 ;
 
@@ -34,7 +39,7 @@ value child_to_ar rule =
   fun [
     <:expr:< [%child $int:n$;] >> ->
       let i = int_of_string n in
-      if is_builtin_ctyp (List.nth types (i-1)) then
+      if is_builtin_ctyp (snd (List.nth types (i-1))) then
         <:expr< [%prim $int:n$;] >>
       else
         <:expr< [%nterm $int:n$;] >>
@@ -71,11 +76,11 @@ value equation_to_node_attributes rule e = match rule with [
   let collect_expr e = match e with [
     <:expr:< [%nterm $int:n$;] . $lid:attrna$ >>  | <:expr:< [%child $int:n$;] . $lid:attrna$ >> -> do {
       let n = int_of_string n in
-      if 0 = n then Std.push acc (tyna, attrna)
+      if 0 = n then Std.push acc (snd tyna, attrna)
       else if n > List.length tyl then
         Ploc.raise loc (Failure Fmt.(str "rule_to_node_attributes: node-number %d out-of-bounds" n))
       else
-        let tyid = match List.nth tyl (n-1) with [
+        let tyid = match snd (List.nth tyl (n-1)) with [
           <:ctyp< $lid:id$ >> -> id
         | ty ->
           Ploc.raise (MLast.loc_of_ctyp ty)
@@ -110,7 +115,7 @@ value equation_to_prod_attributes rule e = match rule with [
   let acc = ref [] in
   let collect_expr e = match e with [
     <:expr:< [%local $lid:attrna$;] >> -> do {
-      Std.push acc ((tyna,prodna), attrna) ;
+      Std.push acc ((snd tyna,prodna), attrna) ;
       e
     }
 
@@ -142,7 +147,7 @@ value cleanup_equation eqn = match eqn with [
 
 value rule_to_equations rule = match rule with [
   RULE _ prodna tyna tyl eqns ->
-  ((tyna, prodna), List.map cleanup_equation eqns)
+  ((snd tyna, prodna), List.map cleanup_equation eqns)
 | _ -> assert False
 ]
 ;
@@ -152,7 +157,7 @@ value make_typedecls loc rules =
   |> List.filter_map (fun [
     ATTRIBUTES _ _ -> None
   | RULE _ prodna tyna tyl _ ->
-    Some (tyna, (loc, prodna, tyl))
+    Some (snd tyna, (loc, prodna, List.map snd tyl))
   ])
   |> List.sort Stdlib.compare
   |> Std.nway_partition (fun (ty1, _) (ty2, _) -> ty1=ty2)
@@ -275,8 +280,19 @@ value make_ag_str_item loc debug modname amodel axiom l = do {
 value attribute_grammar_body = Grammar.Entry.create gram "attribute_grammar_body";
 value attribute_grammar_element = Grammar.Entry.create gram "attribute_grammar_element";
 
+value check_id_colon_f = (fun strm ->
+    match Stream.npeek 2 strm with
+      [ [("LIDENT", _); ("", ":")] -> ()
+      | _ -> raise Stream.Failure ])
+;
+
+value check_id_colon =
+  Grammar.Entry.of_parser gram "check_id_colon"
+    check_id_colon_f
+;
+
 EXTEND
-  GLOBAL: attribute_grammar_body attribute_grammar_element expr str_item ;
+  GLOBAL: check_id_colon attribute_grammar_body attribute_grammar_element expr str_item ;
 
   str_item: [ [
       "ATTRIBUTE_GRAMMAR" ;
@@ -293,6 +309,16 @@ EXTEND
       -> (debug, modname, amodel, axiom, l)
     ] ] ;
 
+  named_typename: [ [
+    id = LIDENT ; ":" ; ty = LIDENT -> (Some id, ty)
+  | id = LIDENT -> (None, id)
+  ] ] ;
+
+  named_type: [ [
+    check_id_colon ; id = LIDENT ; ":" ; ty = ctyp -> (Some id, ty)
+  | ty = ctyp -> (None, ty)
+  ] ] ;
+
   attribute_grammar_element: [ [
       "ATTRIBUTE" ; aname = LIDENT ; ":" ; ty = ctyp ; ";" ->
       ATTRIBUTES loc [(aname, ty, False)]
@@ -300,12 +326,12 @@ EXTEND
       ATTRIBUTES loc l
     | "CHAIN" ; aname = LIDENT ; ":" ; ty = ctyp ; ";" ->
       ATTRIBUTES loc [(aname, ty, True)]
-    | "RULE" ; cid = UIDENT ; ":" ; tyna = LIDENT ;
-      tl = [ ":=" ; tl = LIST0 ctyp SEP "and" -> tl | -> [] ];
+    | "RULE" ; cid = UIDENT ; ":" ; naty = named_typename ;
+      tl = [ ":=" ; tl = LIST0 named_type SEP "and" -> tl | -> [] ];
       "COMPUTE" ;
       comps = LIST1 [ e = expr LEVEL ":=" ; ";" -> e] ;
       "END" ; ";" ->
-      RULE loc cid tyna tl comps
+      RULE loc cid naty tl comps
     ] ] ;
 
   expr: LEVEL "simple" [
