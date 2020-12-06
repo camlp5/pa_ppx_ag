@@ -1,6 +1,4 @@
 
-
-
 ATTRIBUTE_GRAMMAR
   DEBUG True ;
   MODULE AG ;
@@ -15,45 +13,45 @@ ATTRIBUTES
   value_ : int ;
 END ;
 
-RULE ROOT : root := expr
+RULE ROOT : r:root := e:expr
 COMPUTE
-  $[0].pp := $[1].pp ;
-  $[0].value_ := $[1].value_ ;
+  $[r].pp := $[e].pp ;
+  $[r].value_ := $[e].value_ ;
 END
 ;
 
-RULE ADD : expr := expr and expr
+RULE ADD : sum:expr := l:expr and r:expr
 COMPUTE
-  $[0].pp := "("^ $[1].pp ^" + "^ $[2].pp ^")" ;
-  $[0].value_ := $[1].value_ + $[2].value_ ;
+  $[sum].pp := "("^ $[l].pp ^" + "^ $[r].pp ^")" ;
+  $[sum].value_ := $[l].value_ + $[r].value_ ;
 END
 ;
 
-RULE SUB : expr := expr and expr
+RULE SUB : dff:expr := l:expr and r:expr
 COMPUTE
-  $[0].pp := "("^ $[1].pp ^" - "^ $[2].pp ^")" ;
-  $[0].value_ := $[1].value_ - $[2].value_ ;
+  $[dff].pp := "("^ $[l].pp ^" - "^ $[r].pp ^")" ;
+  $[dff].value_ := $[l].value_ - $[r].value_ ;
 END
 ;
 
-RULE MUL : expr := expr and expr
+RULE MUL : prd:expr := l:expr and r:expr
 COMPUTE
-  $[0].pp := "("^ $[1].pp ^" * "^ $[2].pp ^")" ;
-  $[0].value_ := $[1].value_ * $[2].value_ ;
+  $[prd].pp := "("^ $[l].pp ^" * "^ $[r].pp ^")" ;
+  $[prd].value_ := $[l].value_ * $[r].value_ ;
 END
 ;
 
-RULE DIV : expr := expr and expr
+RULE DIV : quo:expr := l:expr and r:expr
 COMPUTE
-  $[0].pp := "("^ $[1].pp ^" / "^ $[2].pp ^")" ;
-  $[0].value_ := $[1].value_ / $[2].value_ ;
+  $[quo].pp := "("^ $[l].pp ^" / "^ $[r].pp ^")" ;
+  $[quo].value_ := $[l].value_ / $[r].value_ ;
 END
 ;
 
-RULE INT : expr := int
+RULE INT : e:expr := i:int
 COMPUTE
-  $[0].pp := string_of_int $[1] ;
-  $[0].value_ := $[1] ;
+  $[e].pp := string_of_int $[i] ;
+  $[e].value_ := $[i] ;
 END
 ;
 

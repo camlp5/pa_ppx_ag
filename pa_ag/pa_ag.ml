@@ -248,10 +248,15 @@ value make_prod_attributes loc l =
       else <:expr< { $list:l$ } >>)
 ;
 
+value resolve_node_extension = fun [
+  RULE _ _ _ _ _  as r -> rule_replace_node r
+| e -> e
+]
+;
+
 value make_attribution loc l =
   l
   |> List.filter (fun [ RULE _ _ _ _ _ -> True | _ -> False ])
-  |> List.map rule_replace_node
   |> List.map rule_to_equations
   |> List.stable_sort Stdlib.compare
   |> List.map (fun ((tyna, prodna), l) ->
@@ -271,6 +276,7 @@ value make_deriving_attribute loc debug modname amodel axiom l =
     <:expr< Unique $_$ >> -> <:expr< Hashtables >>
   | <:expr< Attributed $_$ >> -> <:expr< Records >>
   ] in
+  let l = List.map resolve_node_extension l in
   let attribute_types = make_attribute_types loc l in
   let node_attributes = make_node_attributes loc l in
   let production_attributes = make_prod_attributes loc l in
