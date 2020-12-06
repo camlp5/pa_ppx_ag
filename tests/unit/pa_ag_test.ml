@@ -24,16 +24,23 @@ value pa_ag_body s =
 value pa_ag_element s =
   s |> Stream.of_string |> Grammar.Entry.parse attribute_grammar_element ;
 
-value test_ag_elements _ = do {
-  ()
-; let loc = Ploc.dummy in
+value test_ag_elements1 _ =
+  let loc = Ploc.dummy in
   assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (ATTRIBUTES Ploc.dummy [("x", <:ctyp< int >>, False)])
     (pa_ag_element "ATTRIBUTE x : int ;")
-; assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+;
+
+value test_ag_elements2 _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (ATTRIBUTES Ploc.dummy [("rpn", <:ctyp< list string >>, True)])
     (pa_ag_element "CHAIN rpn : list string ;")
-; assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+;
+
+value test_ag_elements3 _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (ATTRIBUTES Ploc.dummy [
         ("bin_oper", <:ctyp< int -> int -> int >>, False)
       ; ("env", <:ctyp< list (string * int) >>, False)
@@ -42,7 +49,11 @@ value test_ag_elements _ = do {
   bin_oper : int -> int -> int ;
   env : list (string * int) ;
 END ; |foo})
-; assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+;
+
+value test_ag_elements4 _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (pa_ag_element {foo|
 RULE INT : expr := int
 COMPUTE
@@ -54,7 +65,11 @@ END ;
        [ <:expr< [%nterm 0;].value_ := [%child 1;] >>
        ; <:expr< [%nterm 0;].rpn := [(string_of_int [%child 1;]) :: [%nterm 0;].rpn] >> ]
     )
-; assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+;
+
+value test_ag_elements5 _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (pa_ag_element {foo|
 RULE PROG : prog := block1
 COMPUTE
@@ -70,7 +85,11 @@ END ;
            ; <:expr< [%nterm 0;].rpn_notation := List.rev [%child 1;].rpn >>
        ]
     )
-; assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+;
+
+value test_ag_elements6 _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (rule_replace_child (pa_ag_element {foo|
 RULE LET_BINDING : let_expr := string and expr and expr
 COMPUTE
@@ -94,7 +113,11 @@ END ;
       (Std.except [%prim 1;] [%"constituents" {attributes = (ref_expr.freevars, let_expr.freevars); nodes = [%"nterm" 3;]};]) >>
        ]
     )
-; assert_equal ~{cmp=[%eq: list (string * string)]} ~{printer=[%show: list (string * string)]}
+;
+
+value test_ag_elements7 _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=[%eq: list (string * string)]} ~{printer=[%show: list (string * string)]}
     (rule_to_node_attributes (rule_replace_child (pa_ag_element {foo|
 RULE LET_BINDING : let_expr := string and expr and expr
 COMPUTE
@@ -123,7 +146,11 @@ COMPUTE
 END ;
  |foo})))
     [(("expr", "BINOP"), "result")]
-; assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+;
+
+value test_ag_elements8 _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (pa_ag_element {foo|
 RULE R : x
 COMPUTE
@@ -133,7 +160,6 @@ END ;
     (Pa_ag.RULE Ploc.dummy "R" (None, "x") []
        [ <:expr< [%nterm 0;].b := [%nterm 0;].a >> ]
     )
-}
 ;
 
 value test_ag1 _ =
@@ -357,7 +383,14 @@ end >>
 ;
 
 value suite = "AG Syntax Test" >::: [
-  "test_ag_elements"           >:: test_ag_elements
+  "test_ag_elements1"           >:: test_ag_elements1
+; "test_ag_elements2"           >:: test_ag_elements2
+; "test_ag_elements3"           >:: test_ag_elements3
+; "test_ag_elements4"           >:: test_ag_elements4
+; "test_ag_elements5"           >:: test_ag_elements5
+; "test_ag_elements6"           >:: test_ag_elements6
+; "test_ag_elements7"           >:: test_ag_elements7
+; "test_ag_elements8"           >:: test_ag_elements8
 ; "test_ag1"           >:: test_ag1
 ; "test_ag2"           >:: test_ag2
 ; "test_ag3"           >:: test_ag3
