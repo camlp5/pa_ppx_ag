@@ -13,7 +13,7 @@ OCAMLFIND=$(LAUNCH) ocamlfind
 NOT_OCAMLFIND=$(LAUNCH) not-ocamlfind
 MKCAMLP5=$(LAUNCH) mkcamlp5
 PACKAGES := $(PACKAGES),ounit2,fmt,pcre,rresult,compiler-libs.common,sexplib,uint,pa_ppx.utils,ocamlgraph
-PACKAGES := $(PACKAGES),pa_ppx_ag,pa_ppx_ag.runtime,pa_ppx_migrate,pa_ppx_hashcons,pa_ppx_unique
+PACKAGES := $(PACKAGES),pa_ppx_ag,pa_ppx_ag.runtime,pa_ppx_migrate,pa_ppx_hashcons,pa_ppx_unique,pa_ppx.deriving_plugins.std
 R_PACKAGES := $(PACKAGES)
 SYNTAX := camlp5o
 OCAMLCFLAGS += -ppopt -pa_passthru-debug 
@@ -27,6 +27,7 @@ TESTS= \
 	test3.byte \
 	vogt_thesis_page7.byte \
 	silver_dc.byte \
+	silver_lambda_firstorder.byte \
 
 ML=\
 	test1_ast.ml test1_variants.ml test1_ag.ml test1_migrate.ml test1_pa.ml test1.ml \
@@ -125,6 +126,15 @@ silver_dc.byte: silver_dc.ag
 	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
 
 silver_dc.opt: silver_dc.ag
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
+
+silver_lambda_firstorder.byte: silver_lambda_firstorder.ag
+	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5r -ppopt -impl $< > silver_lambda_firstorder_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c silver_lambda_firstorder_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c -ppopt -impl -impl $<
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
+
+silver_lambda_firstorder.opt: silver_lambda_firstorder.ag
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
 
 .ml.cmo:

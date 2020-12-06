@@ -1,0 +1,404 @@
+
+value getType id env = List.assoc id env ;
+value isin id env = List.mem_assoc id env ;
+
+value isDigit num = try do { ignore(int_of_string num) ; True } with Failure _ -> False ;
+
+module ATY = struct
+
+type t = [
+    Int
+  | Arr of t and t
+  | Error
+] [@@deriving (show,eq);]
+;
+end ;
+module AttrType = ATY ;
+
+ATTRIBUTE_GRAMMAR
+  DEBUG True ;
+  MODULE AG ;
+  ATTRIBUTION_MODEL Attributed {
+    attributed_module_name = AT
+  } ;
+
+  AXIOM root ;
+
+ATTRIBUTES
+  errors : string ;
+  synErrors : string ;
+  type_ : ATY.t ;
+  envi : list (string * ATY.t) ;
+  envs : list (string * ATY.t) ;
+  pp : string ;
+END ;
+
+RULE ROOT : p:root := r:expr
+COMPUTE
+  $[p].pp := $[r].pp ;
+  $[p].type_ := $[r].type_ ;
+  $[r].envi := [] ;
+  $[p].errors := match $[r].type_ with [
+    ATY.Int -> $[r].errors
+  | _ -> Fmt.(str "Final Type: %a\n%s" AttrType.pp $[r].type_ $[r].errors)
+  ] ;
+END
+;
+
+RULE EXPR_LET : e:expr := id:string and t:type_t and e1:expr and e2:expr
+COMPUTE
+  $synErrors := $[t].errors ^ $[e1].errors ^ $[e2].errors ;
+
+  $[e].pp := Fmt.(str "let %s:%s=%s in %s" $[id] $[t].pp $[e1].pp $[e2].pp) ;
+  $[e].type_ := $[e2].type_ ;
+
+ $[e1].envi := $[e].envi ;
+ $[e2].envi := [($[id], $[t].type_)] ;
+
+ $[e].errors :=
+   if $[e1].type_ <> $[t].type_ then
+     Fmt.(str "Declaration type and definition are mismatched\n\tDecl: %s\n\tDef:%a\n\t%s"
+          $[t].pp AttrType.pp $[e1].type_ $synErrors)
+   else $synErrors ;
+END
+;
+
+RULE EXPR_LAMBDA : e:expr := id:string and tl:type_t and e1:expr
+COMPUTE
+  $synErrors := $[tl].errors ^ $[e1].errors ;
+  $[e].pp := Fmt.(str "lambda %s:%s.%s" $[id] $[tl].pp $[e1].pp) ;
+  $[e].type_ := ATY.Arr $[tl].type_ $[e1].type_ ;
+
+  $[e1].envi := [($[id], $[tl].type_) :: $[e].envi] ;
+
+  $[e].errors := match $[tl].type_ with [
+              ATY.Error -> $[id] ^ " is type_err\n"
+            | _ -> ""
+            ] ^ 
+            match $[e1].type_ with [
+              ATY.Error -> $[e1].pp ^ " is type_err\n"
+            | _ -> ""
+            ] ^ $synErrors;
+END
+;
+
+RULE EXPR_EXPR_F : r:expr := uf:expr_funct
+COMPUTE
+  $[r].pp := $[uf].pp ;
+  $[r].type_ := $[uf].type_ ;
+  $[uf].envi := $[r].envi ;
+  $[r].errors := $[uf].errors ;
+END
+;
+
+RULE EXPR_FUNCT : mp:expr_funct := mp1:expr_funct and e:expr_arith
+COMPUTE
+  $synErrors := $[mp1].errors ^ $[e].errors ;
+  $[mp].pp := Fmt.(str "%s %s" $[mp1].pp $[e].pp) ;
+  $[mp].type_ := match $[mp1].type_ with [
+    ATY.Arr ta tb -> tb
+  | _ -> ATY.Error
+  ] ;
+
+  $[mp1].envi := $[mp].envi ;
+  $[e].envi := $[mp].envi ;
+
+  $[mp].errors :=
+    match $[mp1].type_ with [
+      ATY.Arr ta tb ->
+      if ta <> $[e].type_ then
+        Fmt.(str "Incompatible types\n\tMethod: %a\n\tInput :%a\n%s"
+               ATY.pp $[mp1].type_
+               ATY.pp $[e].type_
+               $synErrors)
+      else $synErrors
+    | ATY.Int -> Fmt.(str "Incompatible types\n\tMethod:int\n\tInput : %a\n%s"
+                        ATY.pp $[e].type_ $synErrors)
+    | ATY.Error -> "Error already exists\n" ^ $synErrors
+    ] ;
+END
+;
+
+RULE METHODPASSING_EX : mp:expr_funct := e:expr_arith
+COMPUTE
+  $[mp].pp := $[e].pp ;
+ $[mp].type_ := $[e].type_ ;
+ $[e].envi := $[mp].envi ;
+ $[mp].errors := $[e].errors ;
+END
+;
+
+RULE EXPR_ADD : e:expr_arith := e1:expr_arith and t:term
+COMPUTE
+ $synErrors := $[e1].errors ^ $[t].errors ;
+
+ $[e].pp := Fmt.(str "%s+%s" $[e1].pp $[t].pp) ;
+ $[e].type_ := ATY.Int ;
+
+ $[e1].envi := $[e].envi;
+ $[t].envi := $[e].envi;
+
+ $[e].errors :=
+   if $[e1].type_ <> ATY.Int then
+     Fmt.(str "Invalid argument for binary operator:\n\t%a\n%s"
+            ATY.pp $[e1].type_ $synErrors)
+   else if $[t].type_ <> ATY.Int then
+     Fmt.(str "Invalid argument for binary operator:\n\t%a\n%s"
+            ATY.pp $[t].type_ $synErrors)
+   else $synErrors ;
+END
+;
+
+RULE EXPR_SUB : e:expr_arith := e1:expr_arith and t:term
+COMPUTE
+ $synErrors := $[e1].errors ^ $[t].errors ;
+
+ $[e].pp := Fmt.(str "%s+%s" $[e1].pp $[t].pp) ;
+ $[e].type_ := ATY.Int ;
+
+ $[e1].envi := $[e].envi;
+ $[t].envi := $[e].envi;
+
+ $[e].errors :=
+   if $[e1].type_ <> ATY.Int then
+     Fmt.(str "Invalid argument for binary operator:\n\t%a\n%s"
+            ATY.pp $[e1].type_ $synErrors)
+   else if $[t].type_ <> ATY.Int then
+     Fmt.(str "Invalid argument for binary operator:\n\t%a\n%s"
+            ATY.pp $[t].type_ $synErrors)
+   else $synErrors ;
+END
+;
+
+RULE EXPR_TERM : e:expr_arith := t:term
+COMPUTE
+ $[e].pp := $[t].pp ;
+ $[e].type_ := $[t].type_ ;
+
+ $[t].envi := $[e].envi ;
+
+ $[e].errors := $[t].errors ;
+END;
+
+RULE TERM_MUL : t:term := t1:term and f:factor
+COMPUTE
+  $synErrors := $[t1].errors ^ $[f].errors ;
+
+ $[t].pp := Fmt.(str "%s*%s" $[t1].pp $[f].pp) ;
+ $[t].type_ := ATY.Int ;
+
+ $[t1].envi := $[t].envi ;
+ $[f].envi := $[t].envi ;
+
+ $[t].errors :=
+   if $[t1].type_ <> ATY.Int then
+     Fmt.(str "Incompatible parameter for binary operator\n%a\t%s"
+            ATY.pp $[t1].type_ $synErrors)
+   else if $[f].type_ <> ATY.Int then
+     Fmt.(str "Incompatible parameter for binary operator\n\t%a\n%s"
+            ATY.pp $[f].type_ $synErrors)
+   else $synErrors ;
+END
+;
+
+RULE TERM_DIV : t:term := t1:term and f:factor
+COMPUTE
+  $synErrors := $[t1].errors ^ $[f].errors ;
+
+ $[t].pp := Fmt.(str "%s/%s" $[t1].pp $[f].pp) ;
+ $[t].type_ := ATY.Int ;
+
+ $[t1].envi := $[t].envi ;
+ $[f].envi := $[t].envi ;
+
+ $[t].errors :=
+   if $[t1].type_ <> ATY.Int then
+     Fmt.(str "Incompatible parameter for binary operator\n%a\t%s"
+            ATY.pp $[t1].type_ $synErrors)
+   else if $[f].type_ <> ATY.Int then
+     Fmt.(str "Incompatible parameter for binary operator\n\t%a\n%s"
+            ATY.pp $[f].type_ $synErrors)
+   else $synErrors ;
+END
+;
+
+RULE TERM_FACTOR : t:term := f:factor
+COMPUTE
+ $[t].pp := $[f].pp;
+ $[t].type_ := $[f].type_ ;
+
+ $[f].envi := $[t].envi;
+
+ $[t].errors := $[f].errors;
+END
+;
+
+RULE FACTOR_ID : f:factor := id:string
+COMPUTE
+ $[f].pp := $[id];
+ $[f].type_ := getType $[id] $[f].envi ;
+
+ $[f].errors :=
+   if not (isin $[id] $[f].envi) then
+     Fmt.(str "Unknown identifier: %s\n" $[id])
+   else "" ;
+END
+;
+
+
+RULE FACTOR_INT : f:factor := num:string
+COMPUTE
+ $[f].pp := $[num] ;
+ $[f].type_ := ATY.Int ;
+
+ $[f].errors :=
+   if not (isDigit $[num]) then
+     Fmt.(str "Not an integer: %s\n" $[num])
+   else "" ;
+END
+;
+
+RULE FACTOR_PARENS : f:factor := r:expr
+COMPUTE
+ $[f].pp := Fmt.(str "(%s)" $[r].pp);
+ $[f].type_ := $[r].type_;
+
+ $[r].envi := $[f].envi;
+
+ $[f].errors := $[r].errors;
+END
+;
+
+RULE ARROW : t:type_t := t1:type_t and t2:type_t
+COMPUTE
+ $[t].pp := Fmt.(str "(%s)->(%s)" $[t1].pp $[t2].pp);
+ $[t].type_ := ATY.Arr $[t1].type_ $[t2].type_ ;
+
+ $[t].errors := $[t1].errors ^ $[t2].errors ;
+END
+;
+
+RULE INT : t:type_t
+COMPUTE
+ $[t].pp := "int";
+ $[t].type_ := ATY.Int ;
+
+ $[t].errors := "";
+END
+;
+
+RULE TYPE_ERR : t:type_t
+COMPUTE
+ $[t].pp := "TYPE ERROR";
+ $[t].type_ := ATY.Error ;
+
+ $[t].errors := "TYPE ERROR";
+END
+;
+
+END ;
+
+value gram = Grammar.gcreate (Plexer.gmake ());
+value root_eoi = Grammar.Entry.create gram "root_eoi";
+open AT ;
+
+EXTEND
+  GLOBAL: root_eoi ;
+
+  root: [ [
+    e = expr -> make_root__ROOT e
+  ] ] ;
+
+  expr: [
+    "funct" [
+      e1 = expr_funct -> make_expr__EXPR_EXPR_F e1
+    | "let" ; id = LIDENT ; ":" ; ty = typeList ; "=" ; e1=expr ; "in" ; e2=expr ->
+      make_expr__EXPR_LET id ty e1 e2
+    | "lambda" ; id = LIDENT ; ":" ; ty = typeList ; "." ; e1=expr ->
+      make_expr__EXPR_LAMBDA id ty e1
+    ]
+  ] ;
+
+  expr_funct: [
+    [ e1 = expr_funct ; e2 = expr_arith -> make_expr_funct__EXPR_FUNCT e1 e2
+    | e1 = expr_arith -> make_expr_funct__METHODPASSING_EX e1
+    ]
+  ]
+  ;
+
+  expr_arith: [
+    [ e1 = expr_arith ; "+" ; t=term -> make_expr_arith__EXPR_ADD e1 t
+    | e1 = expr_arith ; "-" ; t=term -> make_expr_arith__EXPR_SUB e1 t
+    | t=term -> make_expr_arith__EXPR_TERM t
+    ]
+  ]
+  ;
+
+  term: [
+    [ t1 = term ; "*" ; f=factor -> make_term__TERM_MUL t1 f
+    | t1 = term ; "/" ; f=factor -> make_term__TERM_DIV t1 f
+    | f=factor -> make_term__TERM_FACTOR f
+    ]
+  ]
+  ;
+
+  factor: [
+    [ "(" ; inner=expr ; ")" -> make_factor__FACTOR_PARENS inner
+    | i = LIDENT -> make_factor__FACTOR_ID i
+    | i = INT -> make_factor__FACTOR_INT i
+    ]
+  ]
+  ;
+
+  typeList: [
+    [ ti = typeItem ; "->" ; tl1 = typeList -> make_type_t__ARROW ti tl1
+    | ti = typeItem -> ti
+    ]
+  ]
+  ;
+
+  typeItem: [
+    [ "int" -> make_type_t__INT ()
+    | "(" ; tl= typeList ; ")" -> tl
+    ]
+  ]
+  ;
+
+  root_eoi: [ [ v = root; EOI -> v ] ];
+
+END;
+
+value pa_root s =
+  s
+  |> Stream.of_string
+  |> Grammar.Entry.parse root_eoi
+;
+
+open OUnit2 ;
+
+value test_simple ctxt = do {
+  assert_equal ~{printer=[%show: (string * string * ATY.t)]}
+    ("",  "let incr:(int)->(int)=lambda x:int.x+1 in incr 4", ATY.Int)
+   ({foo| let 
+  incr : int -> int = lambda x : int . x + 1
+in
+  incr 4 |foo} |> pa_root |> AG.evaluate)
+}
+;
+
+value suite = "silver_lambda(firstorder)" >::: [
+    "test_simple"           >:: test_simple
+]
+;
+
+if not Sys.interactive.val then
+  run_test_tt_main suite
+else ()
+;
+
+(*
+;;; Local Variables: ***
+;;; mode:tuareg ***
+;;; End: ***
+
+*)

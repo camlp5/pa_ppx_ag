@@ -102,7 +102,7 @@ value test_simple ctxt = do {
 }
 ;
 
-value suite = "vogt_thesis_page7" >::: [
+value suite = "silver_dc" >::: [
     "test_simple"           >:: test_simple
 ]
 ;
