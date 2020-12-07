@@ -999,12 +999,10 @@ module AGOps = struct
     ; _A : list (string * list string)
     ; _AI : list (string * list string)
     ; _AS : list (string * list string)
-    ; _PT : G.t
     }
     ;
 
     value mk_memo ag =
-    let pt = prodtree_graph ag in
     let a = ag.nonterminals |> List.map (fun nt ->
         (nt, _attributes_of ag nt)
       ) in
@@ -1014,7 +1012,7 @@ module AGOps = struct
     let asyn = ag.nonterminals |> List.map (fun nt ->
         (nt, _synthesized_attributes_of ag nt)
       ) in
-    { ag = ag ; _A = a ; _AI = ainh ; _AS = asyn ; _PT = pt }
+    { ag = ag ; _A = a ; _AI = ainh ; _AS = asyn }
     ;
     value _A m nt = match List.assoc nt m._A with [
       x -> x
@@ -1040,105 +1038,6 @@ module AGOps = struct
 
   end ;
 
-(** an AG covers with predicate [pred] a production prod = "a -> ...."
-
-    [pred prod] is TRUE
-
-    OR
-
-    in every possible parsetree where [prod] appears, some ancestor
-    production prod' satisfies predicate [pred], viz. [pred prod'].
-
-    ASSUMPTION: the axiom nonterminal is only seen on the LHS of
-    productions.  All nonterminals are derivable from axiom.
-
-    DEFINITIONS:
-
-    (a, prod, b) in TREE: exactly when production [prod] is "a ->
-    .... b ...."  TREEPRED(b): { (a,p) | (a,p,b) in TREE }
-
-    ALGORITHM:
-
-    TOCOVER: set of productions that must be covered
-
-    SEEN: set of nonterminals we've seen already
-
-    initial state:
-
-      (1) SEEN={}, TOCOVER=[]
-
-      (2) if the initial production [initprod] enjoys [pred initprod]
-    then we're done;
-
-      (3) otherwise, add [initprod] to TOCOVER
-
-    INVARIANTS:
-        { lhs(p) | p in TOCOVER } is disjoint from SEEN
-        for all p in TOCOVER: not (pred p)
-
-    step:
-
-      (1) select and remove a production [p] from TOCOVER
-
-      (2) if [lhs(p)] is the axiom, and [pred p] is false, then fail
-
-      (3) get the list of its direct predecessor productions
-          pl=TREEPRED(lhs(p)) in the parse-tree relation.
-
-      (4) add [lhs(p)] to SEEN
-
-      (5) for each (a,prod) in pl:
-            if not [pred prod] and a is not in SEEN then
-              add prod to TOCOVER
-
-    termination condition:
-
-      when TOCOVER is empty
-
-    success condition: we don't fail.
-
-    Proof of termination: SEEN grows with each step iteration, and
-    TOCOVER is always disjoint from SEEN.  So eventually there are no
-    nonterminals that can be added to TOCOVER.  Each step iteration
-    removes an element from TOCOVER.
-
-    Correctness: consider a -covered- member [nt] of TOCOVER: either
-    it satisfies the predicate, or some ancestor in the TREE relation
-    satisfies the predicate.  Each step will replace [nt] with all its
-    predecessors.  Eventually, every such predecessor will be replaced
-    by a covered predecessor.
-
-    Consider a -non-covered- member [nt] of TOCOVER: there must be a
-    parse-tree in which from the axiom we can derive [nt] without
-    passing thru a production that satisfies the predicate.  Repeated
-    application of [step] will produce that path up to axiom, and the
-    axiom is not covered.  QED.
-
-*)
-
-  value covers_with memo pred initpl =
-    let open NTOps in
-    let open AG in
-    let ag = memo.ag in
-    let rec covrec seen tocover =
-      match tocover with [
-        [] -> True
-      | [p' :: tocover] ->
-        let lhs = P.lhs p' in
-        if lhs = ag.axiom && not (pred p') then False else
-        let seen = [ lhs :: seen ] in
-        let pred_pl = G.pred_e memo._PT lhs in
-        let tocover = List.fold_left (fun tocover (a, prod', _) ->
-            let prod' = match prod' with [ Some p -> p | None -> assert False ] in
-            if not (pred prod') && not (List.mem a seen) then
-              [prod' :: tocover] else tocover
-          ) tocover pred_pl in
-        covrec seen tocover
-      ]
-    in
-    let initpl = List.filter (fun p -> not(pred p)) initpl in
-    match initpl with [ [] -> True | _ -> covrec [] initpl ]
-  ;
   (** an AG is well-formed2 if every attribute reference in all equations
       and conditions is declared in the typed attributes *)
 
@@ -1181,49 +1080,6 @@ module AGOps = struct
       (well_formed_equation0 ag pn teq)
   ;
 
-  value chain_attributes_of ag nt =
-    nt
-  |> AG.node_attributes ag
-  |> List.map (fun a -> (a, AG.attribute_type ag a))
-  |> List.filter_map (fun (a, aty) -> if aty.AT.is_chain then Some a else None)
-  ;
-
-  value covers_chain ag attrna prod =
-    prod.P.typed_equations |> List.exists (fun [
-      {TAEQ.lhs=TAR.CHAINSTART _ (TNR.CHILD _ _) attrna'} -> attrna = attrna'
-    | _ -> False
-    ])
-  ;
-
-  value well_formed_chains0 m =
-    let ag = m.NTOps.ag in
-    let chain_attributes = ag.attribute_types |> List.filter_map (fun (ana, aty) ->
-        if aty.AT.is_chain then Some ana else None) in
-    chain_attributes |> List.for_all (fun cattr ->
-        let pre = "pre_"^cattr in
-        let post = "post_"^cattr in
-        not(AG.is_declared_attribute ag pre) &&
-        not (AG.is_declared_attribute ag post))
-  ;
-
-  value well_formed_chains1 m =
-    let ag = m.NTOps.ag in
-    (ag.nonterminals |> List.for_all (fun nt ->
-         match chain_attributes_of ag nt with [
-           [] -> True
-         | l ->
-           l |> List.for_all (fun attrna ->
-               let pred prod = covers_chain ag attrna prod in
-               let pl = AG.node_productions ag nt in
-               covers_with m pred pl
-             )
-         ]
-       ))
-  ;
-
-  value well_formed_chains m =
-    well_formed_chains0 m && well_formed_chains1 m
-  ;
   value well_formed2 m =
     let ag = m.NTOps.ag in
     ag |> AG.all_productions |> List.for_all (fun p ->
@@ -1236,7 +1092,6 @@ module AGOps = struct
     let ag = m.NTOps.ag in
     let loc = ag.loc in
     (well_formed2 m) &&
-    (well_formed_chains m) &&
     (ag.nonterminals |> List.for_all (fun nt ->
          true_or_exn ~{exnf=fun() ->
              Ploc.raise loc
