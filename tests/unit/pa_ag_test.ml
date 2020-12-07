@@ -51,7 +51,20 @@ value test_ag_elements3 _ =
 END ; |foo})
 ;
 
-value test_ag_elements4 _ =
+value test_ag_elements3' _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (ATTRIBUTES Ploc.dummy [
+        ("bin_oper", <:ctyp< int -> int -> int >>, False)
+      ; ("env", <:ctyp< list (string * int) >>, False)
+      ])
+    (pa_ag_element {foo| ATTRIBUTES {
+  bin_oper : int -> int -> int ;
+  env : list (string * int) ;
+} ; |foo})
+;
+
+value test_ag_elements4a _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (Pa_ag.RULE Ploc.dummy "INT" (None, "expr") [(None, <:ctyp< int >>)]
@@ -67,7 +80,22 @@ END ;
  |foo})
 ;
 
-value test_ag_elements4' _ =
+value test_ag_elements4b _ =
+  let loc = Ploc.dummy in
+ assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
+    (Pa_ag.RULE Ploc.dummy "INT" (None, "expr") [(None, <:ctyp< int >>)]
+       [ <:expr< [%node 0;].value_ := [%node 1;] >>
+       ; <:expr< [%node 0;].rpn := [(string_of_int [%node 1;]) :: [%node 0;].rpn] >> ]
+    )
+    (pa_ag_element {foo|
+RULE INT : expr := int do {
+  $[0].value_ := $[1] ;
+  $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
+} ;
+ |foo})
+;
+
+value test_ag_elements4c _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
     (Pa_ag.RULE Ploc.dummy "INT" (Some "l", "expr") [(Some "r", <:ctyp< int >>)]
@@ -205,6 +233,35 @@ COMPUTE
 END ;
 
 END ;
+
+|foo} |> pa_str_item)
+;
+
+value test_ag1' _ =
+  let loc = Ploc.dummy in
+  assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
+  <:str_item< type x = [ R ][@@deriving ag { optional = True ; module_name = AG;
+              attribution_model = Attributed { attributed_module_name = AT };
+              storage_mode = Records ; axiom = x; attribute_types = ();
+              node_attributes = {x = [a; b]};
+              production_attributes = ();
+              attribution = {
+                x__R = ([%"nterm" 0;].b := [%"nterm" 0;].a)
+              }
+              };] >>
+    ({foo|
+ATTRIBUTE_GRAMMAR {
+  DEBUG True ;
+  MODULE AG ;
+  ATTRIBUTION_MODEL Attributed {
+    attributed_module_name = AT
+  } ;
+
+  AXIOM x ;
+RULE R : x
+  $[0].b := $[0].a ;
+
+} ;
 
 |foo} |> pa_str_item)
 ;
@@ -402,13 +459,16 @@ value suite = "AG Syntax Test" >::: [
   "test_ag_elements1"           >:: test_ag_elements1
 ; "test_ag_elements2"           >:: test_ag_elements2
 ; "test_ag_elements3"           >:: test_ag_elements3
-; "test_ag_elements4"           >:: test_ag_elements4
-; "test_ag_elements4'"           >:: test_ag_elements4'
+; "test_ag_elements3'"          >:: test_ag_elements3'
+; "test_ag_elements4a"          >:: test_ag_elements4a
+; "test_ag_elements4b"          >:: test_ag_elements4b
+; "test_ag_elements4c"          >:: test_ag_elements4c
 ; "test_ag_elements5"           >:: test_ag_elements5
 ; "test_ag_elements6"           >:: test_ag_elements6
 ; "test_ag_elements7"           >:: test_ag_elements7
 ; "test_ag_elements8"           >:: test_ag_elements8
 ; "test_ag1"           >:: test_ag1
+; "test_ag1'"          >:: test_ag1'
 ; "test_ag2"           >:: test_ag2
 ; "test_ag3"           >:: test_ag3
   ]

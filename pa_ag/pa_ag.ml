@@ -333,6 +333,9 @@ EXTEND
       "ATTRIBUTE_GRAMMAR" ;
       (debug, modname, amodel, axiom, l) = attribute_grammar_body ;
       "END" -> make_ag_str_item loc debug modname amodel axiom l
+    | "ATTRIBUTE_GRAMMAR" ; "{" ;
+      (debug, modname, amodel, axiom, l) = attribute_grammar_body ;
+      "}" -> make_ag_str_item loc debug modname amodel axiom l
     ] ] ;
 
   attribute_grammar_body: [ [
@@ -359,6 +362,8 @@ EXTEND
       ATTRIBUTES loc [(aname, ty, False)]
     | "ATTRIBUTES" ; l = LIST1 [ aname = LIDENT ; ":" ; ty = ctyp ; ";" -> (aname, ty, False) ] ; "END" ; ";" ->
       ATTRIBUTES loc l
+    | "ATTRIBUTES" ; "{" ; l = LIST1 [ aname = LIDENT ; ":" ; ty = ctyp ; ";" -> (aname, ty, False) ] ; "}" ; ";" ->
+      ATTRIBUTES loc l
     | "CHAIN" ; aname = LIDENT ; ":" ; ty = ctyp ; ";" ->
       ATTRIBUTES loc [(aname, ty, True)]
     | "RULE" ; cid = UIDENT ; ":" ; naty = named_typename ;
@@ -366,6 +371,14 @@ EXTEND
       "COMPUTE" ;
       comps = LIST1 [ e = expr LEVEL ":=" ; ";" -> e] ;
       "END" ; ";" ->
+      RULE loc cid naty tl comps
+    | "RULE" ; cid = UIDENT ; ":" ; naty = named_typename ;
+      tl = [ ":=" ; tl = LIST0 named_type SEP "and" -> tl | -> [] ];
+      e = expr ; ";" ->
+      let comps = match e with [
+        <:expr< do { $list:l$ } >> -> l
+      | _ -> [e]
+      ] in
       RULE loc cid naty tl comps
     ] ] ;
 

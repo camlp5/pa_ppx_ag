@@ -15,7 +15,7 @@ type t = [
 end ;
 module AttrType = ATY ;
 
-ATTRIBUTE_GRAMMAR
+ATTRIBUTE_GRAMMAR {
   DEBUG True ;
   MODULE AG ;
   ATTRIBUTION_MODEL Attributed {
@@ -24,17 +24,17 @@ ATTRIBUTE_GRAMMAR
 
   AXIOM root ;
 
-ATTRIBUTES
+ATTRIBUTES {
   errors : string ;
   synErrors : string ;
   type_ : ATY.t ;
   envi : list (string * ATY.t) ;
   envs : list (string * ATY.t) ;
   pp : string ;
-END ;
+} ;
 
 RULE ROOT : p:root := r:expr
-COMPUTE
+do {
   $[p].pp := $[r].pp ;
   $[p].type_ := $[r].type_ ;
   $[r].envi := [] ;
@@ -42,11 +42,11 @@ COMPUTE
     ATY.Int -> $[r].errors
   | _ -> Fmt.(str "Final Type: %a\n%s" AttrType.pp $[r].type_ $[r].errors)
   ] ;
-END
+}
 ;
 
 RULE EXPR_LET : e:expr := id:string and t:type_t and e1:expr and e2:expr
-COMPUTE
+do {
   $synErrors := $[t].errors ^ $[e1].errors ^ $[e2].errors ;
 
   $[e].pp := Fmt.(str "let %s:%s=%s in %s" $[id] $[t].pp $[e1].pp $[e2].pp) ;
@@ -60,11 +60,11 @@ COMPUTE
      Fmt.(str "Declaration type and definition are mismatched\n\tDecl: %s\n\tDef:%a\n\t%s"
           $[t].pp AttrType.pp $[e1].type_ $synErrors)
    else $synErrors ;
-END
+}
 ;
 
 RULE EXPR_LAMBDA : e:expr := id:string and tl:type_t and e1:expr
-COMPUTE
+do {
   $synErrors := $[tl].errors ^ $[e1].errors ;
   $[e].pp := Fmt.(str "lambda %s:%s.%s" $[id] $[tl].pp $[e1].pp) ;
   $[e].type_ := ATY.Arr $[tl].type_ $[e1].type_ ;
@@ -79,20 +79,20 @@ COMPUTE
               ATY.Error -> $[e1].pp ^ " is type_err\n"
             | _ -> ""
             ] ^ $synErrors;
-END
+}
 ;
 
 RULE EXPR_EXPR_F : r:expr := uf:expr_funct
-COMPUTE
+do {
   $[r].pp := $[uf].pp ;
   $[r].type_ := $[uf].type_ ;
   $[uf].envi := $[r].envi ;
   $[r].errors := $[uf].errors ;
-END
+}
 ;
 
 RULE EXPR_FUNCT : mp:expr_funct := mp1:expr_funct and e:expr_arith
-COMPUTE
+do {
   $synErrors := $[mp1].errors ^ $[e].errors ;
   $[mp].pp := Fmt.(str "%s %s" $[mp1].pp $[e].pp) ;
   $[mp].type_ := match $[mp1].type_ with [
@@ -116,20 +116,20 @@ COMPUTE
                         ATY.pp $[e].type_ $synErrors)
     | ATY.Error -> "Error already exists\n" ^ $synErrors
     ] ;
-END
+}
 ;
 
 RULE METHODPASSING_EX : mp:expr_funct := e:expr_arith
-COMPUTE
+do {
   $[mp].pp := $[e].pp ;
  $[mp].type_ := $[e].type_ ;
  $[e].envi := $[mp].envi ;
  $[mp].errors := $[e].errors ;
-END
+}
 ;
 
 RULE EXPR_ADD : e:expr_arith := e1:expr_arith and t:term
-COMPUTE
+do {
  $synErrors := $[e1].errors ^ $[t].errors ;
 
  $[e].pp := Fmt.(str "%s+%s" $[e1].pp $[t].pp) ;
@@ -146,11 +146,11 @@ COMPUTE
      Fmt.(str "Invalid argument for binary operator:\n\t%a\n%s"
             ATY.pp $[t].type_ $synErrors)
    else $synErrors ;
-END
+}
 ;
 
 RULE EXPR_SUB : e:expr_arith := e1:expr_arith and t:term
-COMPUTE
+do {
  $synErrors := $[e1].errors ^ $[t].errors ;
 
  $[e].pp := Fmt.(str "%s+%s" $[e1].pp $[t].pp) ;
@@ -167,21 +167,22 @@ COMPUTE
      Fmt.(str "Invalid argument for binary operator:\n\t%a\n%s"
             ATY.pp $[t].type_ $synErrors)
    else $synErrors ;
-END
+}
 ;
 
 RULE EXPR_TERM : e:expr_arith := t:term
-COMPUTE
+do {
  $[e].pp := $[t].pp ;
  $[e].type_ := $[t].type_ ;
 
  $[t].envi := $[e].envi ;
 
  $[e].errors := $[t].errors ;
-END;
+}
+;
 
 RULE TERM_MUL : t:term := t1:term and f:factor
-COMPUTE
+do {
   $synErrors := $[t1].errors ^ $[f].errors ;
 
  $[t].pp := Fmt.(str "%s*%s" $[t1].pp $[f].pp) ;
@@ -198,11 +199,11 @@ COMPUTE
      Fmt.(str "Incompatible parameter for binary operator\n\t%a\n%s"
             ATY.pp $[f].type_ $synErrors)
    else $synErrors ;
-END
+}
 ;
 
 RULE TERM_DIV : t:term := t1:term and f:factor
-COMPUTE
+do {
   $synErrors := $[t1].errors ^ $[f].errors ;
 
  $[t].pp := Fmt.(str "%s/%s" $[t1].pp $[f].pp) ;
@@ -219,22 +220,22 @@ COMPUTE
      Fmt.(str "Incompatible parameter for binary operator\n\t%a\n%s"
             ATY.pp $[f].type_ $synErrors)
    else $synErrors ;
-END
+}
 ;
 
 RULE TERM_FACTOR : t:term := f:factor
-COMPUTE
+do {
  $[t].pp := $[f].pp;
  $[t].type_ := $[f].type_ ;
 
  $[f].envi := $[t].envi;
 
  $[t].errors := $[f].errors;
-END
+}
 ;
 
 RULE FACTOR_ID : f:factor := id:string
-COMPUTE
+do {
  $[f].pp := $[id];
  $[f].type_ := getType $[id] $[f].envi ;
 
@@ -242,12 +243,12 @@ COMPUTE
    if not (isin $[id] $[f].envi) then
      Fmt.(str "Unknown identifier: %s\n" $[id])
    else "" ;
-END
+}
 ;
 
 
 RULE FACTOR_INT : f:factor := num:string
-COMPUTE
+do {
  $[f].pp := $[num] ;
  $[f].type_ := ATY.Int ;
 
@@ -255,48 +256,48 @@ COMPUTE
    if not (isDigit $[num]) then
      Fmt.(str "Not an integer: %s\n" $[num])
    else "" ;
-END
+}
 ;
 
 RULE FACTOR_PARENS : f:factor := r:expr
-COMPUTE
+do {
  $[f].pp := Fmt.(str "(%s)" $[r].pp);
  $[f].type_ := $[r].type_;
 
  $[r].envi := $[f].envi;
 
  $[f].errors := $[r].errors;
-END
+}
 ;
 
 RULE ARROW : t:type_t := t1:type_t and t2:type_t
-COMPUTE
+do {
  $[t].pp := Fmt.(str "(%s)->(%s)" $[t1].pp $[t2].pp);
  $[t].type_ := ATY.Arr $[t1].type_ $[t2].type_ ;
 
  $[t].errors := $[t1].errors ^ $[t2].errors ;
-END
+}
 ;
 
 RULE INT : t:type_t
-COMPUTE
+do {
  $[t].pp := "int";
  $[t].type_ := ATY.Int ;
 
  $[t].errors := "";
-END
+}
 ;
 
 RULE TYPE_ERR : t:type_t
-COMPUTE
+do {
  $[t].pp := "TYPE ERROR";
  $[t].type_ := ATY.Error ;
 
  $[t].errors := "TYPE ERROR";
-END
+}
 ;
 
-END ;
+} ;
 
 value gram = Grammar.gcreate (Plexer.gmake ());
 value root_eoi = Grammar.Entry.create gram "root_eoi";
