@@ -8,20 +8,20 @@
 #require "bos";;
 #require "str";;
 
-(*
+
 #require "camlp5.pa_o";;
 Pcaml.inter_phrases := Some ";;\n";;
-*)
-
-#require "camlp5.pa_r";;
-Pcaml.inter_phrases := Some ";\n";;
 
 (*
-#require "camlp5.pr_o";;
+#require "camlp5.pa_r";;
+Pcaml.inter_phrases := Some ";\n";;
 *)
 
-#require "camlp5.pr_r";;
+#require "camlp5.pr_o";;
 
+(*
+#require "camlp5.pr_r";;
+*)
 
 (*
 #require "camlp5.quotations";;
@@ -119,7 +119,7 @@ open Longident ;;
 let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %s >>" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));;
 let pp_expr ty = Fmt.(pf stdout "#<expr< %s >>" (Eprinter.apply Pcaml.pr_expr Pprintf.empty_pc ty));;
 let pp_patt ty = Fmt.(pf stdout "#<patt< %s >>" (Eprinter.apply Pcaml.pr_patt Pprintf.empty_pc ty));;
-let pp_type_decl ty = Fmt.(pf stdout "#<patt< %s >>" (Pr_r.type_decl Pprintf.empty_pc ty));;
+let pp_type_decl ty = Fmt.(pf stdout "#<patt< %s >>" (Pr_o.type_decl Pprintf.empty_pc ty));;
 
 (*
 let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %a >>" Pa_ppx_base.Pp_MLast.pp_ctyp ty);;
@@ -139,21 +139,24 @@ Pa_ppx_base.Pa_passthru.debug := true ;;
 Pa_ppx_base.Pp_MLast.Ploc.pp_loc_verbose := true ;;
 
 #directory "../../pa_ag";;
+#require "pa_ppx.import" ;;
+Pa_import.add_include "." ;;
+
 #require "ocamlgraph";;
-
-#require "camlp5.extend";;
-#require "pa_ppx.params_runtime";;
 (*
-#require "pa_ppx_ag" ;;
+#require "camlp5.extend";;
 *)
-#require "pa_ppx_ag.parser_debug";;
-
+#require "pa_ppx.params_runtime";;
+#require "pa_ppx_ag" ;;
+(*
+#require "pa_ppx_ag.parser";;
+*)
 open Ag_types ;;
 #install_printer AG.PN.pp_top ;;
 let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
 #install_printer pp_ag ;;
 
-"silver_dc.ag" |> Fpath.v |> Bos.OS.File.read
+"test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
 

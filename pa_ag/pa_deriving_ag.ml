@@ -158,7 +158,7 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;
       assert (AGOps.locally_acyclic memo) ;
-    let memo = AGOps.NTOps.mk_memo ag in
+    let _ = AGOps.OAG.compute_ordering memo in
       <:str_item< 
                 declare
                   $stri:uu_st$ ;

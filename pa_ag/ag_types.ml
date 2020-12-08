@@ -44,7 +44,7 @@ module AG = struct
     type t = {
       nonterm_name: string
     ; case_name: option string
-    } ;
+    }  [@@deriving show;] ;
     value pp_hum pps = fun [
       {nonterm_name=nonterm_name; case_name = None} -> Fmt.(pf pps "%s__" nonterm_name)
     | {nonterm_name=nonterm_name; case_name = Some case_name} -> Fmt.(pf pps "%s__%s" nonterm_name case_name)
@@ -64,7 +64,7 @@ module AG = struct
         PARENT of option string
       | CHILD of option string and int
       | PRIM of option string and int
-      ] ;
+      ] [@@deriving show;] ;
     value expr_to_nterm e =
       match e with [
         <:expr< [%nterm $lid:tyname$;] >> -> 
@@ -84,26 +84,26 @@ module AG = struct
   value pp_hum ~{is_chainstart} pps = fun [
     PARENT (Some name) -> do {
       assert (not is_chainstart) 
-    ; Fmt.(pf pps "[%%nterm %s ;]" name)
+    ; Fmt.(pf pps "$[%s]" name)
     }
   | PARENT None -> do {
       assert (not is_chainstart) 
-    ; Fmt.(pf pps "[%%nterm 0 ;]")
+    ; Fmt.(pf pps "$[0]")
     }
 
-  | CHILD (Some name) i when is_chainstart -> Fmt.(pf pps "[%%chainstart %s.(%d) ;]" name i)
-  | CHILD None i when is_chainstart -> Fmt.(pf pps "[%%chainstart %d ;]" i)
+  | CHILD (Some name) i when is_chainstart -> Fmt.(pf pps "CHAINSTART $[%s.(%d)]" name i)
+  | CHILD None i when is_chainstart -> Fmt.(pf pps "CHAINSTART $[%d]" i)
 
-  | CHILD (Some name) i -> Fmt.(pf pps "[%%nterm %s.(%d) ;]" name i)
-  | CHILD None i -> Fmt.(pf pps "[%%nterm %d ;]" i)
+  | CHILD (Some name) i -> Fmt.(pf pps "$[%s.(%d)]" name i)
+  | CHILD None i -> Fmt.(pf pps "$[%d]" i)
 
   | PRIM (Some name) i -> do {
       assert (not is_chainstart) 
-    ; Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
+    ; Fmt.(pf pps "$[%s.(%d)]" name i)
     }
   | PRIM None i -> do {
       assert (not is_chainstart) 
-    ; Fmt.(pf pps "[%%nterm %d ;]" i)
+    ; Fmt.(pf pps "$[%d]" i)
     }
   ]
   ;
@@ -140,7 +140,7 @@ module AG = struct
     | CHAINSTART of PN.t and NR.t and string
     | REMOTE of list (string * string)
     | CONSTITUENTS of list NR.t and list (string * string) and list string
-    ]
+    ] [@@deriving show;]
     ;
     value rec pp_hum pps = fun [
       NT nr a -> Fmt.(pf pps "%a.%s" (NR.pp_hum ~{is_chainstart=False}) nr a)
@@ -244,19 +244,19 @@ module AG = struct
         PARENT of string
       | CHILD of string and int
       | PRIM of string and int
-      ] ;
+      ] [@@deriving show;] ;
     value pp_hum ~{is_chainstart} pps = fun [
       PARENT name -> do {
         assert (not is_chainstart) 
-      ; Fmt.(pf pps "[%%nterm %s ;]" name)
+      ; Fmt.(pf pps "$[%s]" name)
       }
 
-    | CHILD name i when is_chainstart -> Fmt.(pf pps "[%%chainstart %s.(%d) ;]" name i)
-    | CHILD name i -> Fmt.(pf pps "[%%nterm %s.(%d) ;]" name i)
+    | CHILD name i when is_chainstart -> Fmt.(pf pps "CHAINSTART $[%s.(%d)]" name i)
+    | CHILD name i -> Fmt.(pf pps "$[%s.(%d)]" name i)
 
     | PRIM name i -> do {
         assert (not is_chainstart) 
-      ; Fmt.(pf pps "[%%prim %s.(%d) ;]" name i)
+      ; Fmt.(pf pps "$[%s.(%d)]" name i)
       }
     ]
     ;
@@ -294,7 +294,7 @@ module AG = struct
     | CHAINSTART of PN.t and TNR.t and string
     | REMOTE of list (string * string)
     | CONSTITUENTS of list TNR.t and list (string * string) and list string
-    ]
+    ] [@@deriving show;]
     ;
     value pp_hum pps = fun [
       NT nr a -> Fmt.(pf pps "%a.%s" (TNR.pp_hum ~{is_chainstart=False}) nr a)
@@ -580,6 +580,7 @@ module AG = struct
   ; productions = []
   }
   ;
+  value nonterminals ag = ag.nonterminals ;
   value all_productions ag =
     ag.productions |> List.concat_map (fun (_, pl) -> pl)
   ;
@@ -2146,6 +2147,165 @@ module AGOps = struct
       |> List.stable_sort Stdlib.compare in
     List.fold_left rewrite1_car ag cars
   ;
+  end
+  ;
+
+  module OAG = struct
+
+
+  module G = Graph.Persistent.Digraph.ConcreteBidirectional(
+  struct
+    type t = TAR.t ;
+    value equal = (=) ;
+    value compare = Stdlib.compare ;
+    value hash = Hashtbl.hash ;
+  end) ;
+  module Ops = Graph.Oper.Make(Graph.Builder.P(G)) ;
+
+    value typed_equation_to_deps taeq =
+      let open AG in
+      let open TAEQ in
+      match taeq.lhs with [
+        TAR.NT (TNR.PRIM _ _) _ -> assert False
+      | _ -> 
+        taeq.rhs_nodes
+        |> Std.filter (fun [
+            (TAR.NT (TNR.PRIM _ _) _) -> False
+          | _ -> True ])
+        |> List.map (fun r -> (r, taeq.lhs))
+      ]
+    ;
+
+    value canon l = l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare ;
+
+    value of_list l =
+      List.fold_left (fun g (s,d) -> G.add_edge g s d) G.empty l
+    ;
+
+    value to_list g =
+    (G.fold_edges (fun s d acc -> [(s, d) :: acc]) g [])
+    |> canon
+    ;
+
+    value tclos l = l |> of_list |> Ops.transitive_closure |> to_list ;
+
+    value ddp p =
+      let open AG in
+      p.P.typed_equations |> List.concat_map typed_equation_to_deps
+      |> canon
+      |> of_list
+    ;
+
+    value g_filter_edges f g0 =
+      G.fold_edges (fun s d g' ->
+        if f s d then G.add_edge g' s d else g')
+        g0 G.empty
+    ;
+
+    value nddp p =
+      p
+    |> ddp
+    |> Ops.transitive_closure
+    |> g_filter_edges (let open TAR in fun s d -> match (s,d) with [
+         (NT nt1 _, NT nt2 _) -> nt1 = nt2
+       | _ -> False
+       ])
+    |> to_list
+    ;
+
+(*
+
+1. For all p in P , IDP (p) := NDDP (p).
+
+2. For all X in the vocabulary of G,
+    IDS(X) := { (X.a, X.b) | exists q such that (X.a, X.b) in IDP(q)+ }
+
+3. For all p : [X_0 -> X_1 ... X_n] in P ,
+    IDP (p) := IDP (p) union IDS(X_0) union ... union IDS(X_n)
+
+4. Repeat (2) and (3) until there is no change in any IDP or IDS
+
+*)
+    value tar_map_nt_to_parent = fun [
+      (TAR.NT (TNR.PARENT _) _) as tar -> tar
+    | (TAR.NT (TNR.CHILD nterm _) attrna) as tar -> TAR.NT(TNR.PARENT nterm) attrna
+    ]
+    ;
+
+    value tar_map_nt_to_child i = fun [
+      (TAR.NT (TNR.PARENT nterm) attrna) -> (TAR.NT (TNR.CHILD nterm i) attrna)
+    | _ -> assert False
+    ]
+    ;
+
+    type ids_t = list (string * (list (string * string))) [@@deriving show;] ;
+    type idp_t = list (AG.PN.t[@printer PN.pp_hum;] * (list (TAR.t[@printer TAR.pp_hum;] * TAR.t[@printer TAR.pp_hum;]))) [@@deriving show;] ;
+
+    value idp_ids_step ag (idp, ids) = do {
+      let open TAR in
+      let open TNR in
+      let idp_plus = List.map (fun (pn, idp_p) ->
+        (pn, idp_p |> tclos)
+      ) idp in
+      let new_ids =
+        idp_plus
+        |> List.concat_map snd
+        |> List.filter (fun [
+            (NT nt1 _, NT nt2 _) -> nt1=nt2
+          | _ -> False
+          ])
+        |> List.map (fun (tar1, tar2) -> (tar_map_nt_to_parent tar1, tar_map_nt_to_parent tar2))
+        |> canon
+        |> Std.nway_partition (fun tar1 tar2 -> match (tar1, tar2) with [
+            ((NT nt1  _, _), (NT nt2 _, _)) -> nt1=nt2
+          | _ -> assert False
+          ]) 
+        |> List.map (fun l ->
+            let nt = match l with [ [(NT (PARENT nterm) _, _)::_] -> nterm | _ -> assert False ] in
+            let nt_proj_attrna = fun [ NT _ attrna -> attrna | _ -> assert False ] in
+            (nt, l |> List.map (fun (a,b) -> (nt_proj_attrna a, nt_proj_attrna b)))
+          ) in
+      let lookup_in_new_ids nt = match List.assoc nt new_ids with [
+        x -> x | exception Not_found -> [] ] in
+      let add_idp =
+        ag
+        |> AG.all_productions
+        |> List.map (fun p ->
+            let nl = p.P.typed_nodes in
+            (p.P.name, 
+             nl
+             |> List.concat_map (fun [
+                 (PARENT nterm | CHILD nterm _) as nt ->
+                 let l = lookup_in_new_ids nterm in
+                 List.map (fun (a,b) -> (NT nt a, NT nt b)) l
+               | _ -> []
+               ])
+             |> canon
+            )
+          ) in
+      let new_idp = idp |> List.map (fun (pn, idp_p) ->
+          (pn, canon (idp_p@(List.assoc pn add_idp)))) in
+      (canon new_idp, canon new_ids)
+    }
+    ;
+
+    value idp_ids ag =
+      let idp0 =
+        ag
+        |> AG.all_productions
+        |> List.map (fun p -> (p.P.name, nddp p)) in
+      let rec iterate arg =
+        let arg' = idp_ids_step ag arg in
+        if arg = arg' then arg
+        else iterate arg'
+      in iterate (idp0, [])
+    ;
+
+    value compute_ordering memo =
+      let (idp, ids) = idp_ids memo.NTOps.ag in
+      Fmt.(pf stderr "STEP IDP=%a\nIDS=%a\n%!" pp_idp_t idp pp_ids_t ids)
+      ;
+
   end
   ;
 

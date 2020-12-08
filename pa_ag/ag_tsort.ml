@@ -362,20 +362,6 @@ value lookup_parent_declaration memo =
   <:str_item< value lookup_parent = fun attrs -> fun [ $list:branches$ ] >>
 ;
 
-value typed_equation_to_deps taeq =
-  let open AG in
-  let open TAEQ in
-  match taeq.lhs with [
-    TAR.NT (TNR.PRIM _ _) _ -> assert False
-  | _ -> 
-    taeq.rhs_nodes
-    |> Std.filter (fun [
-        (TAR.NT (TNR.PRIM _ _) _) -> False
-      | _ -> True ])
-    |> List.map (fun r -> (r, taeq.lhs))
-  ]
-;
-
 value actual_dep_function_declarations memo =
   let open AGOps.NTOps in
   let open AG in
@@ -383,10 +369,7 @@ value actual_dep_function_declarations memo =
   let loc = ag.loc in
   (ag.productions |> List.map (fun (nt, pl) ->
        let branches = pl |> List.map (fun p ->
-           let deps =
-             (p.P.typed_equations |> List.concat_map typed_equation_to_deps)
-           in
-           let deps = Std2.hash_uniq deps in
+           let deps = p |> AGOps.OAG.ddp |> AGOps.OAG.to_list in
            let aref_to_exp = fun [
              TAR.NT (TNR.PARENT tyname) aname ->
              <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
