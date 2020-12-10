@@ -369,7 +369,7 @@ value actual_dep_function_declarations memo =
   let loc = ag.loc in
   (ag.productions |> List.map (fun (nt, pl) ->
        let branches = pl |> List.map (fun p ->
-           let deps = p |> AGOps.OAG.ddp |> AGOps.OAG.to_list in
+           let deps = p |> AGOps.ddp |> AGOps.to_list in
            let aref_to_exp = fun [
              TAR.NT (TNR.PARENT tyname) aname ->
              <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
