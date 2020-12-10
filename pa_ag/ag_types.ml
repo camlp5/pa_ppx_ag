@@ -2352,11 +2352,10 @@ A_{X, 2n+1} = { X.a in AS | for all X.b in A(X):
 
 *)
     value compute_t_sofar t =
-      t |> List.concat |> canon
+      t |> List.map (fun (a,b) -> a@b) |> List.concat |> canon
     ;
 
-    value compute_ti_inh_step (_as, _ai, _a, _ids_plus) t i ti_sofar =
-      let t_sofar = compute_t_sofar t in
+    value compute_ti_inh_step (_as, _ai, _a, _ids_plus) t_sofar ti_sofar =
       let added =
         _ai
         |> List.filter (fun a ->
@@ -2368,16 +2367,15 @@ A_{X, 2n+1} = { X.a in AS | for all X.b in A(X):
       canon (added @ ti_sofar)
     ;
 
-    value compute_ti_inh (_as, _ai, _a, _ids_plus) t i =
+    value compute_ti_inh (_as, _ai, _a, _ids_plus) t_sofar =
       let rec crec sofar =
-        let sofar' = compute_ti_inh_step (_as, _ai, _a, _ids_plus) t i sofar in
+        let sofar' = compute_ti_inh_step (_as, _ai, _a, _ids_plus) t_sofar sofar in
         if sofar = sofar' then sofar
         else crec sofar' in
-      Std.subtract (crec []) (compute_t_sofar t)
+      Std.subtract (crec []) t_sofar
     ;
 
-    value compute_ti_syn_step (_as, _ai, _a, _ids_plus) t i ti_sofar =
-      let t_sofar = compute_t_sofar t in
+    value compute_ti_syn_step (_as, _ai, _a, _ids_plus) t_sofar ti_sofar =
       let added =
         _as
         |> List.filter (fun a ->
@@ -2389,32 +2387,31 @@ A_{X, 2n+1} = { X.a in AS | for all X.b in A(X):
       canon (added @ ti_sofar)
     ;
 
-    value compute_ti_syn (_as, _ai, _a, _ids_plus) t i =
+    value compute_ti_syn (_as, _ai, _a, _ids_plus) t_sofar =
       let rec crec sofar =
-        let sofar' = compute_ti_syn_step (_as, _ai, _a, _ids_plus) t i sofar in
+        let sofar' = compute_ti_syn_step (_as, _ai, _a, _ids_plus) t_sofar sofar in
         if sofar = sofar' then sofar
         else crec sofar' in
-      Std.subtract (crec []) (compute_t_sofar t)
+      Std.subtract (crec []) t_sofar
     ;
 
     value compute_t1 (_as, _ai, _a, _ids_plus) =
-     _a |> List.filter (fun a ->
-        [] = (match StrG.succ _ids_plus a with [ x -> x | exception Invalid_argument _ -> [] ])
-      ) |> canon
-    ;
-    
-    value compute_ti (_as, _ai, _a, _ids_plus) t i =
-      if i mod 2 = 0 then
-        compute_ti_inh (_as, _ai, _a, _ids_plus) t i
-      else
-        compute_ti_syn (_as, _ai, _a, _ids_plus) t i
+      compute_ti_syn (_as, _ai, _a, _ids_plus) []
     ;
 
-    value rec compute_all_tis (_as, _ai, _a, _ids_plus) t i =
-      let ti = compute_ti (_as, _ai, _a, _ids_plus) t i in
-      if [] = ti then t else
-      let t = [ti :: t] in
-      compute_all_tis (_as, _ai, _a, _ids_plus) t (i+1)
+    value compute_pass (_as, _ai, _a, _ids_plus) t =
+      let t0 = compute_ti_syn (_as, _ai, _a, _ids_plus) (compute_t_sofar t) in
+      let t1 = compute_ti_inh (_as, _ai, _a, _ids_plus) (compute_t_sofar [([], t0) :: t]) in
+      (t1, t0)
+    ;
+
+    value compute_all_passes (_as, _ai, _a, _ids_plus) =
+      let rec crec t =
+        let (inh,syn) = compute_pass (_as, _ai, _a, _ids_plus) t in
+        if [] = inh && [] = syn then
+          t
+        else crec [(inh,syn) :: t] in
+      crec []
     ;
 
     value compute_t memo (idp, ids) nt =
@@ -2423,15 +2420,14 @@ A_{X, 2n+1} = { X.a in AS | for all X.b in A(X):
       let _a = NTOps._A memo nt in
       let _ids = match List.assoc nt ids with [ x -> x | exception Not_found -> [] ] in
       let _ids_plus = _ids |> strg_of_list |> StrOps.transitive_closure in
-      let t = [compute_t1 (_as,_ai,_a, _ids_plus)] in
-      compute_all_tis (_as,_ai,_a, _ids_plus) t 2
+      compute_all_passes (_as,_ai,_a, _ids_plus)
     ;
 
     value compute_ordering memo = do {
       let (idp, ids) = idp_ids memo.NTOps.ag in
       Fmt.(pf stderr "STEP IDP=%a\nIDS=%a\n%!" pp_idp_t idp pp_ids_t ids) ;
       let _t = memo.ag |> AG.nonterminals |> List.map (fun nt -> (nt, compute_t memo (idp, ids) nt)) in
-      Fmt.(pf stderr "T: %s\n%!" ([%show: list (string * list (list string))] _t)) ;
+      Fmt.(pf stderr "T: %s\n%!" ([%show: list (string * list (list string * list string))] _t)) ;
       ()
     }
     ;
