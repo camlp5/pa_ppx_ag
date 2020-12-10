@@ -2153,14 +2153,23 @@ module AGOps = struct
   module OAG = struct
 
 
-  module G = Graph.Persistent.Digraph.ConcreteBidirectional(
+  module TARG = Graph.Persistent.Digraph.ConcreteBidirectional(
   struct
     type t = TAR.t ;
     value equal = (=) ;
     value compare = Stdlib.compare ;
     value hash = Hashtbl.hash ;
   end) ;
-  module Ops = Graph.Oper.Make(Graph.Builder.P(G)) ;
+  module TAROps = Graph.Oper.Make(Graph.Builder.P(TARG)) ;
+
+  module StrG = Graph.Persistent.Digraph.ConcreteBidirectional(
+  struct
+    type t = string ;
+    value equal = (=) ;
+    value compare = Stdlib.compare ;
+    value hash = Hashtbl.hash ;
+  end) ;
+  module StrOps = Graph.Oper.Make(Graph.Builder.P(StrG)) ;
 
     value typed_equation_to_deps taeq =
       let open AG in
@@ -2179,15 +2188,19 @@ module AGOps = struct
     value canon l = l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare ;
 
     value of_list l =
-      List.fold_left (fun g (s,d) -> G.add_edge g s d) G.empty l
+      List.fold_left (fun g (s,d) -> TARG.add_edge g s d) TARG.empty l
     ;
 
     value to_list g =
-    (G.fold_edges (fun s d acc -> [(s, d) :: acc]) g [])
+    (TARG.fold_edges (fun s d acc -> [(s, d) :: acc]) g [])
     |> canon
     ;
 
-    value tclos l = l |> of_list |> Ops.transitive_closure |> to_list ;
+    value strg_of_list l =
+      List.fold_left (fun g (s,d) -> StrG.add_edge g s d) StrG.empty l
+    ;
+
+    value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
 
     value ddp p =
       let open AG in
@@ -2197,15 +2210,15 @@ module AGOps = struct
     ;
 
     value g_filter_edges f g0 =
-      G.fold_edges (fun s d g' ->
-        if f s d then G.add_edge g' s d else g')
-        g0 G.empty
+      TARG.fold_edges (fun s d g' ->
+        if f s d then TARG.add_edge g' s d else g')
+        g0 TARG.empty
     ;
 
     value nddp p =
       p
     |> ddp
-    |> Ops.transitive_closure
+    |> TAROps.transitive_closure
     |> g_filter_edges (let open TAR in fun s d -> match (s,d) with [
          (NT nt1 _, NT nt2 _) -> nt1 = nt2
        | _ -> False
@@ -2241,48 +2254,61 @@ module AGOps = struct
     type ids_t = list (string * (list (string * string))) [@@deriving show;] ;
     type idp_t = list (AG.PN.t[@printer PN.pp_hum;] * (list (TAR.t[@printer TAR.pp_hum;] * TAR.t[@printer TAR.pp_hum;]))) [@@deriving show;] ;
 
-    value idp_ids_step ag (idp, ids) = do {
+    value new_ids (idp_plus : idp_t) =
+      let open TAR in
+      let open TNR in
+      idp_plus
+      |> List.concat_map snd
+      |> List.filter (fun [
+          (NT nt1 _, NT nt2 _) -> nt1=nt2
+        | _ -> False
+        ])
+      |> List.map (fun (tar1, tar2) -> (tar_map_nt_to_parent tar1, tar_map_nt_to_parent tar2))
+      |> canon
+      |> Std.nway_partition (fun tar1 tar2 -> match (tar1, tar2) with [
+          ((NT nt1  _, _), (NT nt2 _, _)) -> nt1=nt2
+        | _ -> assert False
+        ]) 
+      |> List.map (fun l ->
+          let nt = match l with [ [(NT (PARENT nterm) _, _)::_] -> nterm | _ -> assert False ] in
+          let nt_proj_attrna = fun [ NT _ attrna -> attrna | _ -> assert False ] in
+          (nt, l |> List.map (fun (a,b) -> (nt_proj_attrna a, nt_proj_attrna b)))
+        )
+    ;
+
+    value add_idp ag new_ids =
+      let open TAR in
+      let open TNR in
+      let lookup_in_new_ids nt = match List.assoc nt new_ids with [
+        x -> x | exception Not_found -> [] ] in
+      ag
+      |> AG.all_productions
+      |> List.map (fun p ->
+          let nl = p.P.typed_nodes in
+          (p.P.name, 
+           nl
+           |> List.concat_map (fun [
+               (PARENT nterm | CHILD nterm _) as nt ->
+               let l = lookup_in_new_ids nterm in
+               List.map (fun (a,b) -> (NT nt a, NT nt b)) l
+             | _ -> []
+             ])
+           |> canon
+          )
+        )
+    ;
+
+    value idp_ids_step ag ((idp : idp_t), (ids : ids_t)) = do {
       let open TAR in
       let open TNR in
       let idp_plus = List.map (fun (pn, idp_p) ->
         (pn, idp_p |> tclos)
       ) idp in
-      let new_ids =
-        idp_plus
-        |> List.concat_map snd
-        |> List.filter (fun [
-            (NT nt1 _, NT nt2 _) -> nt1=nt2
-          | _ -> False
-          ])
-        |> List.map (fun (tar1, tar2) -> (tar_map_nt_to_parent tar1, tar_map_nt_to_parent tar2))
-        |> canon
-        |> Std.nway_partition (fun tar1 tar2 -> match (tar1, tar2) with [
-            ((NT nt1  _, _), (NT nt2 _, _)) -> nt1=nt2
-          | _ -> assert False
-          ]) 
-        |> List.map (fun l ->
-            let nt = match l with [ [(NT (PARENT nterm) _, _)::_] -> nterm | _ -> assert False ] in
-            let nt_proj_attrna = fun [ NT _ attrna -> attrna | _ -> assert False ] in
-            (nt, l |> List.map (fun (a,b) -> (nt_proj_attrna a, nt_proj_attrna b)))
-          ) in
+      let _ = new_ids idp_plus in
+      let new_ids = new_ids idp_plus in
       let lookup_in_new_ids nt = match List.assoc nt new_ids with [
         x -> x | exception Not_found -> [] ] in
-      let add_idp =
-        ag
-        |> AG.all_productions
-        |> List.map (fun p ->
-            let nl = p.P.typed_nodes in
-            (p.P.name, 
-             nl
-             |> List.concat_map (fun [
-                 (PARENT nterm | CHILD nterm _) as nt ->
-                 let l = lookup_in_new_ids nterm in
-                 List.map (fun (a,b) -> (NT nt a, NT nt b)) l
-               | _ -> []
-               ])
-             |> canon
-            )
-          ) in
+      let add_idp = add_idp ag new_ids in
       let new_idp = idp |> List.map (fun (pn, idp_p) ->
           (pn, canon (idp_p@(List.assoc pn add_idp)))) in
       (canon new_idp, canon new_ids)
@@ -2293,7 +2319,7 @@ module AGOps = struct
       let idp0 =
         ag
         |> AG.all_productions
-        |> List.map (fun p -> (p.P.name, nddp p)) in
+        |> List.map (fun p -> (p.P.name, p |> ddp |> to_list)) in
       let rec iterate arg =
         let arg' = idp_ids_step ag arg in
         if arg = arg' then arg
@@ -2301,10 +2327,114 @@ module AGOps = struct
       in iterate (idp0, [])
     ;
 
-    value compute_ordering memo =
+(*
+From Waite:
+
+Here m is the smallest n such that T_{n-1}(X) union T_{n}(X) = A(X), T_{-1}(X) = T_{0}(X) = {},
+and for k > 0:
+T_{2k-1}(X) = { a in AS(X) | a -> b in IDS(X) implies b in union(T_{j}(X), j <= (2k - 1)) }
+T_{2k}(X) =   { a in AI(X) | a -> b in IDS(X) implies b in union(T_{j}(X), j <= 2k) }
+
+================================================================
+
+Well use Kastens' formulation.
+
+From Kastens:
+
+A_{X,1} =  { X.a in AS | there is no X.b such that (X.a, X.b) in IDS+ }
+A_{X, 2n} = { X.a in AI | for all X.b in A(X):
+                            (X.a, X.b) in IDS+ implies
+                            X.b in union{m <= 2n}(A_{X,m}) } - union{k<=2n-1}(A_{X,k})
+
+A_{X, 2n+1} = { X.a in AS | for all X.b in A(X):
+                            (X.a, X.b) in IDS+ implies
+                            X.b in union{m <= 2n+1}(A_{X,m}) } - union{k<=2n}(A_{X,k})
+
+*)
+    value compute_t_sofar t =
+      t |> List.concat |> canon
+    ;
+
+    value compute_ti_inh_step (_as, _ai, _a, _ids_plus) t i ti_sofar =
+      let t_sofar = compute_t_sofar t in
+      let added =
+        _ai
+        |> List.filter (fun a ->
+            let succl = match StrG.succ _ids_plus a with [ x -> x | exception Invalid_argument _ -> [] ] in
+            succl |> List.for_all (fun b ->
+                List.mem b ti_sofar || List.mem b t_sofar
+              )
+          ) in
+      canon (added @ ti_sofar)
+    ;
+
+    value compute_ti_inh (_as, _ai, _a, _ids_plus) t i =
+      let rec crec sofar =
+        let sofar' = compute_ti_inh_step (_as, _ai, _a, _ids_plus) t i sofar in
+        if sofar = sofar' then sofar
+        else crec sofar' in
+      Std.subtract (crec []) (compute_t_sofar t)
+    ;
+
+    value compute_ti_syn_step (_as, _ai, _a, _ids_plus) t i ti_sofar =
+      let t_sofar = compute_t_sofar t in
+      let added =
+        _as
+        |> List.filter (fun a ->
+            let succl = match StrG.succ _ids_plus a with [ x -> x | exception Invalid_argument _ -> [] ] in
+            succl |> List.for_all (fun b ->
+                List.mem b ti_sofar || List.mem b t_sofar
+              )
+          ) in
+      canon (added @ ti_sofar)
+    ;
+
+    value compute_ti_syn (_as, _ai, _a, _ids_plus) t i =
+      let rec crec sofar =
+        let sofar' = compute_ti_syn_step (_as, _ai, _a, _ids_plus) t i sofar in
+        if sofar = sofar' then sofar
+        else crec sofar' in
+      Std.subtract (crec []) (compute_t_sofar t)
+    ;
+
+    value compute_t1 (_as, _ai, _a, _ids_plus) =
+     _a |> List.filter (fun a ->
+        [] = (match StrG.succ _ids_plus a with [ x -> x | exception Invalid_argument _ -> [] ])
+      ) |> canon
+    ;
+    
+    value compute_ti (_as, _ai, _a, _ids_plus) t i =
+      if i mod 2 = 0 then
+        compute_ti_inh (_as, _ai, _a, _ids_plus) t i
+      else
+        compute_ti_syn (_as, _ai, _a, _ids_plus) t i
+    ;
+
+    value rec compute_all_tis (_as, _ai, _a, _ids_plus) t i =
+      let ti = compute_ti (_as, _ai, _a, _ids_plus) t i in
+      if [] = ti then t else
+      let t = [ti :: t] in
+      compute_all_tis (_as, _ai, _a, _ids_plus) t (i+1)
+    ;
+
+    value compute_t memo (idp, ids) nt =
+      let _as = NTOps._AS memo nt in
+      let _ai = NTOps._AI memo nt in
+      let _a = NTOps._A memo nt in
+      let _ids = match List.assoc nt ids with [ x -> x | exception Not_found -> [] ] in
+      let _ids_plus = _ids |> strg_of_list |> StrOps.transitive_closure in
+      let t = [compute_t1 (_as,_ai,_a, _ids_plus)] in
+      compute_all_tis (_as,_ai,_a, _ids_plus) t 2
+    ;
+
+    value compute_ordering memo = do {
       let (idp, ids) = idp_ids memo.NTOps.ag in
-      Fmt.(pf stderr "STEP IDP=%a\nIDS=%a\n%!" pp_idp_t idp pp_ids_t ids)
-      ;
+      Fmt.(pf stderr "STEP IDP=%a\nIDS=%a\n%!" pp_idp_t idp pp_ids_t ids) ;
+      let _t = memo.ag |> AG.nonterminals |> List.map (fun nt -> (nt, compute_t memo (idp, ids) nt)) in
+      Fmt.(pf stderr "T: %s\n%!" ([%show: list (string * list (list string))] _t)) ;
+      ()
+    }
+    ;
 
   end
   ;

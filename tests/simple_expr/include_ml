@@ -142,6 +142,7 @@ Pa_ppx_base.Pp_MLast.Ploc.pp_loc_verbose := true ;;
 #require "pa_ppx.import" ;;
 Pa_import.add_include "." ;;
 
+#require "vec";;
 #require "ocamlgraph";;
 (*
 #require "camlp5.extend";;
@@ -153,8 +154,19 @@ Pa_import.add_include "." ;;
 *)
 open Ag_types ;;
 #install_printer AG.PN.pp_top ;;
+#install_printer AG.TAR.pp_top ;;
 let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
 #install_printer pp_ag ;;
+
+(*
+#trace Ag_types.AGOps.OAG.strg_of_list ;;
+#trace Ag_types.AGOps.OAG.compute_t1 ;;
+#trace Ag_types.AGOps.OAG.compute_ti ;;
+#trace Ag_types.AGOps.OAG.nddp;;
+*)
+#trace Ag_types.AGOps.OAG.new_ids;;
+#trace Ag_types.AGOps.OAG.add_idp;;
+#trace Ag_types.AGOps.OAG.idp_ids_step;;
 
 "test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
