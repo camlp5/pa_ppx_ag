@@ -135,44 +135,34 @@ print_string "================ START ================\n";; flush stdout ;;
 #require "hashcons";;
 #require "ocamlgraph";;
 
-#load "test1_ast.cmo";;
-#load "test1_variants.cmo";;
-#load "test1_ag.cmo";;
-#load "test1_migrate.cmo";;
-#load "test1_pa.cmo";;
-
 #print_length 10000 ;;
 #print_depth 10000 ;;
 
+#load "test2_ag.cmo";;
+#load "test2_migrate.cmo";;
+#load "test2_pa.cmo";;
+#load "test2.cmo";;
+
 let pp_expr e =
   let n = e.Pa_ppx_ag_runtime.Attributes.id in
-  let e = Test1_migrate.FromAttributed.expr e in
-  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test1_pa.Pr.expr Pprintf.empty_pc e))
+  let e = Test2_migrate.FromAttributed.expr e in
+  Fmt.(pf stdout "#<expr[%d]< %s >>" n (Test2_pa.Pr.expr Pprintf.empty_pc e))
 ;;
 (*
 #install_printer pp_expr ;;
 *)
 let pp_prog e =
   let n = e.Pa_ppx_ag_runtime.Attributes.id in
-  let e = Test1_migrate.FromAttributed.prog e in
-  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test1_pa.Pr.prog Pprintf.empty_pc e))
+  let e = Test2_migrate.FromAttributed.prog e in
+  Fmt.(pf stdout "#<prog[%d]< %s >>" n (Test2_pa.Pr.prog Pprintf.empty_pc e))
 ;;
 (*
 #install_printer pp_prog ;;
 *)
-let prog0 = {| x := 1 ; x / 0 |} |> Stream.of_string |> Grammar.Entry.parse Test1_pa.prog_attributed_eoi ;;
+let prog0 = {| let z = w in 1 + z |} |> Stream.of_string |> Grammar.Entry.parse Test2_pa.prog_attributed_eoi ;;
 
-open Test1_ag.REC.AG ;;
-#trace compute_synthesized_attribute ;;
-#trace AttrTable.expr__BINOP__isset_condition ;;
-#trace AttrTable.binop__isset_rhs_must_be_nonzero ;;
-#trace AttrTable.expr__isset_value_ ;;
-#trace AttrTable.expr__BINOP__set_condition ;;
-#trace AttrTable.binop__rhs_must_be_nonzero ;;
-#trace AttrTable.expr__value_ ;;
-#trace Test1_ag.condition_check ;;
 
-Test1_ag.REC.AG.evaluate prog0 ;;
+Test2_ag.AG.evaluate prog0 ;;
 
 (*
 ;;; Local Variables: ***

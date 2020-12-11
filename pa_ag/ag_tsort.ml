@@ -759,7 +759,9 @@ value eval_function memo =
        deps.val
      } in
    let g = edges_to_graph deps in do {
-     assert (not (Dfs.has_cycle g)) ;
+     if Dfs.has_cycle g then
+       failwith "evaluate: cycle found in actual dependencies"
+     else () ;
      TSort.iter (compute_attribute attrs) g ;
      $result_expr$
    }

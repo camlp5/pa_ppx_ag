@@ -1,4 +1,4 @@
-test1_ast.cmo test1_variants.cmo test1_ag.cmo test1_migrate.cmo test1_pa.cmo test1.cmo test2_ag.cmo test2_pa.cmo test2_migrate.cmo test2.cmo: ../../local-install/lib/pa_ppx_ag/META ../../local-install/lib/pa_ppx_ag/META
+test1_ast.cmo test1_variants.cmo test1_ag.cmo test1_migrate.cmo test1_pa.cmo test1.cmo test2_ag.cmo test2_pa.cmo test2_migrate.cmo test2.cmo test1_ast.cmi test1_variants.cmi test1_ag.cmi test1_migrate.cmi test1_pa.cmi test1.cmi test2_ag.cmi test2_pa.cmi test2_migrate.cmi test2.cmi test1_ast.cmx test1_variants.cmx test1_ag.cmx test1_migrate.cmx test1_pa.cmx test1.cmx test2_ag.cmx test2_pa.cmx test2_migrate.cmx test2.cmx: ../../local-install/lib/pa_ppx_ag/META ../../local-install/lib/pa_ppx_ag/META
 test1.cmo : \
     test1_pa.cmo \
     test1_ag.cmo
