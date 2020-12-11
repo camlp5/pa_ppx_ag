@@ -10,7 +10,8 @@ type expr =
   | REF of ref_expr
   | SEQ of expr * expr
   | LET of let_expr
-and let_expr = LET_BINDING of string * expr * expr
+and let_expr = LET_BINDING of string * expr * let_body
+and let_body = LET_BODY of expr
 and ref_expr = REF_EXPR of string
 and unop = UPLUS | UMINUS
 and binop = PLUS | MINUS | STAR | SLASH | PERCENT
@@ -38,7 +39,8 @@ and prog = PROG of block1
     }
   ; node_attributes = {
       expr = [value_; rpn]
-    ; let_expr = [env; value_; rpn; freevars]
+    ; let_expr = [value_; rpn; freevars]
+    ; let_body = [env; value_; rpn]
     ; ref_expr = [value_; rpn; freevars]
     ; block1 = [env; value_; rpn]
     ; block2 = [value_]
@@ -51,13 +53,17 @@ and prog = PROG of block1
     }
   ; attribution = {
       let_expr__LET_BINDING = (
-        [%nterm let_expr].value_ := [%nterm expr.(2)].value_
-      ; [%nterm expr.(2)].rpn := (Printf.sprintf "bind %s" [%prim 1]) :: [%nterm expr.(1)].rpn
-      ; [%nterm let_expr].env := ([%prim 1], [%nterm expr.(1)].value_) :: [%remote (block1.env, let_expr.env)]
+        [%nterm let_expr].value_ := [%nterm let_body.(1)].value_
+      ; [%nterm let_body.(1)].rpn := (Printf.sprintf "bind %s" [%prim 1]) :: [%nterm expr.(1)].rpn
+      ; [%nterm let_body.(1)].env := ([%prim 1], [%nterm expr.(1)].value_) :: [%remote (block1.env, let_body.env)]
       ; [%nterm 0].freevars :=
           Std.union
             [%constituents { nodes = [%nterm 2]; attributes = [ref_expr.freevars; let_expr.freevars]}]
             (Std.except [%prim 1] [%constituents { nodes = [ [%nterm 3] ]; attributes = [ref_expr.freevars; let_expr.freevars]}])
+      )
+    ; let_body__LET_BODY = (
+          [%nterm 0].value_ := [%nterm 1].value_ ;
+          [%nterm 0].rpn := [%nterm 1].rpn ;
       )
     ; expr__INT = (
         [%nterm 0].value_ := [%prim 1]
@@ -84,7 +90,7 @@ and prog = PROG of block1
         [%nterm 0].value_ := [%nterm 1].value_
       )
     ; ref_expr__REF_EXPR = (
-        [%nterm 0].value_ := List.assoc [%prim 1] [%remote (block1.env, let_expr.env)]
+        [%nterm 0].value_ := List.assoc [%prim 1] [%remote (block1.env, let_body.env)]
       ; [%nterm 0].rpn := [%prim 1] :: [%nterm 0].rpn
       ; [%nterm 0].freevars := [[%prim 1]]
       )

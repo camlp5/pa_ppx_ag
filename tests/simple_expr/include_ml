@@ -153,13 +153,13 @@ Pa_import.add_include "." ;;
 #require "pa_ppx_ag.parser";;
 *)
 open Ag_types ;;
-#install_printer AG.PN.pp_top ;;
-#install_printer AG.NR.pp_top ;;
-#install_printer AG.AR.pp_top ;;
-#install_printer AG.TNR.pp_top ;;
-#install_printer AG.TAR.pp_top ;;
-#install_printer AG.TAEQ.pp_top ;;
-#install_printer AG.AT.pp_top ;;
+#install_printer PN.pp_top ;;
+#install_printer NR.pp_top ;;
+#install_printer AR.pp_top ;;
+#install_printer TNR.pp_top ;;
+#install_printer TAR.pp_top ;;
+#install_printer TAEQ.pp_top ;;
+#install_printer AT.pp_top ;;
 let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
 
 #install_printer pp_ag ;;

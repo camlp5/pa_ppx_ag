@@ -13,9 +13,7 @@ let test_records ctxt =
   assert_equal ~printer (["x"; "y"], ["x"; "y"; "+"], 3) ({| x + y |} |> pa_prog_attributed |> AG.Topological.evaluate)
 ; assert_equal ~printer (["w"], ["1"; "w"; "+"], 5) ({| 1 + w |} |> pa_prog_attributed |> AG.Topological.evaluate)
 ; assert_equal ~printer ([], ["6"; "bind z"; "1"; "z"; "+"], 7) ({| let z = 6 in 1 + z |} |> pa_prog_attributed |> AG.Topological.evaluate)
-; assert_raises
-  (Failure "evaluate: cycle found in actual dependencies")
-  (fun () -> ({| let z = w in 1 + z |} |> pa_prog_attributed |> AG.Topological.evaluate))
+; assert_equal ~printer (["w"], ["w"; "bind z"; "1"; "z"; "+"], 5) ({| let z = w in 1 + z |} |> pa_prog_attributed |> AG.Topological.evaluate)
 
 let test_side_effect ctxt =
   let printer = [%show: string list * string list * int] in begin

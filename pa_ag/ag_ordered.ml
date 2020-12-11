@@ -117,7 +117,27 @@ value idp_ids ag =
     else iterate arg'
   in iterate (idp0, [])
 ;
-  
+
+value check_idp_ids (idp,ids) = do {
+  let failed = ref False in
+  idp |> List.iter (fun (pn, _idp) ->
+      if TARDfs.has_cycle (_idp |> of_list) then do {
+        Fmt.(pf stderr "IDP(%a) has cycle:@ %a\n%!" PN.pp_hum pn pp_idp_t [(pn,_idp)]) ;
+        failed.val := True ;
+      }
+      else ()
+    ) ;
+  ids |> List.iter (fun (nt, _ids) ->
+      if StrDfs.has_cycle (_ids |> strg_of_list) then do {
+        Fmt.(pf stderr "IDS(%s) has cycle:@ %a\n%!" nt pp_ids_t [(nt,_ids)]) ;
+        failed.val := True ;
+      }
+      else ()
+    ) ;
+    if failed.val then failwith "cycles found in IDP/IDS" else () ;
+}
+;
+
 (*
 From Waite:
 
@@ -219,8 +239,10 @@ value compute_t_for_nt memo (idp, ids) nt =
 ;
 
 value compute_t memo =
-  let (idp, ids) = idp_ids memo.NTOps.ag in
-  memo.ag |> AG.nonterminals |> List.map (fun nt -> (nt, compute_t_for_nt memo (idp, ids) nt))
+  let (idp, ids) = idp_ids memo.NTOps.ag in do {
+    check_idp_ids (idp,ids) ;
+    memo.ag |> AG.nonterminals |> List.map (fun nt -> (nt, compute_t_for_nt memo (idp, ids) nt))
+  }
 ;
 
 value must_lookup_t nt _t =

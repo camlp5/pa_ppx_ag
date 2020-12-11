@@ -30,6 +30,7 @@ module OK = struct
           ; block2
           ; expr
           ; let_expr
+          ; let_body
           ; ref_expr
           ; binop
           ; unop
@@ -66,6 +67,7 @@ module Attributed = struct
           ; block2_node
           ; expr_node
           ; let_expr_node
+          ; let_body_node
           ; ref_expr_node
           ; binop_node
           ; unop_node
@@ -98,6 +100,12 @@ module Attributed = struct
         ; dsttype = [%typ: let_expr]
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
             Test2_ag.AT.make_let_expr (migrate_let_expr_node __dt__ node)
+        }
+      ; migrate_let_body = {
+          srctype = [%typ: let_body]
+        ; dsttype = [%typ: let_body]
+        ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
+            Test2_ag.AT.make_let_body (migrate_let_body_node __dt__ node)
         }
       ; migrate_ref_expr = {
           srctype = [%typ: ref_expr]
@@ -145,6 +153,8 @@ module ToAttributed = struct
 module _ = Test2_ag
 type let_expr = let_expr_node
 and let_expr_node = [%import: Test2_ag.let_expr]
+and let_body = let_body_node
+and let_body_node = [%import: Test2_ag.let_body]
 and ref_expr = ref_expr_node
 and ref_expr_node = [%import: Test2_ag.ref_expr]
 and expr = expr_node
@@ -190,6 +200,17 @@ and block2_node = [%import: Test2_ag.block2]
         ; dsttype = [%typ: Test2_ag.AT.let_expr]
         ; code = (fun __dt__ x ->
             Test2_ag.AT.make_let_expr (__dt__.migrate_let_expr_node __dt__ x)
+          )
+        }
+      ; migrate_let_body_node = {
+          srctype = [%typ: let_body_node]
+        ; dsttype = [%typ: Test2_ag.AT.let_body_node]
+        }
+      ; migrate_let_body = {
+          srctype = [%typ: let_body]
+        ; dsttype = [%typ: Test2_ag.AT.let_body]
+        ; code = (fun __dt__ x ->
+            Test2_ag.AT.make_let_body (__dt__.migrate_let_body_node __dt__ x)
           )
         }
       ; migrate_ref_expr_node = {
@@ -241,7 +262,6 @@ and block2_node = [%import: Test2_ag.block2]
             Test2_ag.AT.make_block2 (__dt__.migrate_block2_node __dt__ x)
           )
         }
-
       ; migrate_binop_node = {
           srctype = [%typ: binop_node]
         ; dsttype = [%typ: Test2_ag.AT.binop_node]
@@ -314,6 +334,17 @@ module _ = Test2_ag
         ; dsttype = [%typ: Test2_ag.let_expr]
         ; code = (fun __dt__ x ->
             __dt__.migrate_let_expr_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
+          )
+        }
+      ; migrate_let_body_node = {
+          srctype = [%typ: let_body_node]
+        ; dsttype = [%typ: Test2_ag.let_body]
+        }
+      ; migrate_let_body = {
+          srctype = [%typ: let_body]
+        ; dsttype = [%typ: Test2_ag.let_body]
+        ; code = (fun __dt__ x ->
+            __dt__.migrate_let_body_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
         }
       ; migrate_ref_expr_node = {

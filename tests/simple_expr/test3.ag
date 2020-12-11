@@ -66,20 +66,26 @@ COMPUTE
   $[0].rpn := $[1].rpn ;
 END ;
 
-RULE LET_BINDING : let_expr := string and expr and expr
+RULE LET_BINDING : let_expr := string and expr and let_body
 COMPUTE
   $[0].value_ := $[3].value_ ;
   $[3].rpn := [(Printf.sprintf "bind %s" $[1]) :: $[2].rpn] ;
-  $[0].env := [($[1], $[2].value_) :: INCLUDING ( block1.env, let_expr.env )] ;
+  $[3].env := [($[1], $[2].value_) :: INCLUDING ( block1.env, let_body.env )] ;
   $[0].freevars :=
     Std.union
       (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[2])
       (Std.except $[1] (CONCAT (ref_expr.freevars, let_expr.freevars) IN $[3])) ;
 END ;
 
+RULE LET_BODY : let_body := expr
+COMPUTE
+  $[0].value_ := $[1].value_ ;
+  $[0].rpn := $[1].rpn ;
+END ;
+
 RULE REF_EXPR : ref_expr := string
 COMPUTE
-  $[0].value_ := List.assoc $[1] (INCLUDING (block1.env, let_expr.env)) ;
+  $[0].value_ := List.assoc $[1] (INCLUDING (block1.env, let_body.env)) ;
   $[0].rpn := [$[1] :: $[0].rpn] ;
   $[0].freevars := [$[1]] ;
 END ;
@@ -183,7 +189,7 @@ EXTEND
   | [ n = INT -> make_expr__INT (int_of_string n)
     | id = LIDENT -> make_expr__REF (make_ref_expr__REF_EXPR id)
     | "(" ; e = expr ; ")" -> e
-    | "let" ; id = LIDENT ; "=" ; e1 = expr LEVEL "top" ; "in" ; e2 = expr LEVEL "top" -> make_expr__LET (make_let_expr__LET_BINDING id e1 e2)
+    | "let" ; id = LIDENT ; "=" ; e1 = expr LEVEL "top" ; "in" ; e2 = expr LEVEL "top" -> make_expr__LET (make_let_expr__LET_BINDING id e1 (make_let_body__LET_BODY e2))
     ]
   ]
   ;
@@ -206,6 +212,7 @@ value test_records ctxt =
   assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) ({foo| x + y |foo} |> pa_prog |> AG.Topological.evaluate)
 ; assert_equal ~{printer} (["w"], ["1"; "w"; "+"], 5) ({foo| 1 + w |foo} |> pa_prog |> AG.Topological.evaluate)
 ; assert_equal ~{printer} ([], ["6"; "bind z"; "1"; "z"; "+"], 7) ({foo| let z = 6 in 1 + z |foo} |> pa_prog |> AG.Topological.evaluate)
+; assert_equal ~{printer} (["w"], ["w"; "bind z"; "1"; "z"; "+"], 5) ({foo| let z = w in 1 + z |foo} |> pa_prog |> AG.Topological.evaluate)
 }
 ;
 
