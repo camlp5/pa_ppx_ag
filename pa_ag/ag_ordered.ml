@@ -287,20 +287,6 @@ value to_list g =
   |> canon
 ;
 
-  value add_edges tnr l1 l2 =
-    l1 |> List.concat_map (fun a1 ->
-      l2 |> List.map (fun a2 -> (TAR.NT tnr a1, TAR.NT tnr a2)))
-  ;
-
-  value rec add_partition_edges tnr _t =
-    let rec addrec lastl = fun [
-      [ (inh, syn) :: tl ] ->
-      (add_edges tnr lastl inh)@(add_edges tnr inh syn)@(addrec syn tl)
-    | [] -> []
-    ] in
-    addrec [] _t
-  ;
-
   value find_partition_number loc _t attrna =
     match _t |> find_mapi (fun i (inh, syn) ->
       if List.mem attrna inh then Some (True, i)
@@ -329,20 +315,118 @@ value to_list g =
   ]
   ;
 
-  value vs_ddp0 p _t =
-    let l = P.ddp p in
-    l@(p.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
-        (TNR.PARENT nt | TNR.CHILD nt _) ->
-        let _t = must_lookup_t nt _t in
-        add_partition_edges tnr _t
-
-      | TNR.PRIM _ _ -> []
-      ]))
+  value upconvert_edge loc _t (a,b) =
+    (upconvert_tar loc _t a, upconvert_tar loc _t b)
   ;
+
+  value add_edges tnr l1 l2 =
+    l1 |> List.concat_map (fun a1 ->
+      l2 |> List.map (fun a2 -> (TAR.NT tnr a1, TAR.NT tnr a2)))
+  ;
+
+  value upconverted_map_for_tnr tnr _t =
+    match tnr with [
+      TNR.PARENT _ ->
+        _t
+        |> List.mapi (fun i (inh, _) ->
+            let upc_tar = EXTERNAL tnr i in
+            inh |> List.map (fun attrna -> (TAR.NT tnr attrna, upc_tar)))
+        |> List.concat
+
+      | TNR.CHILD _ _ ->
+        _t
+        |> List.mapi (fun i (_, syn) ->
+            let upc_tar = EXTERNAL tnr i in
+            syn |> List.map (fun attrna -> (TAR.NT tnr attrna, upc_tar)))
+        |> List.concat
+
+    | _ -> assert False
+    ]
+  ;
+
+  value partition_edges_for_tnr tnr _t =
+    match tnr with [
+      TNR.PARENT _ ->
+      let rec addrec i = fun [
+        [] -> []
+      | [(inh,[])] -> []
+
+      | [(inh,[]) :: tl] ->
+        let upc_tar = EXTERNAL tnr i in
+        let next_tar = EXTERNAL tnr (i+1) in
+        [(upc_tar, next_tar)] @ (addrec (i+1) tl)
+
+      | [(inh,syn)] ->
+        let upc_tar = EXTERNAL tnr i in
+        (syn |> List.map (fun attrna -> (upc_tar, AR (TAR.NT tnr attrna))))
+
+      | [(inh,syn) :: tl] ->
+        let upc_tar = EXTERNAL tnr i in
+        let next_tar = EXTERNAL tnr (i+1) in
+        (syn |> List.map (fun attrna -> (upc_tar, AR (TAR.NT tnr attrna)))) @
+        (syn |> List.map (fun attrna -> (AR (TAR.NT tnr attrna), next_tar))) @
+        (addrec (i+1) tl)
+
+      ] in
+      addrec 0 _t
+
+      | TNR.CHILD _ _ ->
+      let rec addrec i = fun [
+        [] -> []
+
+      | [([], syn) :: tl] ->
+        let upc_tar = EXTERNAL tnr i in
+        if i > 0 then
+          let prev_tar = EXTERNAL tnr (i-1) in
+          [(prev_tar, upc_tar)] @ (addrec (i+1) tl)
+        else addrec (i+1) tl
+
+      | [(inh,syn) :: tl] ->
+        let upc_tar = EXTERNAL tnr i in
+        if i > 0 then
+          let prev_tar = EXTERNAL tnr (i-1) in
+          (inh |> List.map (fun attrna -> (prev_tar, AR (TAR.NT tnr attrna)))) @
+          (inh |> List.map (fun attrna -> (AR (TAR.NT tnr attrna), upc_tar))) @
+          (addrec (i+1) tl)
+        else 
+          (inh |> List.map (fun attrna -> (AR (TAR.NT tnr attrna), upc_tar))) @
+          (addrec (i+1) tl)
+
+      ] in
+      addrec 0 _t
+
+    | _ -> assert False
+    ]
+  ;
+
+  value upconverted_map p _t =
+    p.P.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
+      (TNR.PARENT nt | TNR.CHILD nt _) ->
+      let _t = must_lookup_t nt _t in
+      upconverted_map_for_tnr tnr _t
+
+    | TNR.PRIM _ _ -> []
+    ])
+  ;
+
+  value partition_edges p _t =
+    p.P.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
+      (TNR.PARENT nt | TNR.CHILD nt _) ->
+      let _t = must_lookup_t nt _t in
+      partition_edges_for_tnr tnr _t
+
+    | TNR.PRIM _ _ -> []
+    ])
+  ;
+
   value vs_ddp p _t =
-    (vs_ddp0 p _t)
-  |>  List.map (fun (a,b) -> (upconvert_tar p.P.loc _t a, upconvert_tar p.P.loc _t b))
-  |> canon
+    let ddp = P.ddp p in
+    let upc_map = upconverted_map p _t in
+    let upc_tar tar = (match List.assoc tar upc_map with [ x -> x | exception Not_found -> AR tar ]) in
+    let upc_edge (a,b) = (upc_tar a, upc_tar b) in
+    let added_edges = partition_edges p _t in
+    ((P.ddp p |> List.map upc_edge)@added_edges)
+    |> canon
   ;
 
   value compute1_vs ag _t p =

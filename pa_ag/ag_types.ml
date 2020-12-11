@@ -557,6 +557,9 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
     value constituents_references p =
       (p.typed_equations |> List.concat_map TAEQ.constituents_references)
     ;
+    value typed_nonterminals p =
+      p.typed_nodes |> List.filter (fun [ TNR.CHILD _ _ | TNR.PARENT _ -> True | _ -> False ]) ;
+
     value parent_nonterminal p = p.name.PN.nonterm_name ;
     value child_nonterminals p =
       p.typed_nodes |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ])
