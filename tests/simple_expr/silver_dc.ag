@@ -98,7 +98,7 @@ open OUnit2 ;
 value test_simple ctxt = do {
   assert_equal ~{printer=[%show: (string * int)]}
     ("(1 + (2 * 3))",7)
-   ({foo| 1 + 2 * 3 |foo} |> pa_root |> AG.evaluate)
+   ({foo| 1 + 2 * 3 |foo} |> pa_root |> AG.Topological.evaluate)
 }
 ;
 

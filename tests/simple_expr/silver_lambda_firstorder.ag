@@ -383,7 +383,7 @@ value test_simple ctxt = do {
    ({foo| let 
   incr : int -> int = lambda x : int . x + 1
 in
-  incr 4 |foo} |> pa_root |> AG.evaluate)
+  incr 4 |foo} |> pa_root |> AG.Topological.evaluate)
 }
 ;
 

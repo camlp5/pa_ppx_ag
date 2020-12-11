@@ -79,7 +79,7 @@ open OUnit2 ;
 value test_simple ctxt =
   assert_equal ~{printer=[%show: (string * string * string * string)]}
     ("f()", "g(f())", "g(g(f()))", "g(g(f()))")
-   ({foo| P R |foo} |> pa_z |> AG.evaluate)
+   ({foo| P R |foo} |> pa_z |> AG.Topological.evaluate)
 ;
 
 value suite = "kastens116" >::: [

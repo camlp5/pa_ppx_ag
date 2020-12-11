@@ -203,16 +203,16 @@ open OUnit2 ;
 
 value test_records ctxt =
   let printer = [%show: (list string * list string * int)] in do {
-  assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) ({foo| x + y |foo} |> pa_prog |> AG.evaluate)
-; assert_equal ~{printer} (["w"], ["1"; "w"; "+"], 5) ({foo| 1 + w |foo} |> pa_prog |> AG.evaluate)
-; assert_equal ~{printer} ([], ["6"; "bind z"; "1"; "z"; "+"], 7) ({foo| let z = 6 in 1 + z |foo} |> pa_prog |> AG.evaluate)
+  assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) ({foo| x + y |foo} |> pa_prog |> AG.Topological.evaluate)
+; assert_equal ~{printer} (["w"], ["1"; "w"; "+"], 5) ({foo| 1 + w |foo} |> pa_prog |> AG.Topological.evaluate)
+; assert_equal ~{printer} ([], ["6"; "bind z"; "1"; "z"; "+"], 7) ({foo| let z = 6 in 1 + z |foo} |> pa_prog |> AG.Topological.evaluate)
 }
 ;
 
 value test_side_effect ctxt =
   let printer = [%show: (list string * list string * int)] in do {
     global_ref.val := [] ;
-    assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) ({foo| x + y |foo} |> pa_prog |> AG.evaluate) ;
+    assert_equal ~{printer} (["x"; "y"], ["x"; "y"; "+"], 3) ({foo| x + y |foo} |> pa_prog |> AG.Topological.evaluate) ;
     assert_equal ~{printer=[%show: list string]} ["after"; "before"] global_ref.val
   }
 ;
