@@ -759,6 +759,7 @@ value eval_function memo =
        deps.val
      } in
    let g = edges_to_graph deps in do {
+     assert (not (Dfs.has_cycle g)) ;
      TSort.iter (compute_attribute attrs) g ;
      $result_expr$
    }
