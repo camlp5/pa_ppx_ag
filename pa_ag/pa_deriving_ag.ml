@@ -62,8 +62,8 @@ type t = {
       [@computed compute_typed_attributes loc attribute_types node_attributes production_attributes;]
 *)
 ; raw_attribution: (alist lident expr) [@name attribution;]
-; equations: (alist AG.PN.t (list AG.AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
-; side_effects: (alist AG.PN.t (list AG.ASide.t)) [@computed Demarshal.extract_attribute_side_effects loc raw_attribution;]
+; equations: (alist PN.t (list AEQ.t)) [@computed Demarshal.extract_attribute_equations loc raw_attribution;]
+; side_effects: (alist PN.t (list ASide.t)) [@computed Demarshal.extract_attribute_side_effects loc raw_attribution;]
 ; name2nodename : (alist lident lident) [@computed Demarshal.compute_name2nodename type_decls;]
 ; rev_name2nodename : (alist lident lident) [@computed List.map (fun (a,b) -> (b,a)) name2nodename;]
 ; type_decls : list (string * MLast.type_decl) [@computed type_decls;]
@@ -149,7 +149,7 @@ value str_item_gen_ag name arg = fun [
     let (rc, uu_st, uu_open_st) =
       let rc0 = AGC.{
           (rc0) with
-          attribute_types = ag.attribute_types |> List.map (fun (attrna, aty) -> (attrna, aty.AG.AT.ty))
+          attribute_types = ag.attribute_types |> List.map (fun (attrna, aty) -> (attrna, aty.AT.ty))
         ; node_attributes = ag.node_attributes
         ; production_attributes = ag.production_attributes
         } in
@@ -158,7 +158,9 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;
       assert (AGOps.locally_acyclic memo) ;
+(*
     let _ = Ag_ordered.compute_ordering memo in
+*)
       <:str_item< 
                 declare
                   $stri:uu_st$ ;

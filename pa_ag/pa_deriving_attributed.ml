@@ -195,7 +195,7 @@ end
 
 value make_twolevel_type_decl rc ~{with_manifest} ~{skip_attributed} td =
   let open Ag_types in
-  let open AG.PN in
+  let open PN in
   let loc = loc_of_type_decl td in
   let name = td.tdNam |> uv |> snd |> uv in
   let (skip_attributed, attributes) =

@@ -154,21 +154,27 @@ Pa_import.add_include "." ;;
 *)
 open Ag_types ;;
 #install_printer AG.PN.pp_top ;;
+#install_printer AG.NR.pp_top ;;
+#install_printer AG.AR.pp_top ;;
+#install_printer AG.TNR.pp_top ;;
 #install_printer AG.TAR.pp_top ;;
+#install_printer AG.TAEQ.pp_top ;;
+#install_printer AG.AT.pp_top ;;
 let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
+
 #install_printer pp_ag ;;
 
 (*
-#trace Ag_types.AGOps.OAG.strg_of_list ;;
-#trace Ag_types.AGOps.OAG.compute_t1 ;;
-#trace Ag_types.AGOps.OAG.compute_ti ;;
-#trace Ag_types.AGOps.OAG.nddp;;
 *)
-#trace Ag_types.AGOps.OAG.new_ids;;
-#trace Ag_types.AGOps.OAG.add_idp;;
-#trace Ag_types.AGOps.OAG.idp_ids_step;;
+#trace typed_equation_to_deps ;;
+#trace Ag_types.AGOps.ddp ;;
+#trace Ag_ordered.compute_t_for_nt ;;
+#trace Ag_ordered.compute_all_passes ;;
+#trace Ag_ordered.add_idp ;;
+#trace Ag_ordered.new_ids ;;
+#trace Ag_ordered.idp_ids ;;
 
-"test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
+"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
 

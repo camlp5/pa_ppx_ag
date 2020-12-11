@@ -6,7 +6,8 @@ open Pa_ppx_utils ;
 
 value nddp p =
   p
-  |> ddp
+  |> P.ddp
+  |> of_list
   |> TAROps.transitive_closure
   |> g_filter_edges (let open TAR in fun s d -> match (s,d) with [
       (NT nt1 _, NT nt2 _) -> nt1 = nt2
@@ -42,7 +43,7 @@ value tar_map_nt_to_child i = fun [
 ;
 
 type ids_t = list (string * (list (string * string))) [@@deriving show;] ;
-type idp_t = list (AG.PN.t[@printer PN.pp_hum;] * (list (TAR.t[@printer TAR.pp_hum;] * TAR.t[@printer TAR.pp_hum;]))) [@@deriving show;] ;
+type idp_t = list (PN.t[@printer PN.pp_hum;] * (list (TAR.t[@printer TAR.pp_hum;] * TAR.t[@printer TAR.pp_hum;]))) [@@deriving show;] ;
 
 value new_ids (idp_plus : idp_t) =
   let open TAR in
@@ -109,7 +110,7 @@ value idp_ids ag =
   let idp0 =
     ag
     |> AG.all_productions
-    |> List.map (fun p -> (p.P.name, p |> ddp |> to_list)) in
+    |> List.map (fun p -> (p.P.name, p |> P.ddp |> of_list |> TAROps.transitive_closure |> to_list)) in
   let rec iterate arg =
     let arg' = idp_ids_step ag arg in
     if arg = arg' then arg
@@ -205,20 +206,110 @@ value compute_all_passes (_as, _ai, _a, _ids_plus) =
   crec []
 ;
 
-value compute_t memo (idp, ids) nt =
+value compute_t_for_nt memo (idp, ids) nt =
   let _as = NTOps._AS memo nt in
   let _ai = NTOps._AI memo nt in
   let _a = NTOps._A memo nt in
   let _ids = match List.assoc nt ids with [ x -> x | exception Not_found -> [] ] in
   let _ids_plus = _ids |> strg_of_list |> StrOps.transitive_closure in
-  compute_all_passes (_as,_ai,_a, _ids_plus)
+  let _t = compute_all_passes (_as,_ai,_a, _ids_plus) in do {
+    assert (canon _a = (compute_t_sofar _t)) ;
+    _t
+  }
 ;
 
-value compute_ordering memo = do {
+value compute_t memo =
   let (idp, ids) = idp_ids memo.NTOps.ag in
-  Fmt.(pf stderr "STEP IDP=%a\nIDS=%a\n%!" pp_idp_t idp pp_ids_t ids) ;
-  let _t = memo.ag |> AG.nonterminals |> List.map (fun nt -> (nt, compute_t memo (idp, ids) nt)) in
-  Fmt.(pf stderr "T: %s\n%!" ([%show: list (string * list (list string * list string))] _t)) ;
-  ()
-}
+  memo.ag |> AG.nonterminals |> List.map (fun nt -> (nt, compute_t_for_nt memo (idp, ids) nt))
+;
+
+value must_lookup_t nt _t =
+  match List.assoc nt _t with [ x -> x | exception Not_found -> assert False ]
+;
+
+  value rec find_mapi f i = fun [
+    [] -> None
+  | [x :: l] ->
+    match f i x with [
+        Some _ as result -> result
+      | None -> find_mapi f (i+1) l
+    ]
+  ]
+  ;
+  value find_mapi f l = find_mapi f 0 l ;
+
+module VS = struct
+  type tar_t = [
+      EXTERNAL of (TNR.t [@printer (TNR.pp_hum ~{is_chainstart=False});]) and int
+    | AR of (TAR.t [@printer TAR.pp_hum;])
+  ] [@@deriving show;]
+  ;
+
+  value add_edges tnr l1 l2 =
+    l1 |> List.concat_map (fun a1 ->
+      l2 |> List.map (fun a2 -> (TAR.NT tnr a1, TAR.NT tnr a2)))
+  ;
+
+  value rec add_partition_edges tnr _t =
+    let rec addrec lastl = fun [
+      [ (inh, syn) :: tl ] ->
+      (add_edges tnr lastl inh)@(add_edges tnr inh syn)@(addrec syn tl)
+    | [] -> []
+    ] in
+    addrec [] _t
+  ;
+
+  value find_partition_number loc _t attrna =
+    match _t |> find_mapi (fun i (inh, syn) ->
+      if List.mem attrna inh || List.mem attrna syn then Some i else None) with [
+      Some n -> n
+    | None -> Ploc.raise loc
+        (Failure Fmt.(str "find_partition_number: cannot find attr %s in partition %s" attrna
+                        ([%show: list (list string * list string)] _t)))
+    ]
+  ;
+
+  value upconvert_tar loc _t tar = match tar with [
+    TAR.PROD _ _ -> AR tar
+  | TAR.NT (PARENT nt as nr) attrna ->
+    let _t = must_lookup_t nt _t in
+    let partn = find_partition_number loc _t attrna in
+    EXTERNAL nr partn
+
+  | TAR.NT (CHILD nt i as nr) attrna ->
+    let _t = must_lookup_t nt _t in
+    let partn = find_partition_number loc _t attrna in
+    EXTERNAL nr partn
+
+  | TAR.CHAINSTART _ _ _ | TAR.REMOTE _ | TAR.CONSTITUENTS _ _ _ -> assert False
+  ]
+  ;
+
+  value vs_ddp p _t =
+    let l = P.ddp p in
+    let l = l@(p.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
+        (TNR.PARENT nt | TNR.CHILD nt _) ->
+        let _t = must_lookup_t nt _t in
+        add_partition_edges tnr _t
+
+      | TNR.PRIM _ _ -> []
+      ])) in
+    l |> List.map (fun (a,b) -> (upconvert_tar p.P.loc _t a, upconvert_tar p.P.loc _t b))
+    |> canon
+  ;
+
+  value compute_vs ag _t =
+    ag |> AG.all_productions |> List.map (fun p ->
+      (p.P.name, vs_ddp p _t)
+    )
+  ;
+
+end
+;
+module VisitSequence = VS ;
+
+value compute_ordering memo =
+  let _t = compute_t memo in
+  let vs = VS.compute_vs memo.NTOps.ag _t in
+  (_t, vs)
 ;

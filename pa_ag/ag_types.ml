@@ -10,6 +10,22 @@ open Surveil ;
 open Pa_deriving_base ;
 open Pa_ppx_utils ;
 
+value canon l = l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare ;
+
+module StrG = Graph.Persistent.Digraph.ConcreteBidirectional(
+  struct
+    type t = string ;
+      value equal = (=) ;
+      value compare = Stdlib.compare ;
+      value hash = Hashtbl.hash ;
+  end) ;
+module StrOps = Graph.Oper.Make(Graph.Builder.P(StrG)) ;
+module StrDfs = Graph.Traverse.Dfs(StrG) ;
+
+value strg_of_list l =
+  List.fold_left (fun g (s,d) -> StrG.add_edge g s d) StrG.empty l
+;
+
 value canon_expr e = Reloc.expr (fun _ -> Ploc.dummy) 0 e ;
 value canon_ctyp ty = Reloc.ctyp (fun _ -> Ploc.dummy) 0 ty ;
 value builtin_types =
@@ -38,8 +54,6 @@ end
 ;
 
 type storage_mode_t = [ Hashtables | Records ] ;
-
-module AG = struct
   module PN = struct
     type t = {
       nonterm_name: string
@@ -377,6 +391,27 @@ module AG = struct
     ;
   end ;
 
+module TARG = Graph.Persistent.Digraph.ConcreteBidirectional(
+  struct
+    type t = TAR.t ;
+      value equal = (=) ;
+      value compare = Stdlib.compare ;
+      value hash = Hashtbl.hash ;
+  end) ;
+module TAROps = Graph.Oper.Make(Graph.Builder.P(TARG)) ;
+module TARDfs = Graph.Traverse.Dfs(TARG) ;
+
+value of_list l =
+  List.fold_left (fun g (s,d) -> TARG.add_edge g s d) TARG.empty l
+;
+    
+value to_list g =
+  (TARG.fold_edges (fun s d acc -> [(s, d) :: acc]) g [])
+  |> canon
+;
+
+value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
+
   value wrap_comment pp1 pps x = Fmt.(pf pps "(* %a *)" pp1 x) ;
 
   module AEQ = struct
@@ -532,8 +567,41 @@ module AG = struct
     value map_typed_side_effects f p =
       {(p) with typed_side_effects = List.map f p.typed_side_effects }
     ;
+
+  
+value typed_equation_to_deps taeq =
+  let open TAEQ in
+  match taeq.lhs with [
+    TAR.NT (TNR.PRIM _ _) _ -> assert False
+  | _ -> 
+    taeq.rhs_nodes
+    |> Std.filter (fun [
+        (TAR.NT (TNR.PRIM _ _) _) -> False
+      | _ -> True ])
+    |> List.map (fun r -> (r, taeq.lhs))
+  ]
+;
+
+value ddp p =
+  p.typed_equations |> List.concat_map typed_equation_to_deps
+  |> canon
+;
+
   end ;
   module Production = P ;
+
+module NTG = Graph.Persistent.Digraph.ConcreteBidirectionalLabeled(
+  struct
+    type t = string ;
+      value equal = (=) ;
+      value compare = Stdlib.compare ;
+      value hash = Hashtbl.hash ;
+  end)(
+  struct
+    type t = option Production.t ;
+      value compare = Stdlib.compare ;
+      value default = None ;
+  end) ;
 
   module AT = struct
     type t = {
@@ -552,6 +620,8 @@ module AG = struct
     value pp_top pps x = Fmt.(pf pps "#<at< %a >>" pp_hum x) ;
   end;
   module AttributeType = AT ;
+
+module AG = struct
   type t = {
     loc : Ploc.t
   ; storage_mode : storage_mode_t
@@ -650,7 +720,7 @@ value extract_attribute_references pn e =
   let dt = Camlp5_migrate.make_dt () in
   let fallback_migrate_expr = dt.migrate_expr in
   let migrate_expr dt e =
-    try do { Std.push references (AG.AR.expr_to_ar pn e); e } 
+    try do { Std.push references (AR.expr_to_ar pn e); e } 
     with _ -> fallback_migrate_expr dt e in
   let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in do {
     ignore(dt.migrate_expr dt e) ;
@@ -661,27 +731,27 @@ value extract_attribute_references pn e =
 value assignment_to_equation_or_side_effect pn e = match e with [
     <:expr:< $lhs$ . val := $rhs$ >> | <:expr:< $lhs$ := $rhs$ >> ->
     Left {
-      AG.AEQ.loc = loc
-    ; lhs = AG.AR.expr_to_ar pn lhs
+      AEQ.loc = loc
+    ; lhs = AR.expr_to_ar pn lhs
     ; rhs_nodes = extract_attribute_references pn rhs
     ; rhs_expr = rhs }
 
   | <:expr:< condition $str:msg$ $e$ >> ->
     Right { 
-      AG.ASide.loc = loc
+      ASide.loc = loc
     ; rhs_nodes = extract_attribute_references pn e
     ; rhs_expr = <:expr< if not $e$ then failwith $str:msg$ else () >> }
   | <:expr:< condition $e$ >> ->
     let msg = Fmt.(str "condition %a failed" Pp_MLast.pp_expr e) in
     Right { 
-      AG.ASide.loc = loc
+      ASide.loc = loc
     ; rhs_nodes = extract_attribute_references pn e
     ; rhs_expr = <:expr< if not $e$ then failwith $str:msg$ else () >> }
 
   | e ->
     let loc = MLast.loc_of_expr e in
     Right { 
-      AG.ASide.loc = loc
+      ASide.loc = loc
     ; rhs_nodes = extract_attribute_references pn e
     ; rhs_expr = e }
 
@@ -704,7 +774,7 @@ value parse_prodname loc s =
   ]
 ;
 
-value extract_attribute_equations_and_side_effects loc l : (list (AG.PN.t * (list (choice AG.AEQ.t AG.ASide.t)))) =
+value extract_attribute_equations_and_side_effects loc l : (list (PN.t * (list (choice AEQ.t ASide.t)))) =
   l |> List.map (fun (prodname, e) ->
     let prodname = parse_prodname loc prodname in
     match e with [
@@ -714,17 +784,17 @@ value extract_attribute_equations_and_side_effects loc l : (list (AG.PN.t * (lis
       (prodname, [assignment_to_equation_or_side_effect prodname e])
     | _ -> Ploc.raise (MLast.loc_of_expr e)
         (Failure Fmt.(str "extract_attribute_equations_and_side_effects (production %a): unrecognized@ %a"
-                        AG.PN.pp_hum prodname Pp_MLast.pp_expr e))
+                        PN.pp_hum prodname Pp_MLast.pp_expr e))
     ])
 ;
 
-value extract_attribute_equations loc l : (list (AG.PN.t * (list AG.AEQ.t))) =
+value extract_attribute_equations loc l : (list (PN.t * (list AEQ.t))) =
   extract_attribute_equations_and_side_effects loc l
   |> List.map (fun (n, l) ->
                 (n, l |> List.filter_map (fun [ Left e -> Some e | _ -> None ])))
 ;
 
-value extract_attribute_side_effects loc l : (list (AG.PN.t * (list AG.ASide.t))) =
+value extract_attribute_side_effects loc l : (list (PN.t * (list ASide.t))) =
   extract_attribute_equations_and_side_effects loc l
   |> List.map (fun (n, l) ->
                 (n, l |> List.filter_map (fun [ Right c -> Some c | _ -> None ])))
@@ -923,13 +993,6 @@ module AGOps = struct
         ])
     ;
 
-    value direct_reference_graph p =
-      (p.P.typed_equations
-       |> List.concat_map (fun teq ->
-           let open TAEQ in
-           List.map (fun rhs_ar -> (rhs_ar, teq.lhs)) teq.rhs_nodes))
-    ;
-
   end ;
 
   module NTOps = struct
@@ -966,26 +1029,13 @@ module AGOps = struct
       |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare
     ;
 
-  module G = Graph.Persistent.Digraph.ConcreteBidirectionalLabeled(
-  struct
-    type t = string ;
-    value equal = (=) ;
-    value compare = Stdlib.compare ;
-    value hash = Hashtbl.hash ;
-  end)(
-  struct
-    type t = option Production.t ;
-    value compare = Stdlib.compare ;
-    value default = None ;
-  end) ;
-
   value prodtree_graph ag =
       let open AG in
       let open TNR in
-      let g = G.empty in
-      let g = List.fold_left G.add_vertex g ag.nonterminals in
+      let g = NTG.empty in
+      let g = List.fold_left NTG.add_vertex g ag.nonterminals in
       let add_edge g (lhs, pn, rhs) = match (lhs, rhs) with [
-        (PARENT pnt, CHILD cnt _) -> G.add_edge_e g (pnt, Some pn, cnt)
+        (PARENT pnt, CHILD cnt _) -> NTG.add_edge_e g (pnt, Some pn, cnt)
       | _ -> g
       ] in
       List.fold_left (fun g p ->
@@ -1067,13 +1117,13 @@ module AGOps = struct
   ;
 
   value well_formed_equation0 ag pn teq =
-    let open AG.TAEQ in
+    let open TAEQ in
     well_formed_aref teq.loc ag teq.lhs &&
     List.for_all (well_formed_aref teq.loc ag) teq.rhs_nodes
   ;
 
   value well_formed_equation ag pn teq =
-    let open AG.TAEQ in
+    let open TAEQ in
     true_or_exn ~{exnf=fun () ->
         Ploc.raise teq.loc (Failure Fmt.(str "not a well-formed equation in production %a: %a"
                                            PN.pp_hum pn
@@ -1172,8 +1222,8 @@ module AGOps = struct
               (Failure Fmt.(str "locally_acyclic: production %s is locally cyclic\n%a"
                               (PN.unparse p.P.name)
                               P.pp_hum p))}
-          (let ddp = POps.direct_reference_graph p in
-        not Tsort0.(cyclic (nodes ddp) (mkadj ddp)))
+          (let ddp = p |> P.ddp |> of_list in
+        not (TARDfs.has_cycle ddp))
       )
   ;
 
@@ -2149,63 +2199,6 @@ module AGOps = struct
   ;
   end
   ;
-
-
-module TARG = Graph.Persistent.Digraph.ConcreteBidirectional(
-  struct
-    type t = TAR.t ;
-      value equal = (=) ;
-      value compare = Stdlib.compare ;
-      value hash = Hashtbl.hash ;
-  end) ;
-module TAROps = Graph.Oper.Make(Graph.Builder.P(TARG)) ;
-  
-module StrG = Graph.Persistent.Digraph.ConcreteBidirectional(
-  struct
-    type t = string ;
-      value equal = (=) ;
-      value compare = Stdlib.compare ;
-      value hash = Hashtbl.hash ;
-  end) ;
-module StrOps = Graph.Oper.Make(Graph.Builder.P(StrG)) ;
-
-value typed_equation_to_deps taeq =
-  let open AG in
-  let open TAEQ in
-  match taeq.lhs with [
-    TAR.NT (TNR.PRIM _ _) _ -> assert False
-  | _ -> 
-    taeq.rhs_nodes
-    |> Std.filter (fun [
-        (TAR.NT (TNR.PRIM _ _) _) -> False
-      | _ -> True ])
-    |> List.map (fun r -> (r, taeq.lhs))
-  ]
-;
-
-value canon l = l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare ;
-
-value of_list l =
-  List.fold_left (fun g (s,d) -> TARG.add_edge g s d) TARG.empty l
-;
-    
-value to_list g =
-  (TARG.fold_edges (fun s d acc -> [(s, d) :: acc]) g [])
-  |> canon
-;
-
-value strg_of_list l =
-  List.fold_left (fun g (s,d) -> StrG.add_edge g s d) StrG.empty l
-;
-
-value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
-
-value ddp p =
-  let open AG in
-  p.P.typed_equations |> List.concat_map typed_equation_to_deps
-  |> canon
-  |> of_list
-;
 
 value g_filter_edges f g0 =
   TARG.fold_edges (fun s d g' ->

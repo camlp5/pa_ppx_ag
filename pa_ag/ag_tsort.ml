@@ -369,7 +369,7 @@ value actual_dep_function_declarations memo =
   let loc = ag.loc in
   (ag.productions |> List.map (fun (nt, pl) ->
        let branches = pl |> List.map (fun p ->
-           let deps = p |> AGOps.ddp |> AGOps.to_list in
+           let deps = p |> P.ddp in
            let aref_to_exp = fun [
              TAR.NT (TNR.PARENT tyname) aname ->
              <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
@@ -423,15 +423,15 @@ value actual_dep_function_declarations memo =
    are child nodes.
 
 *)
-value lookup_tnr p nr = match List.assoc nr p.AG.P.typed_node_names with [
+value lookup_tnr p nr = match List.assoc nr p.P.typed_node_names with [
   x -> x | exception Not_found -> assert False
 ] 
 ;
-value lookup_var p nr = match List.assoc (lookup_tnr p nr) p.AG.P.rev_patt_var_to_noderef with [
+value lookup_var p nr = match List.assoc (lookup_tnr p nr) p.P.rev_patt_var_to_noderef with [
   x -> x | exception Not_found -> assert False
 ]
 ;
-value lookup_abs_childnum p nr = match List.assoc (lookup_var p nr) p.AG.P.patt_var_to_childnum with [
+value lookup_abs_childnum p nr = match List.assoc (lookup_var p nr) p.P.patt_var_to_childnum with [
   x -> x | exception Not_found -> assert False
 ]
 ;
