@@ -165,7 +165,6 @@ let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
 #install_printer pp_ag ;;
 
 (*
-*)
 #trace typed_equation_to_deps ;;
 #trace Ag_types.AGOps.ddp ;;
 #trace Ag_ordered.compute_t_for_nt ;;
@@ -173,8 +172,12 @@ let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
 #trace Ag_ordered.add_idp ;;
 #trace Ag_ordered.new_ids ;;
 #trace Ag_ordered.idp_ids ;;
+#trace Ag_ordered.VS.vs_ddp0 ;;
+#trace Ag_ordered.VS.vs_ddp ;;
+*)
+#trace Ag_ordered.VS.compute_vs ;;
 
-"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
+"test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
 

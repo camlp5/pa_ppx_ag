@@ -267,6 +267,26 @@ module VS = struct
   ] [@@deriving show;]
   ;
 
+module G = Graph.Persistent.Digraph.ConcreteBidirectional(
+  struct
+    type t = tar_t ;
+      value equal = (=) ;
+      value compare = Stdlib.compare ;
+      value hash = Hashtbl.hash ;
+  end) ;
+module TSort = Graph.Topological.Make_stable(G) ;
+module Ops = Graph.Oper.Make(Graph.Builder.P(G)) ;
+module Dfs = Graph.Traverse.Dfs(G) ;
+
+value of_list l =
+  List.fold_left (fun g (s,d) -> G.add_edge g s d) G.empty l
+;
+    
+value to_list g =
+  (G.fold_edges (fun s d acc -> [(s, d) :: acc]) g [])
+  |> canon
+;
+
   value add_edges tnr l1 l2 =
     l1 |> List.concat_map (fun a1 ->
       l2 |> List.map (fun a2 -> (TAR.NT tnr a1, TAR.NT tnr a2)))
@@ -283,7 +303,9 @@ module VS = struct
 
   value find_partition_number loc _t attrna =
     match _t |> find_mapi (fun i (inh, syn) ->
-      if List.mem attrna inh || List.mem attrna syn then Some i else None) with [
+      if List.mem attrna inh then Some (True, i)
+      else if List.mem attrna syn then Some (False, i)
+      else None) with [
       Some n -> n
     | None -> Ploc.raise loc
         (Failure Fmt.(str "find_partition_number: cannot find attr %s in partition %s" attrna
@@ -295,35 +317,41 @@ module VS = struct
     TAR.PROD _ _ -> AR tar
   | TAR.NT (PARENT nt as nr) attrna ->
     let _t = must_lookup_t nt _t in
-    let partn = find_partition_number loc _t attrna in
-    EXTERNAL nr partn
+    let (is_inh, partn) = find_partition_number loc _t attrna in
+    if is_inh then EXTERNAL nr partn else AR tar
 
   | TAR.NT (CHILD nt i as nr) attrna ->
     let _t = must_lookup_t nt _t in
-    let partn = find_partition_number loc _t attrna in
-    EXTERNAL nr partn
+    let (is_inh, partn) = find_partition_number loc _t attrna in
+    if not is_inh then EXTERNAL nr partn else AR tar
 
   | TAR.CHAINSTART _ _ _ | TAR.REMOTE _ | TAR.CONSTITUENTS _ _ _ -> assert False
   ]
   ;
 
-  value vs_ddp p _t =
+  value vs_ddp0 p _t =
     let l = P.ddp p in
-    let l = l@(p.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
+    l@(p.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
         (TNR.PARENT nt | TNR.CHILD nt _) ->
         let _t = must_lookup_t nt _t in
         add_partition_edges tnr _t
 
       | TNR.PRIM _ _ -> []
-      ])) in
-    l |> List.map (fun (a,b) -> (upconvert_tar p.P.loc _t a, upconvert_tar p.P.loc _t b))
-    |> canon
+      ]))
+  ;
+  value vs_ddp p _t =
+    (vs_ddp0 p _t)
+  |>  List.map (fun (a,b) -> (upconvert_tar p.P.loc _t a, upconvert_tar p.P.loc _t b))
+  |> canon
   ;
 
+  value compute1_vs ag _t p =
+    let ddp_plus = (vs_ddp p _t) |> of_list in
+    let l = TSort.fold (fun v l -> [v::l]) ddp_plus [] in
+    (p.P.name, List.rev l)
+  ;
   value compute_vs ag _t =
-    ag |> AG.all_productions |> List.map (fun p ->
-      (p.P.name, vs_ddp p _t)
-    )
+    ag |> AG.all_productions |> List.map (compute1_vs ag _t)
   ;
 
 end
