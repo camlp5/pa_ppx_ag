@@ -171,7 +171,6 @@ value str_item_gen_ag name arg = fun [
                                 ;nodeattr_type_declaration memo
                                 ;node_attribute_table_declaration memo
                                 ;lookup_parent_declaration memo]$ end ;
-                  value rec $list:actual_dep_function_declarations memo$ ;
                   value $list:[synthesized_attribute_function memo
                               ;inherited_attribute_function memo
                               ]$ ;
@@ -182,6 +181,7 @@ value str_item_gen_ag name arg = fun [
                       List.fold_left (fun g (s,d) -> G.add_edge g s d) G.empty l ;
                     module TSort = Graph.Topological.Make_stable(G) ;
                     module Dfs = Graph.Traverse.Dfs(G) ;
+                    value rec $list:actual_dep_function_declarations memo$ ;
                     value $list:[eval_function memo]$ ;
                   end ;
                   end ;

@@ -425,15 +425,25 @@ value to_list g =
     let upc_tar tar = (match List.assoc tar upc_map with [ x -> x | exception Not_found -> AR tar ]) in
     let upc_edge (a,b) = (upc_tar a, upc_tar b) in
     let added_edges = partition_edges p _t in
-    ((P.ddp p |> List.map upc_edge)@added_edges)
+    ((ddp |> List.map upc_edge)@added_edges)
     |> canon
+  ;
+
+  value check1_vs ((pn : PN.t), l) = do {
+    assert (l <> []) ;
+    assert (match List.hd l with [ EXTERNAL (TNR.PARENT _) _ -> True | _ -> False ]) ;
+  }
   ;
 
   value compute1_vs ag _t p =
     let ddp_plus = (vs_ddp p _t) |> of_list in
     let l = TSort.fold (fun v l -> [v::l]) ddp_plus [] in
-    (p.P.name, List.rev l)
+    let l = List.rev l in do {
+      check1_vs (p.P.name, l) ;
+      (p.P.name, l) ;
+    }
   ;
+
   value compute_vs ag _t =
     ag |> AG.all_productions |> List.map (compute1_vs ag _t)
   ;

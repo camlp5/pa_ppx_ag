@@ -174,7 +174,13 @@ let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
 #trace Ag_ordered.idp_ids ;;
 #trace Ag_ordered.VS.vs_ddp0 ;;
 #trace Ag_ordered.VS.vs_ddp ;;
+#trace Ag_ordered.VS.vs_ddp ;;
+#trace Ag_types.P.ddp ;;
+#trace Ag_ordered.VS.upconverted_map ;;
+#trace Ag_ordered.VS.partition_edges ;;
 *)
+#trace Ag_ordered.VS.check1_vs ;;
+#trace Ag_ordered.VS.compute1_vs ;;
 #trace Ag_ordered.VS.compute_vs ;;
 
 "test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
