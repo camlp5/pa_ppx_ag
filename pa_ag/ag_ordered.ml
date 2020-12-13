@@ -429,25 +429,110 @@ value to_list g =
     |> canon
   ;
 
-  value check1_vs ((pn : PN.t), l) = do {
-    assert (l <> []) ;
-    assert (match List.hd l with [ EXTERNAL (TNR.PARENT _) _ -> True | _ -> False ]) ;
+  value split_list_at_pred pred l = do {
+    assert (l <> [] ) ;
+    assert (pred (List.hd l)) ;
+    let rec splitrec doneacc curacc = fun [
+      [] ->
+      let doneacc =
+        if curacc <> [] then [List.rev curacc :: doneacc] else doneacc in
+      List.rev doneacc
+    | [h :: t] when pred h -> splitrec [List.rev curacc :: doneacc] [h] t
+    | [h :: t] -> splitrec doneacc [h :: curacc] t
+    ] in
+    splitrec [] [List.hd l] (List.tl l)
+  }
+  ;
+
+  value visit_sequence_passes l =
+    let pred = fun [ EXTERNAL (TNR.PARENT _) _ -> True | _ -> False ] in
+    split_list_at_pred pred l
+  ;
+
+  value check1_vs (_t : list (list string * list string)) ((p : P.t), ll) = do {
+    assert (ll <> []) ;
+    assert (List.length _t = List.length ll) ;
+    assert (ll |> List.for_all (fun [ [ EXTERNAL (TNR.PARENT _) _ :: _] -> True | _ -> False ])) ;
   }
   ;
 
   value compute1_vs ag _t p =
     let ddp_plus = (vs_ddp p _t) |> of_list in
     let l = TSort.fold (fun v l -> [v::l]) ddp_plus [] in
-    let l = List.rev l in do {
-      check1_vs (p.P.name, l) ;
-      (p.P.name, l) ;
+    let l = List.rev l in
+    let ll = visit_sequence_passes l in do {
+      check1_vs (must_lookup_t p.P.name.PN.nonterm_name _t) (p, ll) ;
+      (p, ll) ;
     }
   ;
 
   value compute_vs ag _t =
     ag |> AG.all_productions |> List.map (compute1_vs ag _t)
   ;
+(*
+  value visit_nonterminal_fname nt passnum =
+    Fmt.(str "visit_%s__%d" nt passnum)
+  ;
 
+  value visit_production_fname p passnum =
+    Fmt.(str "visit_%s__%d" (PN.unparse p.P.name) passnum)
+  ;
+
+  value instruction p x =
+  let loc = p.P.loc in
+  match x with [
+    EXTERNAL (TNR.PARENT _ | TNR.PRIM _ _) _ -> assert False
+  | EXTERNAL (TNR.CHILD cnt childnum as cnr) passnum ->
+    let fname = visit_nonterminal_fname cnt passnum in
+    let cv = match List.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+    <:expr< $lid:fname$ attrs $lid:cv$ >>
+
+  | AR (TAR.NT (TNR.PARENT pnt) attrna) ->
+    let pntcons = Ag_tsort.node_constructor pnt in
+    let pattrcons = Ag_tsort.attr_constructor attrna in
+    <:expr< compute_attribute attrs (Node . $uid:pntcons$ parent, $uid:pattrcons$) >>
+
+  | AR (TAR.NT (TNR.CHILD cnt childnum as cnr) attrna) ->
+    let cntcons = Ag_tsort.node_constructor cnt in
+    let cattrcons = Ag_tsort.attr_constructor attrna in
+    let cv = match List.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+    <:expr< compute_attribute attrs (Node . $uid:cntcons$ $lid:cv$, $uid:cattrcons$) >>
+
+  | _ -> assert False
+  ]
+  ;
+
+  value visit_sequence1 p l =
+    let loc = p.P.loc in
+    let (pnt, passnum) = match l with [
+      [ EXTERNAL (TNR.PARENT pnt) passnum :: _ ] -> (pnt, passnum)
+    | _ -> assert False ] in
+    let code = List.map (instruction p) (List.tl l) in
+    (p.P.patt,
+     <:expr< do { $list:code$ } >>,
+     <:vala< [] >>)
+  ;
+
+  value visit_sequence_production (p, l) =
+    let passes = visit_sequence_passes l in
+    List.mapi (fun pnum l -> (pnum, visit_sequence1 p l)) passes
+  ;
+
+  value visit_sequence_nonterminal _t (nt, pl) =
+    let vs = match List.assoc nt _t with [ x -> x | exception Not_found -> assert False ] in
+    let p_passes = pl |> List.map (fun p -> (p, visit_sequence_production (p, vs))) in
+    vs |> List.mapi (fun i _ ->
+      let fname = visit_nonterminal_fname nt i in
+      let branches = pl |> (fun p ->
+          let prod_fname = visit_production_fname p i in
+          (p.P.patt, <:vala< None >>, <:expr< $lid:prod_fname$ attrx
+           
+        ) in
+      (<:patt< $lid:fname$ >>,
+       <:expr< fun attrs x -> fun [ $list:branches$ ] >>,
+       <:vala< [] >>)
+    )
+*)
 end
 ;
 module VisitSequence = VS ;
