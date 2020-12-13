@@ -95,15 +95,23 @@ value pa_root s =
 
 open OUnit2 ;
 
-value test_simple ctxt = do {
+value test_simple_topological ctxt = do {
   assert_equal ~{printer=[%show: (string * int)]}
     ("(1 + (2 * 3))",7)
    ({foo| 1 + 2 * 3 |foo} |> pa_root |> AG.Topological.evaluate)
 }
 ;
 
+value test_simple_ordered ctxt = do {
+  assert_equal ~{printer=[%show: (string * int)]}
+    ("(1 + (2 * 3))",7)
+   ({foo| 1 + 2 * 3 |foo} |> pa_root |> AG.Ordered.evaluate)
+}
+;
+
 value suite = "silver_dc" >::: [
-    "test_simple"           >:: test_simple
+  "test_simple_topological"           >:: test_simple_topological
+; "test_simple_ordered"           >:: test_simple_ordered
 ]
 ;
 

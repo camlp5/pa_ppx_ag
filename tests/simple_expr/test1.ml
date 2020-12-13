@@ -15,21 +15,35 @@ let pa_prog_attributed s =
 
 let test_hashtables ctxt =
   let printer = [%show: string list * int] in
-  assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
+  ()
+; assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
     ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> UN.AG.Topological.evaluate)
 ; assert_equal ~printer (["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"],0)
     ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> UN.AG.Topological.evaluate)
 ; assert_raises (Failure "rhs must be nonzero")
     (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_unique |> UN.AG.Topological.evaluate)
+; assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
+    ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_unique |> UN.AG.Ordered.evaluate)
+; assert_equal ~printer (["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"],0)
+    ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_unique |> UN.AG.Ordered.evaluate)
+; assert_raises (Failure "rhs must be nonzero")
+    (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_unique |> UN.AG.Ordered.evaluate)
 
 let test_records ctxt =
   let printer = [%show: string list * int] in
-  assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
+  ()
+; assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
     ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_attributed |> REC.AG.Topological.evaluate)
 ; assert_equal ~printer (["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"],0)
     ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> REC.AG.Topological.evaluate)
 ; assert_raises (Failure "rhs must be nonzero")
     (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_attributed |> REC.AG.Topological.evaluate)
+; assert_equal ~printer (["1"; "x"; ":="; "x"; ";"; "2"; "y"; ":="; ";"; "x"; "y"; "+"; ";"],3)
+    ({| x := 1 ; x ; y := 2 ; x + y |} |> pa_prog_attributed |> REC.AG.Ordered.evaluate)
+; assert_equal ~printer (["1"; "x"; ":="; "2"; "y"; ":="; ";"; "x"; "y"; "/"; ";"],0)
+    ({| x := 1 ; y := 2 ; x / y |} |> pa_prog_attributed |> REC.AG.Ordered.evaluate)
+; assert_raises (Failure "rhs must be nonzero")
+    (fun () -> {| x := 1 ; y := 0 ; x / y |} |> pa_prog_attributed |> REC.AG.Ordered.evaluate)
  
 
 let suite = "test1" >::: [

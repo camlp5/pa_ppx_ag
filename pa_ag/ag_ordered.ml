@@ -3,6 +3,8 @@ open Ag_types ;
 open AG ;
 open AGOps ;
 open Pa_ppx_utils ;
+open Pa_ppx_base ;
+open Ppxutil ;
 
 value nddp p =
   p
@@ -449,7 +451,7 @@ value to_list g =
     split_list_at_pred pred l
   ;
 
-  value check1_vs (_t : list (list string * list string)) ((p : P.t), ll) = do {
+  value check1_vs (_t : list (list string * list string)) ((pn : PN.t), ll) = do {
     assert (ll <> []) ;
     assert (List.length _t = List.length ll) ;
     assert (ll |> List.for_all (fun [ [ EXTERNAL (TNR.PARENT _) _ :: _] -> True | _ -> False ])) ;
@@ -461,21 +463,17 @@ value to_list g =
     let l = TSort.fold (fun v l -> [v::l]) ddp_plus [] in
     let l = List.rev l in
     let ll = visit_sequence_passes l in do {
-      check1_vs (must_lookup_t p.P.name.PN.nonterm_name _t) (p, ll) ;
-      (p, ll) ;
+      check1_vs (must_lookup_t p.P.name.PN.nonterm_name _t) (p.P.name, ll) ;
+      (p.P.name, ll) ;
     }
   ;
 
   value compute_vs ag _t =
     ag |> AG.all_productions |> List.map (compute1_vs ag _t)
   ;
-(*
+
   value visit_nonterminal_fname nt passnum =
     Fmt.(str "visit_%s__%d" nt passnum)
-  ;
-
-  value visit_production_fname p passnum =
-    Fmt.(str "visit_%s__%d" (PN.unparse p.P.name) passnum)
   ;
 
   value instruction p x =
@@ -486,6 +484,13 @@ value to_list g =
     let fname = visit_nonterminal_fname cnt passnum in
     let cv = match List.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
     <:expr< $lid:fname$ attrs $lid:cv$ >>
+
+  | AR (TAR.PROD pn attrna) ->
+    let prodname = PN.unparse pn in
+    let pnt = pn.PN.nonterm_name in
+    let pntcons = Ag_tsort.node_constructor pnt in
+    let attrcons = Ag_tsort.attr_constructor ~{prodname=prodname} attrna in
+    <:expr< compute_attribute attrs (Node . $uid:pntcons$ parent, $uid:attrcons$) >>
 
   | AR (TAR.NT (TNR.PARENT pnt) attrna) ->
     let pntcons = Ag_tsort.node_constructor pnt in
@@ -502,43 +507,87 @@ value to_list g =
   ]
   ;
 
-  value visit_sequence1 p l =
+  value visit_sequence1 p pnum l : MLast.case_branch =
     let loc = p.P.loc in
     let (pnt, passnum) = match l with [
       [ EXTERNAL (TNR.PARENT pnt) passnum :: _ ] -> (pnt, passnum)
     | _ -> assert False ] in
+    let parent_setters = if pnum <> 0 then [] else
+        p.P.typed_nodes |> List.filter_map (fun [
+            TNR.CHILD cnt _ as cnr ->
+            let cv = match List.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+             let abs_childnum = match List.assoc cv p.P.patt_var_to_childnum with [
+               x -> x | exception Not_found -> assert False
+             ] in
+            Some <:expr< AttrTable . $lid:Ag_tsort.parent_setter_name cnt$
+                            attrs
+                            $lid:cv$
+                            (Node . $uid:Ag_tsort.node_constructor pnt$ parent, $int:string_of_int abs_childnum$) >>
+          | _ -> None
+          ]) in
     let code = List.map (instruction p) (List.tl l) in
-    (p.P.patt,
-     <:expr< do { $list:code$ } >>,
-     <:vala< [] >>)
+    (<:patt< ({ node = $p.P.patt$ } as parent) >>,
+     <:vala< None >>,
+     <:expr< do { $list:parent_setters@code$ } >>)
   ;
 
-  value visit_sequence_production (p, l) =
-    let passes = visit_sequence_passes l in
-    List.mapi (fun pnum l -> (pnum, visit_sequence1 p l)) passes
+  value visitors_production (p, ll) : list (int * MLast.case_branch) =
+    ll |> List.mapi (fun pnum l -> (pnum, visit_sequence1 p pnum l))
   ;
 
-  value visit_sequence_nonterminal _t (nt, pl) =
-    let vs = match List.assoc nt _t with [ x -> x | exception Not_found -> assert False ] in
-    let p_passes = pl |> List.map (fun p -> (p, visit_sequence_production (p, vs))) in
-    vs |> List.mapi (fun i _ ->
+  value visitors_nonterminal _t all_vs (nt, pl) =
+    let _t = must_lookup_t nt _t in
+    let pn_passes = pl |> List.map (fun p ->
+      let vs = match List.assoc p.P.name all_vs with [ x -> x | exception Not_found -> assert False ] in
+      (p.P.name, visitors_production (p, vs))) in
+    _t |> List.mapi (fun i _ ->
+      let branches = pl |> List.map (fun p ->
+        List.assoc i (List.assoc p.P.name pn_passes)) in
       let fname = visit_nonterminal_fname nt i in
-      let branches = pl |> (fun p ->
-          let prod_fname = visit_production_fname p i in
-          (p.P.patt, <:vala< None >>, <:expr< $lid:prod_fname$ attrx
-           
-        ) in
+      let loc = Ploc.dummy in
       (<:patt< $lid:fname$ >>,
-       <:expr< fun attrs x -> fun [ $list:branches$ ] >>,
+       <:expr< fun attrs -> fun [ $list:branches$ ] >>,
        <:vala< [] >>)
     )
-*)
+  ;
+
+  value visitors ag _t all_vs =
+    ag.AG.productions |> List.concat_map (visitors_nonterminal _t all_vs)
+  ;
 end
 ;
 module VisitSequence = VS ;
 
-value compute_ordering memo =
-  let _t = compute_t memo in
-  let vs = VS.compute_vs memo.NTOps.ag _t in
-  (_t, vs)
+value compute_visitors ag _t all_vs =
+  VisitSequence.visitors ag _t all_vs
 ;
+
+value compute_evaluate memo =
+  let ag = memo.NTOps.ag in
+  let loc = ag.AG.loc in
+  let _t = compute_t memo in
+  let all_vs = VS.compute_vs ag _t in
+  let visitors = compute_visitors ag _t all_vs in
+  let axiom = ag.AG.axiom in
+  let axiom_t = must_lookup_t axiom _t in
+  let result_expr =
+    match List.assoc axiom memo._AS with [
+      x -> x
+    | exception Not_found -> assert False
+    ]
+    |> List.map (fun attrna ->
+         <:expr< AttrTable. $lid:Ag_tsort.attr_accessor_name axiom attrna$ attrs parent >>
+       ) |> (fun l -> Expr.tuple loc l) in
+  let code =
+    axiom_t |> List.mapi (fun i _ ->
+        let fname = VS.visit_nonterminal_fname axiom i in
+        <:expr< $lid:fname$ attrs parent >>
+      ) in
+  (visitors,
+   (<:patt< evaluate >>,
+    <:expr< fun parent ->
+            let attrs = AttrTable.mk () in
+            do { $list:code@[result_expr]$ } >>,
+    <:vala< [] >>))
+;
+  

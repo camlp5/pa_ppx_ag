@@ -76,14 +76,21 @@ value pa_z s =
 
 open OUnit2 ;
 
-value test_simple ctxt =
+value test_simple_topological ctxt =
   assert_equal ~{printer=[%show: (string * string * string * string)]}
     ("f()", "g(f())", "g(g(f()))", "g(g(f()))")
    ({foo| P R |foo} |> pa_z |> AG.Topological.evaluate)
 ;
 
+value test_simple_ordered ctxt =
+  assert_equal ~{printer=[%show: (string * string * string * string)]}
+    ("f()", "g(f())", "g(g(f()))", "g(g(f()))")
+   ({foo| P R |foo} |> pa_z |> AG.Ordered.evaluate)
+;
+
 value suite = "kastens116" >::: [
-    "test_simple"           >:: test_simple
+  "test_simple_topological"           >:: test_simple_topological
+; "test_simple_ordered"           >:: test_simple_ordered
 ]
 ;
 

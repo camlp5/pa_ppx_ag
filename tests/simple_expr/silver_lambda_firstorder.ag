@@ -377,7 +377,7 @@ value pa_root s =
 
 open OUnit2 ;
 
-value test_simple ctxt = do {
+value test_simple_topological ctxt = do {
   assert_equal ~{printer=[%show: (string * string * ATY.t)]}
     ("",  "let incr:(int)->(int)=lambda x:int.x+1 in incr 4", ATY.Int)
    ({foo| let 
@@ -387,8 +387,19 @@ in
 }
 ;
 
+value test_simple_ordered ctxt = do {
+  assert_equal ~{printer=[%show: (string * string * ATY.t)]}
+    ("",  "let incr:(int)->(int)=lambda x:int.x+1 in incr 4", ATY.Int)
+   ({foo| let 
+  incr : int -> int = lambda x : int . x + 1
+in
+  incr 4 |foo} |> pa_root |> AG.Ordered.evaluate)
+}
+;
+
 value suite = "silver_lambda(firstorder)" >::: [
-    "test_simple"           >:: test_simple
+  "test_simple_topological"           >:: test_simple_topological
+; "test_simple_ordered"           >:: test_simple_ordered
 ]
 ;
 

@@ -158,7 +158,7 @@ value str_item_gen_ag name arg = fun [
       assert (AGOps.well_formed memo) ;
       assert (AGOps.complete memo) ;
       assert (AGOps.locally_acyclic memo) ;
-    let _ = Ag_ordered.compute_ordering memo in
+    let (visitors,evaluate) = Ag_ordered.compute_evaluate memo in
       <:str_item< 
                 declare
                   $stri:uu_st$ ;
@@ -183,6 +183,10 @@ value str_item_gen_ag name arg = fun [
                     module Dfs = Graph.Traverse.Dfs(G) ;
                     value rec $list:actual_dep_function_declarations memo$ ;
                     value $list:[eval_function memo]$ ;
+                  end ;
+                  module Ordered = struct
+                    value rec $list:visitors$ ;
+                    value $list:[evaluate]$ ;
                   end ;
                   end ;
                 end
