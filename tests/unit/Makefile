@@ -12,7 +12,7 @@ LAUNCH=env TOP=$(TOP) $(TOP)/tools/LAUNCH
 OCAMLFIND=$(LAUNCH) ocamlfind
 NOT_OCAMLFIND=$(LAUNCH) not-ocamlfind
 MKCAMLP5=$(LAUNCH) mkcamlp5
-PACKAGES := $(PACKAGES),bos,ounit2,fmt,pcre,rresult,compiler-libs.common,sexplib,uint,pa_ppx.utils,pa_ppx.testutils
+PACKAGES := $(PACKAGES),bos,oUnit,fmt,pcre,rresult,compiler-libs.common,sexplib0,uint,pa_ppx.utils,pa_ppx.testutils
 PACKAGES := $(PACKAGES),camlp5.pa_r.link,camlp5.pr_r.link
 PACKAGES := $(PACKAGES),pa_ppx_ag.parser.link,camlp5.parser_quotations,pa_ppx.deriving.link
 PACKAGES := $(PACKAGES),pa_ppx.deriving_plugins.std

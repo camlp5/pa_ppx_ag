@@ -1,7 +1,7 @@
 #use "topfind.camlp5";;
 #require "findlib.internal";;
 #require "compiler-libs.common" ;;
-#require "ounit2";;
+#require "oUnit";;
 #require "fmt";;
 #require "rresult";;
 #require "pcre";;
