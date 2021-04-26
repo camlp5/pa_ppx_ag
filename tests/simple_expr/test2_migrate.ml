@@ -1,6 +1,7 @@
 (* camlp5o *)
 (* test2_migrate.ml *)
 
+type loc = Ploc.t
 exception Migration_error of string
 
 let migration_error feature =
@@ -43,6 +44,11 @@ module OK = struct
         ; dsttype = [%typ: 'b list]
         ; code = _migrate_list
         ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
+        }
+      ; migrate_loc = {
+          srctype = [%typ: loc]
+        ; dsttype = [%typ: loc]
+        ; code = fun __dt__ x -> x
         }
       }
     }
@@ -144,6 +150,11 @@ module Attributed = struct
         ; code = fun __dt__ -> fun { Pa_ppx_ag_runtime.Attributes.node = node } ->
             Test2_ag.AT.make_unop (migrate_unop_node __dt__ node)
         }
+      ; migrate_loc = {
+          srctype = [%typ: loc]
+        ; dsttype = [%typ: loc]
+        ; code = fun __dt__ x -> x
+        }
       }
     }
   ]
@@ -177,8 +188,9 @@ and block2_node = [%import: Test2_ag.block2]
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test2_ag.AT.expr_node]
         ; custom_branches_code = (function
-              BINOP (bop, x, y) ->
+              BINOP (loc, bop, x, y) ->
               Test2_ag.AT.make_expr__BINOP_0
+                loc
                 (__dt__.migrate_binop __dt__ bop)
                 (__dt__.migrate_expr __dt__ x)
                 (__dt__.migrate_expr __dt__ y)
@@ -284,6 +296,11 @@ and block2_node = [%import: Test2_ag.block2]
             Test2_ag.AT.make_unop (__dt__.migrate_unop_node __dt__ x)
           )
         }
+      ; migrate_loc = {
+          srctype = [%typ: loc]
+        ; dsttype = [%typ: loc]
+        ; code = fun __dt__ x -> x
+        }
       }
     }
 ]
@@ -311,9 +328,10 @@ module _ = Test2_ag
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test2_ag.expr]
         ; custom_branches_code = (function
-              BINOP (bop, x, y, _) ->
+              BINOP (loc, bop, x, y, _) ->
               Test2_ag.BINOP
-                (__dt__.migrate_binop __dt__ bop,
+                (loc,
+                 __dt__.migrate_binop __dt__ bop,
                  __dt__.migrate_expr __dt__ x,
                  __dt__.migrate_expr __dt__ y)
           )
@@ -418,6 +436,11 @@ module _ = Test2_ag
         ; code = (fun __dt__ x ->
             __dt__.migrate_unop_node __dt__ x.Pa_ppx_ag_runtime.Attributes.node
           )
+        }
+      ; migrate_loc = {
+          srctype = [%typ: loc]
+        ; dsttype = [%typ: loc]
+        ; code = fun __dt__ x -> x
         }
       }
     }

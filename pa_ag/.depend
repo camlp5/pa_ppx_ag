@@ -1,17 +1,35 @@
 camlp5_migrate.cmo ag_types.cmo ag_tsort.cmo ag_ordered.cmo pa_deriving_attributed.cmo pa_deriving_ag.cmo pa_ag.cmo pa_ppx_ag_runtime.cmo camlp5_migrate.cmi ag_types.cmi ag_tsort.cmi ag_ordered.cmi pa_deriving_attributed.cmi pa_deriving_ag.cmi pa_ag.cmi pa_ppx_ag_runtime.cmi camlp5_migrate.cmx ag_types.cmx ag_tsort.cmx ag_ordered.cmx pa_deriving_attributed.cmx pa_deriving_ag.cmx pa_ag.cmx pa_ppx_ag_runtime.cmx: 
 ag_ordered.cmo : \
-    ag_types.cmo
+    ag_types.cmo \
+    ag_tsort.cmo
 ag_ordered.cmx : \
-    ag_types.cmx
+    ag_types.cmx \
+    ag_tsort.cmx
+ag_ordered_ppo.cmo : \
+    ag_types.cmo \
+    ag_tsort.cmo
+ag_ordered_ppo.cmx : \
+    ag_types.cmx \
+    ag_tsort.cmx
 ag_tsort.cmo : \
     camlp5_migrate.cmo \
     ag_types.cmo
 ag_tsort.cmx : \
     camlp5_migrate.cmx \
     ag_types.cmx
+ag_tsort_ppo.cmo : \
+    camlp5_migrate.cmo \
+    ag_types.cmo
+ag_tsort_ppo.cmx : \
+    camlp5_migrate.cmx \
+    ag_types.cmx
 ag_types.cmo : \
     camlp5_migrate.cmo
 ag_types.cmx : \
+    camlp5_migrate.cmx
+ag_types_ppo.cmo : \
+    camlp5_migrate.cmo
+ag_types_ppo.cmx : \
     camlp5_migrate.cmx
 pa_ag.cmo : \
     camlp5_migrate.cmo \

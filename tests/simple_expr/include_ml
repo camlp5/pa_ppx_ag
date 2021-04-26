@@ -178,14 +178,14 @@ let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
 #trace Ag_types.P.ddp ;;
 #trace Ag_ordered.VS.upconverted_map ;;
 #trace Ag_ordered.VS.partition_edges ;;
-*)
 #trace Ag_ordered.VS.visit_sequence_passes ;;
 #trace Ag_ordered.VS.check1_vs ;;
 #trace Ag_ordered.VS.compute1_vs ;;
 #trace Ag_ordered.VS.compute_vs ;;
 #trace Ag_ordered.VS.instruction;;
+*)
 
-"test1_ag.ml" |> Fpath.v |> Bos.OS.File.read
+"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
   |> Rresult.R.get_ok |> PAPR.Implem.pa1
   |> PAPR.Implem.pr |> print_string ;;
 

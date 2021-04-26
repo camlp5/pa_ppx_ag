@@ -9,7 +9,7 @@ ATTRIBUTE_GRAMMAR
   ATTRIBUTION_MODEL Attributed {
     attributed_module_name = AT
   } ;
-  PRIMITIVES int, string, bool, loc ;
+  PRIMITIVES loc ;
   AXIOM prog ;
 
 ATTRIBUTE value_ : int ;
@@ -38,6 +38,9 @@ COMPUTE
   $result := $[2].bin_oper $[3].value_ $[4].value_ ;
   $[0].rpn := [$[2].operator_text :: $[4].rpn] ;
   condition "rhs must be nonzero"
+(*
+ Fmt.(str "%s: rhs must be nonzero" (Ploc.string_of_location $[1]))
+*)
     (if $[2].rhs_must_be_nonzero then
        0 <> $[4].value_
      else True) ;

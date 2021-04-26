@@ -1,11 +1,12 @@
 (* camlp5o *)
 (* test_ag.ml *)
 
+type loc = Ploc.t
 let global_ref = ref [] ;;
 
 type expr =
     INT of int
-  | BINOP of binop * expr * expr
+  | BINOP of loc * binop * expr * expr
   | UNOP of unop * expr
   | REF of ref_expr
   | SEQ of expr * expr
@@ -24,6 +25,7 @@ and prog = PROG of block1
     attributed_module_name = AT
   }
   ; storage_mode = Records
+  ; primitive_types = [loc]
   ; axiom = prog
   ; attribute_types = {
       bin_oper = [%typ: int -> int -> int]
@@ -73,7 +75,7 @@ and prog = PROG of block1
         [%nterm expr].value_ := [%local result]
       ; [%local result] := [%nterm binop.(1)].bin_oper [%nterm expr.(1)].value_ [%nterm expr.(2)].value_
       ; [%nterm expr].rpn := [%nterm binop.(1)].operator_text :: [%nterm expr.(2)].rpn
-      ; condition "rhs must be nonzero"
+      ; condition Fmt.(str "%srhs must be nonzero" (Ploc.string_of_location [%prim 1]))
           (if [%nterm binop.(1)].rhs_must_be_nonzero then
              0 <> [%nterm expr.(2)].value_
            else true)

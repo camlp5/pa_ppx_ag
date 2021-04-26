@@ -447,13 +447,19 @@ value compile_teqn_tcond_body ag p body =
       <:expr:< [%prim $int:absi$ ;] >> ->
       let v = lookup_var p (NR.PRIM None (int_of_string absi)) in
       <:expr< $lid:v$ >>
+
+    | <:expr:< [%prim $lid:tyname$ . ( $int:reli$ ) ;] >> when AG.is_primitive_ctyp ag tyname ->
+      let v = lookup_var p (NR.PRIM (Some tyname) (int_of_string reli)) in
+      <:expr< $lid:v$ >>
+
+(*
     | <:expr:< [%prim int . ( $int:reli$ ) ;] >> ->
       let v = lookup_var p (NR.PRIM (Some "int") (int_of_string reli)) in
       <:expr< $lid:v$ >>
     | <:expr:< [%prim string . ( $int:reli$ ) ;] >> ->
       let v = lookup_var p (NR.PRIM (Some "string") (int_of_string reli)) in
       <:expr< $lid:v$ >>
-
+*)
     | <:expr:< [%nterm 0 ;] . $lid:attrna$ >> ->
       let tnr = lookup_tnr p (NR.PARENT None) in
       let cnt = match tnr with [ TNR.PARENT cnt -> cnt | _ -> assert False ] in

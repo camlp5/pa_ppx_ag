@@ -750,11 +750,11 @@ value assignment_to_equation_or_side_effect pn e = match e with [
     ; rhs_nodes = extract_attribute_references pn rhs
     ; rhs_expr = rhs }
 
-  | <:expr:< condition $str:msg$ $e$ >> ->
+  | <:expr:< condition $msge$ $e$ >> ->
     Right { 
       ASide.loc = loc
     ; rhs_nodes = extract_attribute_references pn e
-    ; rhs_expr = <:expr< if not $e$ then failwith $str:msg$ else () >> }
+    ; rhs_expr = <:expr< if not $e$ then failwith $msge$ else () >> }
   | <:expr:< condition $e$ >> ->
     let msg = Fmt.(str "condition %a failed" Pp_MLast.pp_expr e) in
     Right { 
