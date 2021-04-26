@@ -134,7 +134,7 @@ END ;
 value test_ag_elements6 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=equal_ag_element_t} ~{printer=show_ag_element_t}
-    (rule_replace_node (pa_ag_element {foo|
+    (rule_replace_node [] (pa_ag_element {foo|
 RULE LET_BINDING : l:let_expr := s:string and e1:expr and e2:expr
 COMPUTE
   $[l].value_ := $[3].value_ ;
@@ -162,7 +162,7 @@ END ;
 value test_ag_elements7 _ =
   let loc = Ploc.dummy in
  assert_equal ~{cmp=[%eq: list (string * string)]} ~{printer=[%show: list (string * string)]}
-    (rule_to_node_attributes (rule_replace_node (pa_ag_element {foo|
+    (rule_to_node_attributes (rule_replace_node [] (pa_ag_element {foo|
 RULE LET_BINDING : let_expr := string and expr and expr
 COMPUTE
   $[0].value_ := $[3].value_ ;
@@ -177,7 +177,7 @@ END ;
     [("expr", "rpn"); ("expr", "value_"); ("let_expr", "env");
      ("let_expr", "freevars"); ("let_expr", "value_")]
 ; assert_equal ~{cmp=[%eq: list ((string * string) * string)]} ~{printer=[%show: list ((string * string) * string)]}
-    (rule_to_prod_attributes (rule_replace_node (pa_ag_element {foo|
+    (rule_to_prod_attributes (rule_replace_node [] (pa_ag_element {foo|
 RULE BINOP : expr := binop and expr and expr
 COMPUTE
   $[0].value_ := $result ;
@@ -211,7 +211,7 @@ value test_ag1 _ =
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ R ][@@deriving ag { optional = True ; module_name = AG;
               attribution_model = Attributed { attributed_module_name = AT };
-              storage_mode = Records ; axiom = x; attribute_types = ();
+              storage_mode = Records ; primitive_types = []; axiom = x; attribute_types = ();
               node_attributes = {x = [a; b]};
               production_attributes = ();
               attribution = {
@@ -242,7 +242,7 @@ value test_ag1' _ =
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
   <:str_item< type x = [ R ][@@deriving ag { optional = True ; module_name = AG;
               attribution_model = Attributed { attributed_module_name = AT };
-              storage_mode = Records ; axiom = x; attribute_types = ();
+              storage_mode = Records; primitive_types = []; axiom = x; attribute_types = ();
               node_attributes = {x = [a; b]};
               production_attributes = ();
               attribution = {
@@ -272,7 +272,7 @@ value test_ag2 _ =
   <:str_item< type x = [ Q of x and x | R ]
               and z = [ P of x ][@@deriving ag { optional = False ; module_name = AG;
               attribution_model = Attributed { attributed_module_name = AT };
-              storage_mode = Records; axiom = z;
+              storage_mode = Records; primitive_types = []; axiom = z;
               attribute_types =
               {a = [%"typ": int]; b = [%"typ": int]; c = [%"typ": int];
               d = [%"typ": int]};
@@ -331,7 +331,9 @@ value test_ag3 _ =
       [ UMINUS | UPLUS ][@@"deriving" ag
         {optional = True; module_name = AG;
          attribution_model = Attributed {attributed_module_name = AT};
-         storage_mode = Records; axiom = prog;
+         storage_mode = Records;
+         primitive_types = [];
+         axiom = prog;
          attribute_types =
            {bin_oper = [%"typ": int → int → int];
             env = [%"typ": list (string * int)];

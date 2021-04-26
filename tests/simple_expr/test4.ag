@@ -1,6 +1,6 @@
 
 module REC = struct
-
+type loc = Ploc.t ;
 value global_ref = ref [] ;
 
 ATTRIBUTE_GRAMMAR
@@ -9,6 +9,7 @@ ATTRIBUTE_GRAMMAR
   ATTRIBUTION_MODEL Attributed {
     attributed_module_name = AT
   } ;
+  PRIMITIVES int, string, bool, loc ;
   AXIOM prog ;
 
 ATTRIBUTE value_ : int ;
@@ -31,14 +32,14 @@ COMPUTE
   $[0].rpn := [(string_of_int $[1]) :: $[0].rpn] ;
 END ;
 
-RULE BINOP : expr := binop and expr and expr
+RULE BINOP : expr := loc and binop and expr and expr
 COMPUTE
   $[0].value_ := $result ;
-  $result := $[1].bin_oper $[2].value_ $[3].value_ ;
-  $[0].rpn := [$[1].operator_text :: $[3].rpn] ;
+  $result := $[2].bin_oper $[3].value_ $[4].value_ ;
+  $[0].rpn := [$[2].operator_text :: $[4].rpn] ;
   condition "rhs must be nonzero"
-    (if $[1].rhs_must_be_nonzero then
-       0 <> $[3].value_
+    (if $[2].rhs_must_be_nonzero then
+       0 <> $[4].value_
      else True) ;
 END ;
 
@@ -175,12 +176,12 @@ EXTEND
 
   expr: [
     "top" [ e1 = expr ; ";" ; e2 = expr -> make_expr__SEQ e1 e2 ]
-  | [ e1 = expr ; "+" ; e2 = expr -> make_expr__BINOP (make_binop__PLUS ()) e1 e2
-    | e1 = expr ; "-" ; e2 = expr -> make_expr__BINOP (make_binop__MINUS()) e1 e2
+  | [ e1 = expr ; "+" ; e2 = expr -> make_expr__BINOP loc (make_binop__PLUS ()) e1 e2
+    | e1 = expr ; "-" ; e2 = expr -> make_expr__BINOP loc (make_binop__MINUS()) e1 e2
     ]
-  | [ e1 = expr ; "*" ; e2 = expr -> make_expr__BINOP (make_binop__STAR()) e1 e2
-    | e1 = expr ; "/" ; e2 = expr -> make_expr__BINOP (make_binop__SLASH()) e1 e2
-    | e1 = expr ; "%" ; e2 = expr -> make_expr__BINOP (make_binop__PERCENT()) e1 e2
+  | [ e1 = expr ; "*" ; e2 = expr -> make_expr__BINOP loc (make_binop__STAR()) e1 e2
+    | e1 = expr ; "/" ; e2 = expr -> make_expr__BINOP loc (make_binop__SLASH()) e1 e2
+    | e1 = expr ; "%" ; e2 = expr -> make_expr__BINOP loc (make_binop__PERCENT()) e1 e2
     ]
   | [ "+" ; e = expr -> make_expr__UNOP (make_unop__UPLUS()) e
     | "-" ; e = expr -> make_expr__UNOP (make_unop__UMINUS()) e

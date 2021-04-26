@@ -47,10 +47,12 @@ value compute_typed_attributes loc attribute_types node_attributes production_at
        (pname, attrs |> List.map (fun aname -> (aname, attr2type pname aname)))))
 ;
 
+
 type t = {
   optional : bool
 ; plugin_name : string
 ; module_name : uident
+; primitive_types : list lident [@default [];]
 ; storage_mode : storage_mode_t
 ; attribution_model : option attribution_model_t
 ; axiom : lident
@@ -128,6 +130,7 @@ value str_item_gen_decorated loc rc tdl =
      <:str_item< declare end >>)
   ]
 ;
+
 value str_item_gen_ag name arg = fun [
   <:str_item:< type $_flag:_$ $list:tdl$ >> as st ->
     let rc0 = AGC.build_context loc arg tdl in
@@ -135,6 +138,7 @@ value str_item_gen_ag name arg = fun [
     let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules rc.AGC.storage_mode in
     let ag0 = AG.mk0 loc
         rc.AGC.storage_mode
+        rc.AGC.primitive_types
         rc.AGC.axiom
         (List.map fst rc.AGC.name2nodename)
         (rc.AGC.attribute_types, rc.AGC.node_attributes, rc.AGC.production_attributes)
@@ -202,6 +206,7 @@ Pa_deriving.(Registry.add PI.{
             ; "axiom"
             ; "attribution_model"
             ; "storage_mode"
+            ; "primitive_types"
             ; "attribute_types"
             ; "node_attributes"
             ; "production_attributes"

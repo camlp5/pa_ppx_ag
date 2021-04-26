@@ -28,6 +28,7 @@ value strg_of_list l =
 
 value canon_expr e = Reloc.expr (fun _ -> Ploc.dummy) 0 e ;
 value canon_ctyp ty = Reloc.ctyp (fun _ -> Ploc.dummy) 0 ty ;
+value builtin_type_names = ["string";"int";"int32";"int64";"nativeint";"float";"bool";"char"] ;
 value builtin_types =
   let loc = Ploc.dummy in
   List.map canon_ctyp [
@@ -41,7 +42,12 @@ value builtin_types =
   ; <:ctyp< char >>
   ]
 ;
-value is_builtin_ctyp z = List.mem (canon_ctyp z) builtin_types ;
+
+value is_primitive_ctyp0 l z = match z with [
+  <:ctyp:< $lid:tyname$ >> -> List.mem tyname builtin_type_names || List.mem tyname l
+| _ -> False
+]
+;
 
 module Pp_hum = struct
   value ctyp pps ty = Fmt.(pf pps "%s" (Eprinter.apply Pcaml.pr_ctyp Pprintf.empty_pc ty));
@@ -627,6 +633,7 @@ module NTG = Graph.Persistent.Digraph.ConcreteBidirectionalLabeled(
 module AG = struct
   type t = {
     loc : Ploc.t
+  ; primitive_types : list string
   ; storage_mode : storage_mode_t
   ; axiom : string
   ; attribute_types : list (string * AT.t)
@@ -638,10 +645,14 @@ module AG = struct
   ; productions : list (string * list P.t)
   }
   ;
-  value mk0 loc storage_mode axiom nonterminals
+
+  value is_primitive_ctyp ag z = List.mem z builtin_type_names || List.mem z ag.primitive_types ;
+
+  value mk0 loc storage_mode primitive_types axiom nonterminals
     (attribute_types, node_attributes, production_attributes)
     equations side_effects = {
     loc = loc
+  ; primitive_types = primitive_types
   ; storage_mode = storage_mode
   ; axiom = axiom
   ; nonterminals = nonterminals
@@ -859,7 +870,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
         let v = Printf.sprintf "v_%d" (i+1) in
         (<:patt< $lid:v$ >>, (v, TNR.CHILD tyname aliasnum), (v, i+1))
       }
-    | <:ctyp:< $lid:tyname$ >> as z when is_builtin_ctyp z -> do {
+    | <:ctyp:< $lid:tyname$ >> as z when is_primitive_ctyp ag tyname -> do {
         let aliasnum = NA.next_prim_number node_aliases tyname in
         NA.add node_aliases (TNR.PRIM tyname aliasnum, NR.PRIM None (i+1)) ;
         Std.push typed_nodes (TNR.PRIM tyname aliasnum) ;

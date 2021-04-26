@@ -45,7 +45,7 @@ value make_attribute_types loc el = do {
 }
 ;
 
-value node_to_ar rule =
+value node_to_ar primitive_types rule =
   let ((lhsna_opt, lhsty), types) = match rule with [ RULE _ _ tyna l _  -> (tyna, l) | _ -> assert False ] in
   fun [
     <:expr:< [%node 0;] >> ->
@@ -56,7 +56,7 @@ value node_to_ar rule =
 
   | <:expr:< [%node $int:n$;] >> ->
       let i = int_of_string n in
-      if is_builtin_ctyp (snd (List.nth types (i-1))) then
+      if is_primitive_ctyp0 primitive_types (snd (List.nth types (i-1))) then
         <:expr< [%prim $int:n$;] >>
       else
         <:expr< [%nterm $int:n$;] >>
@@ -67,7 +67,7 @@ value node_to_ar rule =
         | _ -> None
         ]) with [
         Some (n, ty) ->
-          if is_builtin_ctyp ty then
+          if is_primitive_ctyp0 primitive_types ty then
             <:expr< [%prim $int:string_of_int n$;] >>
           else
             <:expr< [%nterm $int:string_of_int n$;] >>
@@ -87,13 +87,13 @@ value rewrite_expr f e =
   dt.migrate_expr dt e
 ;
 
-value rewrite_eqn rule e =
-  rewrite_expr (node_to_ar rule) e
+value rewrite_eqn primitive_types rule e =
+  rewrite_expr (node_to_ar primitive_types rule) e
 ;
 
-value rule_replace_node age = match age with [
+value rule_replace_node primitive_types age = match age with [
   RULE loc prodna tyna tyl eqns ->
-  let new_eqns = List.map (rewrite_eqn age) eqns in
+  let new_eqns = List.map (rewrite_eqn primitive_types age) eqns in
   RULE loc prodna tyna tyl new_eqns
   | _ -> assert False
 ]
@@ -248,8 +248,8 @@ value make_prod_attributes loc l =
       else <:expr< { $list:l$ } >>)
 ;
 
-value resolve_node_extension = fun [
-  RULE _ _ _ _ _  as r -> rule_replace_node r
+value resolve_node_extension primitive_types = fun [
+  RULE _ _ _ _ _  as r -> rule_replace_node primitive_types r
 | e -> e
 ]
 ;
@@ -270,13 +270,17 @@ value make_attribution loc l =
   |> (fun l -> <:expr< { $list:l$ } >>)
 ;
 
-value make_deriving_attribute loc debug modname amodel axiom l =
+value make_deriving_attribute loc debug modname amodel prims axiom l =
   let optional = if debug then <:expr< True >> else <:expr< False >> in
   let storage_mode = match amodel with [
     <:expr< Unique $_$ >> -> <:expr< Hashtables >>
   | <:expr< Attributed $_$ >> -> <:expr< Records >>
   ] in
-  let l = List.map resolve_node_extension l in
+  let l = List.map (resolve_node_extension prims) l in
+  let primitive_types =
+    prims
+    |> List.map (lid_to_expr loc)
+    |> Ppxutil.convert_up_list_expr loc  in
   let attribute_types = make_attribute_types loc l in
   let node_attributes = make_node_attributes loc l in
   let production_attributes = make_prod_attributes loc l in
@@ -286,6 +290,7 @@ value make_deriving_attribute loc debug modname amodel axiom l =
                     module_name = $uid:modname$
                     ; attribution_model = $amodel$
                     ; storage_mode = $storage_mode$
+                    ; primitive_types = $primitive_types$
                     ; axiom = $lid:axiom$
                     ; attribute_types = $attribute_types$
                     ; node_attributes = $node_attributes$
@@ -304,9 +309,9 @@ value attach_attribute tdl attr =
   tdl@[last_td]
 ;
 
-value make_ag_str_item loc debug modname amodel axiom l = do {
+value make_ag_str_item loc debug modname amodel prims axiom l = do {
   let tdl = make_typedecls loc l in
-  let attr = make_deriving_attribute loc debug modname amodel axiom l in
+  let attr = make_deriving_attribute loc debug modname amodel prims axiom l in
   let tdl = attach_attribute tdl attr in
   <:str_item< type $list:tdl$ >>
 }
@@ -331,20 +336,21 @@ EXTEND
 
   str_item: [ [
       "ATTRIBUTE_GRAMMAR" ;
-      (debug, modname, amodel, axiom, l) = attribute_grammar_body ;
-      "END" -> make_ag_str_item loc debug modname amodel axiom l
+      (debug, modname, amodel, prims, axiom, l) = attribute_grammar_body ;
+      "END" -> make_ag_str_item loc debug modname amodel prims axiom l
     | "ATTRIBUTE_GRAMMAR" ; "{" ;
-      (debug, modname, amodel, axiom, l) = attribute_grammar_body ;
-      "}" -> make_ag_str_item loc debug modname amodel axiom l
+      (debug, modname, amodel, prims, axiom, l) = attribute_grammar_body ;
+      "}" -> make_ag_str_item loc debug modname amodel prims axiom l
     ] ] ;
 
   attribute_grammar_body: [ [
       debug = [ "DEBUG" ; b = [ UIDENT "True" -> True | UIDENT "False" -> False ] ; ";" -> b | -> False ] ;
       "MODULE" ; modname = UIDENT ; ";" ;
       "ATTRIBUTION_MODEL" ; amodel = expr ; ";" ;
+      prims = [ "PRIMITIVES" ; prims = LIST1 LIDENT SEP "," ; ";" -> prims | -> [] ] ;
       "AXIOM" ; axiom = LIDENT ; ";" ;
       l = LIST1 attribute_grammar_element
-      -> (debug, modname, amodel, axiom, l)
+      -> (debug, modname, amodel, prims, axiom, l)
     ] ] ;
 
   named_typename: [ [
