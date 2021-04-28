@@ -72,9 +72,9 @@ value node_to_ar primitive_types rule =
       else
         <:expr< [%nterm $int:n$;] >>
 
-  | <:expr:< [%node $lid:id$;] >> ->
+  | <:expr:< [%node $lid:nid$;] >> ->
       match types |> find_mapi (fun i -> fun [
-          (Some id', ty) when id = id' -> Some (i+1, ty)
+          (Some id', ty) when nid = id' -> Some (i+1, ty)
         | _ -> None
         ]) with [
         Some (n, ty) ->
@@ -82,6 +82,7 @@ value node_to_ar primitive_types rule =
             <:expr< [%prim $int:string_of_int n$;] >>
           else
             <:expr< [%nterm $int:string_of_int n$;] >>
+      | None -> failwith Fmt.(str "node with name %a was not found" Dump.string nid)
       ]
   | _ -> failwith "caught"
   ]
@@ -92,7 +93,7 @@ value rewrite_expr f e =
   let fallback_migrate_expr = dt.migrate_expr in
   let migrate_expr dt e = match f e with [
     x -> x
-  | exception Failure _ -> fallback_migrate_expr dt e
+  | exception Failure "caught" -> fallback_migrate_expr dt e
   ] in
   let dt = { (dt) with Camlp5_migrate.migrate_expr = migrate_expr } in
   dt.migrate_expr dt e

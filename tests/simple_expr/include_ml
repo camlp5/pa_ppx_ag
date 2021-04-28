@@ -135,64 +135,11 @@ let pp_patt ty = Fmt.(pf stdout "#<patt< %a >>" Pa_ppx_base.Pp_MLast.pp_patt ty)
 
 print_string "================ START ================\n";; flush stdout ;;
 
-Pa_ppx_base.Pa_passthru.debug := true ;;
-Pa_ppx_base.Pp_MLast.Ploc.pp_loc_verbose := true ;;
-
-#directory "../../pa_ag";;
-#require "pa_ppx.import" ;;
-Pa_import.add_include "." ;;
-
-#require "vec";;
 #require "ocamlgraph";;
-(*
-#require "camlp5.extend";;
-*)
-#require "pa_ppx.params_runtime";;
-#require "pa_ppx_ag" ;;
-(*
-#require "pa_ppx_ag.parser";;
-*)
-open Ag_types ;;
-#install_printer PN.pp_top ;;
-#install_printer NR.pp_top ;;
-#install_printer AR.pp_top ;;
-#install_printer TNR.pp_top ;;
-#install_printer TAR.pp_top ;;
-#install_printer TAEQ.pp_top ;;
-#install_printer AT.pp_top ;;
-let pp_ag (x : Ag_types.AG.t) = Fmt.(pf stdout "#<ag>") ;;
+#require "vec";;
+#require "pa_ppx_ag.runtime";;
 
-#install_printer pp_ag ;;
-
-(*
-#trace typed_equation_to_deps ;;
-#trace Ag_types.AGOps.ddp ;;
-#trace Ag_ordered.compute_t_for_nt ;;
-#trace Ag_ordered.compute_all_passes ;;
-#trace Ag_ordered.add_idp ;;
-#trace Ag_ordered.new_ids ;;
-#trace Ag_ordered.idp_ids ;;
-#trace Ag_ordered.VS.vs_ddp0 ;;
-#trace Ag_ordered.VS.vs_ddp ;;
-#trace Ag_ordered.VS.vs_ddp ;;
-#trace Ag_types.P.ddp ;;
-#trace Ag_ordered.VS.upconverted_map ;;
-#trace Ag_ordered.VS.partition_edges ;;
-#trace Ag_ordered.VS.visit_sequence_passes ;;
-#trace Ag_ordered.VS.check1_vs ;;
-#trace Ag_ordered.VS.compute1_vs ;;
-#trace Ag_ordered.VS.compute_vs ;;
-#trace Ag_ordered.VS.instruction;;
-*)
-
-"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read
-  |> Rresult.R.get_ok |> PAPR.Implem.pa1
-  |> PAPR.Implem.pr |> print_string ;;
-
-
-(*
-;;; Local Variables: ***
-;;; mode:tuareg ***
-;;; End: ***
-
-*)
+#load "test2_ag.cmo";;
+#load "test2_migrate.cmo";;
+#load "test2_pa.cmo";;
+#load "test2.cmo";;
