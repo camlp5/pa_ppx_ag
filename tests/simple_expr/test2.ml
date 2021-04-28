@@ -19,10 +19,10 @@ let test_records ctxt =
 ; assert_equal ~printer (["w"], ["1"; "w"; "+"], 5) ({| 1 + w |} |> pa_prog_attributed |> AG.Ordered.evaluate)
 ; assert_equal ~printer ([], ["6"; "bind z"; "1"; "z"; "+"], 7) ({| let z = 6 in 1 + z |} |> pa_prog_attributed |> AG.Ordered.evaluate)
 ; assert_equal ~printer (["w"], ["w"; "bind z"; "1"; "z"; "+"], 5) ({| let z = w in 1 + z |} |> pa_prog_attributed |> AG.Ordered.evaluate)
-; assert_raises (Failure {|File "", line 1, characters 14-19:
+; assert_raises (Failure {|File "", line 1, characters 15-20:
 rhs must be nonzero|})
     (fun () -> {foo| let y = 0 in x / y |foo} |> pa_prog_attributed |> AG.Topological.evaluate)
-; assert_raises (Failure {|File "", line 1, characters 14-19:
+; assert_raises (Failure {|File "", line 1, characters 15-20:
 rhs must be nonzero|})
     (fun () -> {foo| let y = 0 in x / y |foo} |> pa_prog_attributed |> AG.Ordered.evaluate)
 

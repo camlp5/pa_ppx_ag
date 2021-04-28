@@ -29,17 +29,28 @@ type ag_element_t = [
 ;
 
 value make_attribute_types loc el = do {
-  let attribute_types =
+  let attribute_decls =
     el
     |> List.concat_map (fun [
         ATTRIBUTES _ l -> l
       | RULE _ _ _ _ _ -> []
       ])
+    |> List.stable_sort Stdlib.compare in
+
+  let attribute_types =
+    attribute_decls
     |> List.map (fun (aname, aty, is_chain) ->
         let ty = if is_chain then <:ctyp< $aty$ [@chain] >> else aty in
         (<:patt< $lid:aname$ >>, <:expr< [%typ: $type:ty$] >>))
     |> List.stable_sort Stdlib.compare in
-  assert (Std.distinct (List.map fst attribute_types)) ;
+  let attribute_names = 
+    attribute_decls
+    |> List.map (fun (aname, aty, is_chain) -> aname) in
+  
+  if not (Std.distinct attribute_names) then do {
+    let repeats = Std2.hash_list_repeats attribute_names in
+    failwith Fmt.(str "attributes must have distinct names (found repeated): %a" (list Dump.string) repeats)
+  } else ();
   if [] = attribute_types then <:expr< () >>
   else <:expr< { $list:attribute_types$ } >>
 }
@@ -317,6 +328,7 @@ value make_ag_str_item loc debug modname amodel prims axiom l = do {
 }
 ;
 
+value attribute_grammar = Grammar.Entry.create gram "attribute_grammar";
 value attribute_grammar_body = Grammar.Entry.create gram "attribute_grammar_body";
 value attribute_grammar_element = Grammar.Entry.create gram "attribute_grammar_element";
 
@@ -332,15 +344,21 @@ value check_id_colon =
 ;
 
 EXTEND
-  GLOBAL: check_id_colon attribute_grammar_body attribute_grammar_element expr str_item ;
+  GLOBAL: check_id_colon attribute_grammar_body attribute_grammar_element
+    attribute_grammar expr str_item ;
 
   str_item: [ [
+    (debug, modname, amodel, prims, axiom, l) = attribute_grammar ->
+    make_ag_str_item loc debug modname amodel prims axiom l
+    ] ] ;
+
+  attribute_grammar: [ [
       "ATTRIBUTE_GRAMMAR" ;
       (debug, modname, amodel, prims, axiom, l) = attribute_grammar_body ;
-      "END" -> make_ag_str_item loc debug modname amodel prims axiom l
+      "END" -> (debug, modname, amodel, prims, axiom, l)
     | "ATTRIBUTE_GRAMMAR" ; "{" ;
       (debug, modname, amodel, prims, axiom, l) = attribute_grammar_body ;
-      "}" -> make_ag_str_item loc debug modname amodel prims axiom l
+      "}" -> (debug, modname, amodel, prims, axiom, l)
     ] ] ;
 
   attribute_grammar_body: [ [
