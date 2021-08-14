@@ -4,6 +4,7 @@
 type loc = Ploc.t
 let global_ref = ref [] ;;
 
+module T = struct
 type expr =
     INT of int
   | BINOP of loc * binop * expr * expr
@@ -19,11 +20,31 @@ and binop = PLUS | MINUS | STAR | SLASH | PERCENT
 and block1 = BLOCK1 of block2
 and block2 = BLOCK2 of expr
 and prog = PROG of block1
+end
+
+type expr = T.expr =
+    INT of int
+  | BINOP of loc * binop * expr * expr
+  | UNOP of unop * expr
+  | REF of ref_expr
+  | SEQ of expr * expr
+  | LET of let_expr
+and let_expr = T.let_expr = LET_BINDING of string * expr * let_body
+and let_body = T.let_body = LET_BODY of expr
+and ref_expr = T.ref_expr = REF_EXPR of string
+and unop = T.unop = UPLUS | UMINUS
+and binop = T.binop = PLUS | MINUS | STAR | SLASH | PERCENT
+and block1 = T.block1 = BLOCK1 of block2
+and block2 = T.block2 = BLOCK2 of expr
+and prog = T.prog = PROG of block1
   [@@deriving ag {
     module_name = AG
   ; attribution_model = Attributed {
-    attributed_module_name = AT
+    normal_module_name = OK
+  ; attributed_module_name = AT
   }
+  ; with_migrate = true
+  ; with_q_ast = true
   ; storage_mode = Records
   ; primitive_types = [loc]
   ; axiom = prog

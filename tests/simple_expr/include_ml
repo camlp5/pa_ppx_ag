@@ -120,6 +120,7 @@ let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %s >>" (Eprinter.apply Pcaml.pr_ctyp Pp
 let pp_expr ty = Fmt.(pf stdout "#<expr< %s >>" (Eprinter.apply Pcaml.pr_expr Pprintf.empty_pc ty));;
 let pp_patt ty = Fmt.(pf stdout "#<patt< %s >>" (Eprinter.apply Pcaml.pr_patt Pprintf.empty_pc ty));;
 let pp_type_decl ty = Fmt.(pf stdout "#<patt< %s >>" (Pr_o.type_decl Pprintf.empty_pc ty));;
+let pp_str_item ty = Fmt.(pf stdout "#<str_item< %s >>" (Pr_o.str_item Pprintf.empty_pc ty));;
 
 (*
 let pp_ctyp ty = Fmt.(pf stdout "#<ctyp< %a >>" Pa_ppx_base.Pp_MLast.pp_ctyp ty);;
@@ -129,17 +130,31 @@ let pp_patt ty = Fmt.(pf stdout "#<patt< %a >>" Pa_ppx_base.Pp_MLast.pp_patt ty)
 #install_printer pp_ctyp ;;
 #install_printer pp_expr ;;
 #install_printer pp_patt ;;
+#install_printer pp_type_decl ;;
+#install_printer pp_str_item ;;
 
 #print_depth 10000 ;;
 #print_length 10000 ;;
 
 print_string "================ START ================\n";; flush stdout ;;
 
-#require "ocamlgraph";;
-#require "vec";;
-#require "pa_ppx_ag.runtime";;
+#require "pa_ppx_ag";;
+#require "pa_ppx_migrate";;
+(*
+#trace Pa_deriving_ag.generate_normal_migrator ;;
+#trace Pa_deriving_ag.generate_custom_branches;;
+*)
+#trace Pa_deriving_migrate.str_item_gen_migrate ;;
+#trace Pa_deriving_migrate.Migrate.build_context ;;
+#trace Pa_deriving_migrate.Migrate.params ;;
 
-#load "test2_ag.cmo";;
-#load "test2_migrate.cmo";;
-#load "test2_pa.cmo";;
-#load "test2.cmo";;
+"test2_ag.ml" |> Fpath.v |> Bos.OS.File.read |> Rresult.R.get_ok
+ |> PAPR.Implem.pa1 |> PAPR.Implem.pr |> print_string ;;
+
+
+(*
+;;; Local Variables: ***
+;;; mode:tuareg ***
+;;; End: ***
+
+*)

@@ -7,14 +7,11 @@ exception Migration_error of string
 let migration_error feature =
   raise (Migration_error feature)
 
-let _migrate_list subrw0 __dt__ l =
-  List.map (subrw0 __dt__) l
-
 let _migrate_option subrw0 __dt__ x =
   Option.map (subrw0 __dt__) x
 
 module OK = struct
-  module _ = Test2_ag
+  open Test2_ag
   [%%import: Test2_ag.expr]
   [@@deriving migrate
     { dispatch_type = dispatch_table_t
@@ -39,13 +36,7 @@ module OK = struct
         }
       ]
     ; dispatchers = {
-        migrate_list = {
-          srctype = [%typ: 'a list]
-        ; dsttype = [%typ: 'b list]
-        ; code = _migrate_list
-        ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
-        }
-      ; migrate_loc = {
+        migrate_loc = {
           srctype = [%typ: loc]
         ; dsttype = [%typ: loc]
         ; code = fun __dt__ x -> x
@@ -83,13 +74,7 @@ module Attributed = struct
         }
       ]
     ; dispatchers = {
-        migrate_list = {
-          srctype = [%typ: 'a list]
-        ; dsttype = [%typ: 'b list]
-        ; code = _migrate_list
-        ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
-        }
-      ; migrate_option = {
+        migrate_option = {
           srctype = [%typ: 'a option]
         ; dsttype = [%typ: 'b option]
         ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
@@ -318,13 +303,7 @@ module _ = Test2_ag
     { dispatch_type = dispatch_table_t
     ; dispatch_table_constructor = make_dt
     ; dispatchers = {
-        migrate_option = {
-          srctype = [%typ: 'a option]
-        ; dsttype = [%typ: 'b option]
-        ; subs = [ ([%typ: 'a], [%typ: 'b]) ]
-        ; code = _migrate_option
-        }
-      ; migrate_expr_node = {
+        migrate_expr_node = {
           srctype = [%typ: expr_node]
         ; dsttype = [%typ: Test2_ag.expr]
         ; custom_branches_code = (function
