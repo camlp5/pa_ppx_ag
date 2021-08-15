@@ -209,21 +209,24 @@ END ;
 value test_ag1 _ =
   let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
-  <:str_item< type x = [ R ][@@deriving ag { optional = True ; module_name = AG;
-              attribution_model = Attributed { attributed_module_name = AT };
-              storage_mode = Records ; primitive_types = []; axiom = x; attribute_types = ();
+  <:str_item< declare module T = struct type x = [ R ] ; end ;
+              type x = T.x == [ R ][@@deriving ag { optional = True ; module_name = AG;
+              attribution_model = { attributed_module_name = AT ; normal_module_name = OK };
+              primitive_types = []; axiom = x; attribute_types = ();
               node_attributes = {x = [a; b]};
               production_attributes = ();
               attribution = {
                 x__R = ([%"nterm" 0;].b := [%"nterm" 0;].a)
               }
-              };] >>
+              };] ;
+              end >>
     ({foo|
 ATTRIBUTE_GRAMMAR
   DEBUG True ;
   MODULE AG ;
-  ATTRIBUTION_MODEL Attributed {
+  ATTRIBUTION_MODEL {
     attributed_module_name = AT
+  ; normal_module_name = OK
   } ;
 
   AXIOM x ;
@@ -240,21 +243,23 @@ END ;
 value test_ag1' _ =
   let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
-  <:str_item< type x = [ R ][@@deriving ag { optional = True ; module_name = AG;
-              attribution_model = Attributed { attributed_module_name = AT };
-              storage_mode = Records; primitive_types = []; axiom = x; attribute_types = ();
+  <:str_item< declare module T = struct type x = [ R ] ; end ;
+              type x = T.x == [ R ][@@deriving ag { optional = True ; module_name = AG;
+              attribution_model = { attributed_module_name = AT ; normal_module_name = OK };
+              primitive_types = []; axiom = x; attribute_types = ();
               node_attributes = {x = [a; b]};
               production_attributes = ();
               attribution = {
                 x__R = ([%"nterm" 0;].b := [%"nterm" 0;].a)
               }
-              };] >>
+              };] ; end >>
     ({foo|
 ATTRIBUTE_GRAMMAR {
   DEBUG True ;
   MODULE AG ;
-  ATTRIBUTION_MODEL Attributed {
+  ATTRIBUTION_MODEL {
     attributed_module_name = AT
+  ; normal_module_name = OK
   } ;
 
   AXIOM x ;
@@ -269,10 +274,14 @@ RULE R : x
 value test_ag2 _ =
   let loc = Ploc.dummy in
   assert_equal ~{cmp=Reloc.eq_str_item} ~{printer=show_str_item}
-  <:str_item< type x = [ Q of x and x | R ]
-              and z = [ P of x ][@@deriving ag { optional = False ; module_name = AG;
-              attribution_model = Attributed { attributed_module_name = AT };
-              storage_mode = Records; primitive_types = []; axiom = z;
+  <:str_item< declare module T = struct
+              type x = [ Q of x and x | R ]
+              and z = [ P of x ] ;
+              end ;
+              type x = T.x == [ Q of x and x | R ]
+              and z = T.z == [ P of x ][@@deriving ag { optional = False ; module_name = AG;
+              attribution_model = { attributed_module_name = AT ; normal_module_name = OK };
+              primitive_types = []; axiom = z;
               attribute_types =
               {a = [%"typ": int]; b = [%"typ": int]; c = [%"typ": int];
               d = [%"typ": int]};
@@ -297,7 +306,8 @@ value test_ag2 _ =
               h [%"nterm" 1;].d
               }
               }
-              };] >>
+              };] ;
+    end>>
     ("kastens116.ag" |> file_contents |> pa_str_item)
 ;
 
@@ -307,6 +317,7 @@ value test_ag3 _ =
   <:str_item< module REC =
   struct
     value global_ref = ref [];
+    declare module T = struct
     type binop = [ MINUS | PERCENT | PLUS | SLASH | STAR ]
     and block1 =
       [ BLOCK1 of block2 ]
@@ -328,10 +339,32 @@ value test_ag3 _ =
     and ref_expr =
       [ REF_EXPR of string ]
     and unop =
-      [ UMINUS | UPLUS ][@@"deriving" ag
+      [ UMINUS | UPLUS ] ;
+    end ;
+    type binop = T.binop == [ MINUS | PERCENT | PLUS | SLASH | STAR ]
+    and block1 = T.block1 ==
+      [ BLOCK1 of block2 ]
+    and block2 = T.block2 ==
+      [ BLOCK2 of expr ]
+    and expr = T.expr ==
+      [ BINOP of binop and expr and expr
+      | INT of int
+      | LET of let_expr
+      | REF of ref_expr
+      | SEQ of expr and expr
+      | UNOP of unop and expr ]
+    and let_body = T.let_body ==
+      [ LET_BODY of expr ]
+    and let_expr = T.let_expr ==
+      [ LET_BINDING of string and expr and let_body ]
+    and prog = T.prog ==
+      [ PROG of block1 ]
+    and ref_expr = T.ref_expr ==
+      [ REF_EXPR of string ]
+    and unop = T.unop ==
+      [ UMINUS | UPLUS ] [@@"deriving" ag
         {optional = True; module_name = AG;
-         attribution_model = Attributed {attributed_module_name = AT};
-         storage_mode = Records;
+         attribution_model = {attributed_module_name = AT; normal_module_name = OK};
          primitive_types = [];
          axiom = prog;
          attribute_types =
@@ -456,6 +489,7 @@ value test_ag3 _ =
               [%"nterm" 0;].operator_text := "unary+"
             }}};]
     ;
+    end ;
   end >>
     ("../simple_expr/test3.ag" |> file_contents |> pa_str_item)
 ;

@@ -3,6 +3,7 @@ open Pcaml ;
 open Pa_ppx_utils ;
 open Pa_ppx_base ;
 open Ag_types ;
+open Ppxutil ;
 
 value rec find_mapi i f = fun [
     [] -> None
@@ -284,10 +285,6 @@ value make_attribution loc l =
 
 value make_deriving_attribute loc debug modname amodel prims axiom l =
   let optional = if debug then <:expr< True >> else <:expr< False >> in
-  let storage_mode = match amodel with [
-    <:expr< Unique $_$ >> -> <:expr< Hashtables >>
-  | <:expr< Attributed $_$ >> -> <:expr< Records >>
-  ] in
   let l = List.map (resolve_node_extension prims) l in
   let primitive_types =
     prims
@@ -301,7 +298,6 @@ value make_deriving_attribute loc debug modname amodel prims axiom l =
                     optional = $optional$ ;
                     module_name = $uid:modname$
                     ; attribution_model = $amodel$
-                    ; storage_mode = $storage_mode$
                     ; primitive_types = $primitive_types$
                     ; axiom = $lid:axiom$
                     ; attribute_types = $attribute_types$
@@ -324,8 +320,19 @@ value attach_attribute tdl attr =
 value make_ag_str_item loc debug modname amodel prims axiom l = do {
   let tdl = make_typedecls loc l in
   let attr = make_deriving_attribute loc debug modname amodel prims axiom l in
-  let tdl = attach_attribute tdl attr in
-  <:str_item< type $list:tdl$ >>
+  let manifest_tdl = tdl |> List.map (fun [
+      <:type_decl:< $lid:tn$ $list:pl$ = $ty$ >> when is_generative_type ty -> <:type_decl:< $lid:tn$ $list:pl$ = T . $lid:tn$ == $ty$ >>
+    | td -> td
+    ]) in
+  let attr_tdl = attach_attribute manifest_tdl attr in
+  <:str_item<
+    declare
+    module T = struct
+      type $list:tdl$ ;
+    end ;
+    type $list:attr_tdl$ ;
+    end
+  >>
 }
 ;
 

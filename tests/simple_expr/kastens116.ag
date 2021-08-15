@@ -7,8 +7,9 @@ value s (x,y) = Fmt.(str "s(%s,%s)" x y) ;
 ATTRIBUTE_GRAMMAR
   DEBUG True ;
   MODULE AG ;
-  ATTRIBUTION_MODEL Attributed {
+  ATTRIBUTION_MODEL {
     attributed_module_name = AT
+  ; normal_module_name = OK
   } ;
 
   AXIOM z ;

@@ -1,8 +1,9 @@
 
 ATTRIBUTE_GRAMMAR
   MODULE AG ;
-  ATTRIBUTION_MODEL Attributed {
+  ATTRIBUTION_MODEL {
     attributed_module_name = AT
+  ; normal_module_name = OK
   } ;
 
   AXIOM z ;

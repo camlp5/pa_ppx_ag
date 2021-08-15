@@ -59,7 +59,6 @@ module Pp_hum = struct
 end
 ;
 
-type storage_mode_t = [ Hashtables | Records ] ;
   module PN = struct
     type t = {
       nonterm_name: string
@@ -634,7 +633,6 @@ module AG = struct
   type t = {
     loc : Ploc.t
   ; primitive_types : list string
-  ; storage_mode : storage_mode_t
   ; axiom : string
   ; attribute_types : list (string * AT.t)
   ; node_attributes : list (string * (list string))
@@ -648,12 +646,11 @@ module AG = struct
 
   value is_primitive_ctyp ag z = List.mem z builtin_type_names || List.mem z ag.primitive_types ;
 
-  value mk0 loc storage_mode primitive_types axiom nonterminals
+  value mk0 loc primitive_types axiom nonterminals
     (attribute_types, node_attributes, production_attributes)
     equations side_effects = {
     loc = loc
   ; primitive_types = primitive_types
-  ; storage_mode = storage_mode
   ; axiom = axiom
   ; nonterminals = nonterminals
   ; attribute_types = attribute_types |> List.map (fun (ana, aty) -> (ana, AT.mk aty))
@@ -768,10 +765,6 @@ value assignment_to_equation_or_side_effect pn e = match e with [
       ASide.loc = loc
     ; rhs_nodes = extract_attribute_references pn e
     ; rhs_expr = e }
-
-  | _ -> Ploc.raise (MLast.loc_of_expr e)
-      (Failure Fmt.(str "assignment_to_equation_or_side_effect: neither assignment nor condition/side-effect@ %a"
-                      Pp_MLast.pp_expr e))
 ]
 ;
 
@@ -818,10 +811,7 @@ value compute_name2nodename type_decls =
   type_decls |> List.map (fun (name, td) ->
      match td.tdDef with [
        (
-         <:ctyp< unique $lid:nodename$ >>
-       | <:ctyp< Unique.unique $lid:nodename$ >>
-       | <:ctyp< Pa_ppx_unique_runtime.Unique.unique $lid:nodename$ >>
-       | <:ctyp< attributed $lid:nodename$ $_$ >>
+         <:ctyp< attributed $lid:nodename$ $_$ >>
        | <:ctyp< Attributes.attributed $lid:nodename$ $_$ >>
        | <:ctyp< Pa_ppx_ag_runtime.Attributes.attributed $lid:nodename$ $_$ >>
        ) ->
@@ -914,7 +904,7 @@ value branch2production ag lhs_name b =
   let open AG in
   match b with [
     <:constructor:< $uid:ci$ of $list:tl$ $_algattrs:_$ >> as gc
-    when ag.storage_mode = Records && tl <> [] && List.mem_assoc (lhs_name^"__"^ci) ag.production_attributes ->
+    when tl <> [] && List.mem_assoc (lhs_name^"__"^ci) ag.production_attributes ->
       let (last, tl) = sep_last tl in
       let lastpatt = match last with [
         <:ctyp:< $lid:n$ >> when n = lhs_name^"__"^ci^"_attributes" -> <:patt< prod_attrs >>
@@ -1576,17 +1566,16 @@ module AGOps = struct
         }
       ) ag in
     let new_productions =
-      if ag.storage_mode = Hashtables then ag.productions else
-        ag.productions |> List.map (fun (nt, pl) -> (nt, pl |> List.map (fun p ->
-        let loc = p.P.loc in
-        if [] = AG.production_attributes ag (PN.unparse p.name) then p else
-        let new_patt = match p.patt with [
-          <:patt< $_$ prod_attrs >> -> p.patt
-        | <:patt< ( $list:_$ ) >>  -> p.patt
-        | _ -> <:patt< $p.patt$ prod_attrs >>
-        ] in
-        {(p) with patt = new_patt }
-      ))) in
+      ag.productions |> List.map (fun (nt, pl) -> (nt, pl |> List.map (fun p ->
+          let loc = p.P.loc in
+          if [] = AG.production_attributes ag (PN.unparse p.name) then p else
+            let new_patt = match p.patt with [
+              <:patt< $_$ prod_attrs >> -> p.patt
+            | <:patt< ( $list:_$ ) >>  -> p.patt
+            | _ -> <:patt< $p.patt$ prod_attrs >>
+            ] in
+            {(p) with patt = new_patt }
+        ))) in
     let ag = {(ag) with productions = new_productions } in
     if not (AG.is_declared_attribute ag "side_effect") then
       {(ag) with

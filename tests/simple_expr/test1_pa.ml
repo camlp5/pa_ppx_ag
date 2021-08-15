@@ -12,11 +12,10 @@ value prog_eoi = Grammar.Entry.create gram "prog_eoi";
 (*
 value prog_hashcons_eoi = Grammar.Entry.create gram "prog_hashcons_eoi";
 *)
-value prog_unique_eoi = Grammar.Entry.create gram "prog_unique_eoi";
 value prog_attributed_eoi = Grammar.Entry.create gram "prog_attributed_eoi";
 
 EXTEND
-  GLOBAL: expr prog prog_eoi (* prog_hashcons_eoi *) prog_unique_eoi prog_attributed_eoi;
+  GLOBAL: expr prog prog_eoi (* prog_hashcons_eoi *) prog_attributed_eoi;
 
   expr: [
     [ e1 = expr ; ";" ; e2 = expr -> SEQ e1 e2 ]
@@ -43,7 +42,6 @@ EXTEND
 (*
   prog_hashcons_eoi: [ [ x = prog_eoi -> Test1_migrate.ToHC.prog x ] ];
 *)
-  prog_unique_eoi: [ [ x = prog_eoi -> Test1_migrate.ToUnique.prog x ] ];
   prog_attributed_eoi: [ [ x = prog_eoi -> Test1_migrate.ToAttributed.prog x ] ];
 
 END;

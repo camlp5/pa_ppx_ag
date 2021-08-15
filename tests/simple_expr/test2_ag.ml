@@ -39,13 +39,12 @@ and block2 = T.block2 = BLOCK2 of expr
 and prog = T.prog = PROG of block1
   [@@deriving ag {
     module_name = AG
-  ; attribution_model = Attributed {
+  ; attribution_model = {
     normal_module_name = OK
   ; attributed_module_name = AT
   }
   ; with_migrate = true
   ; with_q_ast = true
-  ; storage_mode = Records
   ; primitive_types = [loc]
   ; axiom = prog
   ; attribute_types = {

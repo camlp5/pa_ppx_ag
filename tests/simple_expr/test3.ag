@@ -6,8 +6,9 @@ value global_ref = ref [] ;
 ATTRIBUTE_GRAMMAR
   DEBUG True ;
   MODULE AG ;
-  ATTRIBUTION_MODEL Attributed {
+  ATTRIBUTION_MODEL {
     attributed_module_name = AT
+  ; normal_module_name = OK
   } ;
   AXIOM prog ;
 

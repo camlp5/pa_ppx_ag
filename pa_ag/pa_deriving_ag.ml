@@ -19,18 +19,8 @@ module AGContext = struct
 
 open Pa_ppx_params.Runtime ;
 
-type storage_mode_t = Ag_types.storage_mode_t == [ Hashtables | Records ] [@@deriving params;] ;
-
-type unique_params_t = Pa_deriving_unique.UC.t ;
-value params_unique_params_t arg = Pa_deriving_unique.UC.params [] arg ;
 type attributed_params_t = Pa_deriving_attributed.AC.t ;
 value params_attributed_params_t arg = Pa_deriving_attributed.AC.params [] arg ;
-
-type attribution_model_t = [
-    Unique of unique_params_t
-  | Attributed of attributed_params_t
-] [@@deriving params;]
-;
 
 value compute_typed_attributes loc attribute_types node_attributes production_attributes =
   let attr2type homename aname =
@@ -55,8 +45,7 @@ type t = {
 ; plugin_name : string
 ; module_name : uident
 ; primitive_types : list lident [@default [];]
-; storage_mode : storage_mode_t
-; attribution_model : attribution_model_t
+; attribution_model : attributed_params_t
 ; axiom : lident
 ; attribute_types : (alist lident ctyp) [@name attribute_types;]
 ; node_attributes : (alist lident (list lident))
@@ -111,25 +100,14 @@ end;
 module AGC = AGContext ;
 
 value str_item_gen_decorated loc rc tdl =
-  let open Pa_deriving_unique in
   let open Pa_deriving_attributed in
-  match rc.AGC.attribution_model with [
-    (AGC.Unique uu) ->
-    let uu = { (uu) with UC.type_decls = rc.AGC.type_decls } in
-    let (uu_st, normal_tdl, new_tdl) = str_item_generate_unique loc uu tdl in
-    let rc = AGC.update_type_decls rc new_tdl in
-    (rc, uu_st,
-     <:str_item< open $uid:uu.UC.uniqified_module_name$ >>,
-    normal_tdl, new_tdl)
-  | (AGC.Attributed aa) ->
-    let typed_attributes = AGC.compute_typed_attributes2 loc rc in
-    let aa = { (aa) with AC.typed_attributes = typed_attributes; type_decls = rc.AGC.type_decls } in
-    let (aa_st, normal_tdl, new_tdl) = str_item_generate_attributed loc aa tdl in
-    let rc = AGC.update_type_decls rc new_tdl in
-    (rc, aa_st,
-     <:str_item< open $uid:aa.AC.attributed_module_name$ >>,
-    normal_tdl, new_tdl)
-  ]
+  let typed_attributes = AGC.compute_typed_attributes2 loc rc in
+  let aa = { (rc.attribution_model) with AC.typed_attributes = typed_attributes; type_decls = rc.AGC.type_decls } in
+  let (aa_st, normal_tdl, new_tdl) = str_item_generate_attributed loc aa tdl in
+  let rc = AGC.update_type_decls rc new_tdl in
+  (rc, aa_st,
+   <:str_item< open $uid:aa.AC.attributed_module_name$ >>,
+   normal_tdl, new_tdl)
 ;
 
 value apply_to_last f l =
@@ -290,11 +268,8 @@ value str_item_generate_migration loc arg rc normal_tdl new_tdl =
   let open Pa_deriving_attributed in
   if not rc.AGC.with_migrate then <:str_item< declare end >>
   else
-  let (normal_module_name, new_module_name) = match rc.AGC.attribution_model with [
-        (AGC.Unique uu) ->
-        (uu.UC.normal_module_name, uu.UC.uniqified_module_name)
-      | (AGC.Attributed aa) ->
-         (aa.AC.normal_module_name, aa.AC.attributed_module_name) ] in
+  let (normal_module_name, new_module_name) = 
+    (rc.AGC.attribution_model.AC.normal_module_name, rc.AGC.attribution_model.AC.attributed_module_name) in
   let normal_module_name = mustSome "str_item_generate_migration" normal_module_name in
   let normal_tdl = normal_tdl |> List.map (fun [
         <:type_decl:< $lid:tn$ $list:pl$ = $_$ == $ty$ >> ->
@@ -309,6 +284,12 @@ value str_item_generate_migration loc arg rc normal_tdl new_tdl =
          <:expr< {
           srctype = [%typ: loc]
         ; dsttype = [%typ: loc]
+        ; code = fun __dt__ x -> x
+        } >>)
+      ; (<:patt< migrate_string >>,
+         <:expr< {
+          srctype = [%typ: string]
+        ; dsttype = [%typ: string]
         ; code = fun __dt__ x -> x
         } >>)
     ] in
@@ -338,6 +319,12 @@ value str_item_generate_migration loc arg rc normal_tdl new_tdl =
          <:expr< {
           srctype = [%typ: loc]
         ; dsttype = [%typ: loc]
+        ; code = fun __dt__ x -> x
+        } >>)
+      ; (<:patt< migrate_string >>,
+         <:expr< {
+          srctype = [%typ: string]
+        ; dsttype = [%typ: string]
         ; code = fun __dt__ x -> x
         } >>)
     ] in
@@ -373,9 +360,7 @@ value str_item_gen_ag name arg = fun [
   <:str_item:< type $_flag:_$ $list:tdl$ >> as st ->
     let rc0 = AGC.build_context loc arg tdl in
     let (rc, uu_st, uu_open_st, normal_tdl, new_tdl) = str_item_gen_decorated loc rc0 tdl in
-    let (wrapper_module_longid, wrapper_module_module_expr) = storage_mode_wrapper_modules rc.AGC.storage_mode in
     let ag0 = AG.mk0 loc
-        rc.AGC.storage_mode
         rc.AGC.primitive_types
         rc.AGC.axiom
         (List.map fst rc.AGC.name2nodename)
@@ -452,7 +437,6 @@ Pa_deriving.(Registry.add PI.{
             ; "attribution_model"
             ; "with_migrate"
             ; "with_q_ast"
-            ; "storage_mode"
             ; "primitive_types"
             ; "attribute_types"
             ; "node_attributes"
