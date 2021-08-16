@@ -32,14 +32,21 @@ END ;
 
 open OUnit2 ;
 
-value test1 ctxt =
+value test1_topological ctxt =
   let ok = OK.(ROOT ONE) in
   let at = AG.Migrate.ToAttributed.(migrate_root (make_dt())) ok in
   assert_equal 1 (AG.Topological.evaluate at)
 ;
 
+value test1_ordered ctxt =
+  let ok = OK.(ROOT ONE) in
+  let at = AG.Migrate.ToAttributed.(migrate_root (make_dt())) ok in
+  assert_equal 1 (AG.Ordered.evaluate at)
+;
+
 value suite = "simple_hoag" >::: [
-  "test1"           >:: test1
+  "test1_topological"           >:: test1_topological
+; "test1_ordered"           >:: test1_ordered
 ]
 ;
 
