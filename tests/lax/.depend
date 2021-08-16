@@ -1,4 +1,4 @@
-lax_ast.cmo: ../../local-install/lib/pa_ppx_ag/META ../../local-install/lib/pa_ppx_ag/META
+lax_ast.cmo lax_ast.cmi lax_ast.cmx: ../../local-install/lib/pa_ppx_ag/META ../../local-install/lib/pa_ppx_ag/META
 lax_ast.cmo :
 lax_ast.cmx :
 lax_pa.cmo : \

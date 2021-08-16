@@ -272,15 +272,22 @@ value nodeattr_type_declaration memo =
   let loc = ag.loc in
   Reloc.str_item (fun _ -> Ploc.dummy) 0
   <:str_item<
-    module NodeAttr = struct
-      type t = (Node.t * attrname_t) ;
-      value equal (n1, a1) (n2, a2) = Node.equal n1 n2 && a1 = a2 ;
-      value compare (n1, a1) (n2, a2) =
-        match Node.compare n1 n2 with [
-          0 -> Stdlib.compare a1 a2
-        | x -> x
-        ] ;
-      value hash (n,a) = Node.hash n + Hashtbl.hash a ;
+    module NodeAttrVertex = struct
+      type t = option (Node.t * attrname_t) ;
+      value equal a b = match (a,b) with [
+                            (None, None) -> True
+                          | (Some (n1, a1), Some (n2, a2)) -> Node.equal n1 n2 && a1 = a2
+                          | _ -> False ];
+      value compare a b = match (a,b) with [
+                              (None, None) -> 0
+                            | (None, Some _) -> -1
+                            | (Some _, None) -> 1
+                            | (Some (n1, a1), Some (n2, a2)) ->
+                               match Node.compare n1 n2 with [
+                                   0 -> Stdlib.compare a1 a2
+                                 | x -> x
+                                 ] ] ;
+      value hash = fun [ None -> 0 | Some (n,a) -> Node.hash n + Hashtbl.hash a ] ;
     end
   >>
 ;
@@ -306,6 +313,8 @@ value actual_dep_function_declarations memo =
   (ag.productions |> List.map (fun (nt, pl) ->
        let branches = pl |> List.map (fun p ->
            let deps = p |> P.ddp in
+           let lhs_list = p.P.typed_equations |> List.map TAEQ.lhs in
+           let indeps = Std.subtract lhs_list (deps |> List.concat_map (fun (a,b) -> [a;b])) in
            let aref_to_exp = fun [
              TAR.NT (TNR.PARENT tyname) aname ->
              <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
@@ -325,7 +334,9 @@ value actual_dep_function_declarations memo =
            | _ -> assert False
            ] in
            let deps = List.map (fun (a, b) -> (aref_to_exp a, aref_to_exp b)) deps in
-           let depacts = deps |> List.map (fun (a,b) -> <:expr< Std.push acc ($a$, $b$) >>) in
+           let indeps = List.map aref_to_exp indeps in
+           let depacts = deps |> List.map (fun (a,b) -> <:expr< Std.push acc (Some $a$, Some $b$) >>) in
+           let indepacts = indeps |> List.map (fun a -> <:expr< Std.push acc (None, Some $a$) >>) in
            let child_node_acts = p.P.rev_patt_var_to_noderef |> List.filter_map (fun [
              (TNR.CHILD tyname i, v) ->
              let abs_childnum = match List.assoc v p.P.patt_var_to_childnum with [
@@ -343,7 +354,7 @@ value actual_dep_function_declarations memo =
            ]) in
            let child_node_acts = child_node_acts@[ <:expr< () >> ] in
            (p.P.patt, <:vala< None >>,
-            <:expr< do { $list:depacts@child_node_acts$ } >>)
+            <:expr< do { $list:depacts@indepacts@child_node_acts$ } >>)
          ) in
        (<:patt< $lid:preprocess_fname nt$ >>,
         Reloc.expr (fun _ -> Ploc.dummy) 0
@@ -498,7 +509,7 @@ value synthesized_attribute_branch ag p teqn = do {
       ]) in
     let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
     let set_lhs = attr_setter_expression loc ag p teqn.lhs body in
-    let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
+    let l = [check_lhs_unset]@check_deps_set@[set_lhs; <:expr< None >>] in
     Some (patt, <:vala< None >>, <:expr< let parent = lhs in do { $list:l$ } >>)
 
   | TAR.PROD pn attrna ->
@@ -517,7 +528,7 @@ value synthesized_attribute_branch ag p teqn = do {
       ]) in
     let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
     let set_lhs = attr_setter_expression loc ag p teqn.lhs body in
-    let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
+    let l = [check_lhs_unset]@check_deps_set@[set_lhs; <:expr< None >>] in
     let e = <:expr< do { $list:l$ } >> in
     let e = <:expr< let parent = lhs in $e$ >> in
     Some (patt, <:vala< None >>, e)
@@ -585,7 +596,7 @@ value inherited_attribute_branch ag p teqn = do {
       ]) in
     let body = compile_teqn_tcond_body ag p teqn.rhs_expr in
     let set_lhs = attr_setter_expression loc ag p teqn.lhs body in
-    let l = [check_lhs_unset]@check_deps_set@[set_lhs] in
+    let l = [check_lhs_unset]@check_deps_set@[set_lhs; <:expr< None >>] in
     Some (patt, <:vala< None >>, <:expr< do { $list:l$ } >>)
 
   | TAR.PROD _ _ | TAR.NT (PARENT _) _ | TAR.NT (PRIM _ _) _ -> None
@@ -668,7 +679,7 @@ value attribute_function memo =
     (5) extract and return all attributes of the axiom node 
 *)
 
-value eval_function memo =
+value eval_functions memo =
   let open AGOps.NTOps in
   let open AG in
   let open P in
@@ -686,7 +697,12 @@ value eval_function memo =
     |> List.map (fun attrna ->
          <:expr< AttrTable. $lid:attr_accessor_name axiom attrna$ attrs t >>
        ) |> (fun l -> Expr.tuple loc l) in
-  (<:patt< evaluate >>,
+  [(<:patt< compute_attribute1 >>,
+    <:expr< fun attrs -> fun [ None -> () | Some a ->
+      let newnode = compute_attribute attrs a in
+      match newnode with [ None -> () | Some _ -> assert False ] ] >>,
+    <:vala< [] >>);
+(<:patt< evaluate >>,
    Reloc.expr (fun _ -> Ploc.dummy) 0
    <:expr< fun t ->
      let attrs = AttrTable.mk() in
@@ -699,9 +715,9 @@ value eval_function memo =
      if Dfs.has_cycle g then
        failwith "evaluate: cycle found in actual dependencies"
      else () ;
-     TSort.iter (compute_attribute attrs) g ;
+     TSort.iter (compute_attribute1 attrs) g ;
      $result_expr$
    }
    >>,
-   <:vala< [] >>)
+   <:vala< [] >>)]
 ;

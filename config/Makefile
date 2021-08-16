@@ -16,6 +16,7 @@ PACKAGES := $(PACKAGES),camlp5.parser_quotations
 #PACKAGES := $(PACKAGES),camlp5.quotations
 SYNTAX = camlp5r
 PRPACKAGE = camlp5.pr_r
+DEBUG=-g
 
 export PERL5LIB := $(TOP):$(PERL5LIB)
 

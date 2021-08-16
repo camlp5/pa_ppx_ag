@@ -1,0 +1,50 @@
+
+ATTRIBUTE_GRAMMAR
+  DEBUG True ;
+  MODULE AG ;
+  ATTRIBUTION_MODEL {
+    attributed_module_name = AT
+  ; normal_module_name = OK
+  } ;
+
+  AXIOM root ;
+
+ATTRIBUTES
+  n : int ;
+  localn : int ;
+END ;
+
+
+RULE ROOT : root
+COMPUTE
+  $[0].n := 1 ;
+  $localn := 2 ;
+END
+;
+
+END ;
+
+open OUnit2 ;
+
+value test1 ctxt =
+  let ok = OK.ROOT in
+  let at = AG.Migrate.ToAttributed.(migrate_root (make_dt())) ok in
+  assert_equal 1 (AG.Topological.evaluate at)
+;
+
+value suite = "simple1" >::: [
+  "test1"           >:: test1
+]
+;
+
+if not Sys.interactive.val then
+  run_test_tt_main suite
+else ()
+;
+
+(*
+;;; Local Variables: ***
+;;; mode:tuareg ***
+;;; End: ***
+
+*)

@@ -410,13 +410,13 @@ value str_item_gen_ag name arg = fun [
                               ]$ ;
                   value $list:[attribute_function memo]$ ;
                   module Topological = struct
-                    module G = Graph.Persistent.Digraph.ConcreteBidirectional(NodeAttr) ;
+                    module G = Graph.Persistent.Digraph.ConcreteBidirectional(NodeAttrVertex) ;
                     value edges_to_graph l =
                       List.fold_left (fun g (s,d) -> G.add_edge g s d) G.empty l ;
                     module TSort = Graph.Topological.Make_stable(G) ;
                     module Dfs = Graph.Traverse.Dfs(G) ;
                     value rec $list:actual_dep_function_declarations memo$ ;
-                    value $list:[eval_function memo]$ ;
+                    value rec $list:eval_functions memo$ ;
                   end ;
                   module Ordered = struct
                     value rec $list:visitors$ ;
