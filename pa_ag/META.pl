@@ -12,8 +12,9 @@ version = "$Version::version"
 description = "pa_ppx_ag deriver"
 
   package "runtime" (
-    archive(byte) = "pa_ppx_ag_runtime.cmo"
-    archive(native) = "pa_ppx_ag_runtime.cmx"
+    archive(byte) = "pa_ppx_ag_runtime.cmo imperativeTopological.cmo"
+    archive(native) = "pa_ppx_ag_runtime.cmx imperativeTopological.cmx"
+  requires = "ocamlgraph"
   )
 
   package "parser" (

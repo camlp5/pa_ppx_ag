@@ -19,6 +19,7 @@ PACKAGES := $(PACKAGES),pa_ppx.deriving_plugins.std
 R_PACKAGES := $(PACKAGES)
 
 TESTS= \
+	topo_test.byte \
 	pa_ag_test.byte \
 
 ML=\
@@ -44,6 +45,14 @@ pa_ag_test.opt: pa_ag_test.cmx
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES) \
 	-linkpkg -linkall -syntax camlp5r $^ -o $@
 
+topo_test.byte: topo_test.cmo
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) -package $(PACKAGES),pa_ppx_ag.runtime \
+	-linkpkg -linkall -syntax camlp5r $^ -o $@
+
+topo_test.opt: topo_test.cmx
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) -package $(PACKAGES),pa_ppx_ag.runtime \
+	-linkpkg -linkall -syntax camlp5r $^ -o $@
+
 clean::
 	rm -f  *.ppo.*
 
@@ -52,7 +61,7 @@ EXTERNAL := $(shell $(OCAMLFIND) query -predicates byte -format '%m' $(PACKAGES)
 depend::
 	echo "$(CMO) $(CMI) $(CMX): $(EXTERNAL)" > .depend.NEW
 	$(OCAMLFIND) ocamldep $(OCAMLCFLAGS) $(OCAMLCFLAGS) -package $(PACKAGES) -syntax camlp5r \
-	pa_ag_test.ml \
+	pa_ag_test.ml topo_test.ml \
 	>> .depend.NEW
 	mv .depend.NEW .depend
 

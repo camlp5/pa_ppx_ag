@@ -28,7 +28,8 @@ TESTS= \
 	test4.byte \
 	vogt_thesis_page7.byte \
 	simple1.byte \
-	simple_hoag.byte \
+#	simple_hoag0.byte \
+#	simple_hoag.byte \
 	silver_dc.byte \
 	silver_lambda_firstorder.byte \
 
@@ -113,6 +114,15 @@ simple_hoag.byte: simple_hoag.ag
 
 simple_hoag.opt: simple_hoag.ag
 	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5r -ppopt -impl -impl $< -o $@
+
+simple_hoag0.byte: simple_hoag0.ml
+	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5o -ppopt -impl $< > simple_hoag0_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5r -c simple_hoag0_ppo.ml
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -syntax camlp5o -c -ppopt -impl -impl $<
+	$(OCAMLFIND) ocamlc $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5o -ppopt -impl -impl $< -o $@
+
+simple_hoag0.opt: simple_hoag0.ml
+	$(OCAMLFIND) ocamlopt $(DEBUG) $(WARNERR) $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser -linkpkg -linkall -syntax camlp5o -ppopt -impl -impl $< -o $@
 
 simple1.byte: simple1.ag
 	$(NOT_OCAMLFIND) preprocess $(OCAMLCFLAGS) -package $(R_PACKAGES),camlp5.extend,camlp5.extprint,camlp5.pprintf,pa_ppx_ag.parser,camlp5.pr_r -syntax camlp5r -ppopt -impl $< > simple1_ppo.ml
