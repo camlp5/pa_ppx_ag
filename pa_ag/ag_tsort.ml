@@ -143,9 +143,7 @@ value attr_accessor_bindings memo (name, attribute_names) =
   let ag = memo.ag in
   let loc = ag.loc in
   let pn = Demarshal.parse_prodname loc name in
-  let nt = pn.PN.nonterm_name in
   attribute_names |> List.concat_map (fun attrna ->
-      let dis_attrna = disambiguated_attribute_name name attrna in
       [(<:patt< $lid:attr_accessor_name name attrna$ >>,
         match pn.PN.case_name with [
           None ->
@@ -320,7 +318,7 @@ value actual_dep_function_declarations memo =
              <:expr< (Node . $uid:node_constructor tyname$ lhs, $uid:attr_constructor aname$) >>
 
            | TAR.NT ((TNR.CHILD tyname i) as nr) aname ->
-              let v = match List.assoc nr p.P.rev_patt_var_to_noderef with [
+              let v = match LMap.assoc nr p.P.rev_patt_var_to_noderef with [
                 x -> x
               | exception Not_found ->
                 Ploc.raise loc
@@ -337,9 +335,9 @@ value actual_dep_function_declarations memo =
            let indeps = List.map aref_to_exp indeps in
            let depacts = deps |> List.map (fun (a,b) -> <:expr< Std.push acc (Some $a$, Some $b$) >>) in
            let indepacts = indeps |> List.map (fun a -> <:expr< Std.push acc (None, Some $a$) >>) in
-           let child_node_acts = p.P.rev_patt_var_to_noderef |> List.filter_map (fun [
+           let child_node_acts = p.P.rev_patt_var_to_noderef |> LMap.toList |> List.filter_map (fun [
              (TNR.CHILD tyname i, v) ->
-             let abs_childnum = match List.assoc v p.P.patt_var_to_childnum with [
+             let abs_childnum = match LMap.assoc v p.P.patt_var_to_childnum with [
                x -> x | exception Not_found -> assert False
              ] in
              let fname = preprocess_fname tyname in
@@ -370,15 +368,15 @@ value actual_dep_function_declarations memo =
    are child nodes.
 
 *)
-value lookup_tnr p nr = match List.assoc nr p.P.typed_node_names with [
+value lookup_tnr p nr = match LMap.assoc nr p.P.typed_node_names with [
   x -> x | exception Not_found -> assert False
 ] 
 ;
-value lookup_var p nr = match List.assoc (lookup_tnr p nr) p.P.rev_patt_var_to_noderef with [
+value lookup_var p nr = match LMap.assoc (lookup_tnr p nr) p.P.rev_patt_var_to_noderef with [
   x -> x | exception Not_found -> assert False
 ]
 ;
-value lookup_abs_childnum p nr = match List.assoc (lookup_var p nr) p.P.patt_var_to_childnum with [
+value lookup_abs_childnum p nr = match LMap.assoc (lookup_var p nr) p.P.patt_var_to_childnum with [
   x -> x | exception Not_found -> assert False
 ]
 ;
@@ -444,7 +442,7 @@ value attr_isset_expression loc ag p =
     <:expr< AttrTable. $lid:attr_isset_name nt attrna$ attrs parent >>
 
   | TAR.NT ((CHILD dnt _) as dnr) dattr ->
-    let v = match List.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+    let v = match LMap.assoc dnr p.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
     <:expr< AttrTable. $lid:attr_isset_name dnt dattr$ attrs $lid:v$ >>
 
   | TAR.PROD dpn dattr ->
@@ -498,7 +496,6 @@ value synthesized_attribute_branch ag p teqn = do {
     TAR.NT (PARENT nt) attrna ->
     let attrcons = attr_constructor attrna in
     let ntcons = node_constructor nt in
-    let nthash = node_hash_module nt in
     let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
     let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p teqn.lhs$) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun tar -> match tar with [
@@ -517,7 +514,6 @@ value synthesized_attribute_branch ag p teqn = do {
     let nt = pn.PN.nonterm_name in
     let attrcons = attr_constructor ~{prodname=prodname} attrna in
     let ntcons = node_constructor nt in
-    let nthash = node_hash_module nt in
     let patt = <:patt< (Node . $uid:ntcons$ ({node= $p.patt$ } as lhs), $uid:attrcons$) >> in
     let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p teqn.lhs$) >> in
     let check_deps_set = teqn.rhs_nodes |> List.filter_map (fun tar -> match tar with [
@@ -582,9 +578,7 @@ value inherited_attribute_branch ag p teqn = do {
     let abs_childnum = lookup_abs_childnum p (NR.CHILD (Some cnt) childnum) in
     let cattrcons = attr_constructor cattrna in
     let cntcons = node_constructor cnt in
-    let cnthash = node_hash_module cnt in
     let pntcons = node_constructor pnt in
-    let pnthash = node_hash_module pnt in
     let patt = <:patt< (Node . $uid:pntcons$ ({node= $p.patt$ } as parent), $int:string_of_int abs_childnum$,
                         Node . $uid:cntcons$ lhs, $uid:cattrcons$) >> in
     let check_lhs_unset = <:expr< assert (not $attr_isset_expression loc ag p teqn.lhs$) >> in

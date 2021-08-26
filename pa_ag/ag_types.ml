@@ -10,6 +10,41 @@ open Surveil ;
 open Pa_deriving_base ;
 open Pa_ppx_utils ;
 
+module LMap : sig
+  type t 'a 'b = 'c;
+  value assoc : ?cmp:('a -> 'a -> bool) -> 'a -> t 'a 'b -> 'b ;
+  value mem : ?cmp:('a -> 'a -> bool) -> 'a -> t 'a 'b -> bool ;
+  value ofList : list ('a * 'b) -> t 'a 'b ;
+  value toList : t 'a 'b -> list ('a * 'b) ;
+end = struct
+  include Ppxutil.AList ;
+  value ofList x = x ;
+  value toList x = x ;
+  type t 'a 'b = list ('a * 'b) ;
+end
+;
+
+module LSet : sig
+  type t 'a = 'b ;
+  value mem : ?cmp:('a -> 'a -> bool) -> 'a -> t 'a -> bool ;
+  value ofList : list 'a -> t 'a ;
+  value toList : t 'a -> list 'a ;
+end = struct
+  type t 'a = list 'a ;
+  value ofList x = x ;
+  value toList x = x ;
+  value cmpequal a b = a=b ;
+  value mem ?{cmp=cmpequal} x l = 
+    let rec mrec x = fun [
+          [] -> False
+        | [ a :: l ] -> cmp a x || mrec x l
+        ] in
+    mrec x l
+  ;
+end
+;
+value lset ~{sep} f pps x = Fmt.list ~{sep} f pps (LSet.toList x) ;
+
 value canon l = l |> List.sort_uniq Stdlib.compare |> List.stable_sort Stdlib.compare ;
 
 module StrG = Graph.Persistent.Digraph.ConcreteBidirectional(
@@ -298,6 +333,9 @@ end
       | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );] >> ->
         CHILD tyname (int_of_string n)
 
+      | <:expr< [%nterm $lid:tyname$ . ( - $int:n$ );] >> ->
+        CHILD tyname (- (int_of_string n))
+
       | _ -> Ploc.raise (MLast.loc_of_expr e)
           (Failure Fmt.(str "expr_to_nterm: bad expr:@ %a"
                           Pp_MLast.pp_expr e))
@@ -347,6 +385,9 @@ end
 
         <:expr< [%chainstart $lid:tyname$ . ( $int:n$ );] . $lid:attrna$ >> ->
         CHAINSTART pn (CHILD tyname (int_of_string n)) attrna
+
+      | <:expr< [%chainstart $lid:tyname$ . ( - $int:n$ );] . $lid:attrna$ >> ->
+        CHAINSTART pn (CHILD tyname (- (int_of_string n))) attrna
 
       | <:expr< $e$ . $lid:attrna$ >> -> 
         NT (TNR.expr_to_nterm e) attrna
@@ -489,14 +530,14 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
     type t = {
       name : PN.t
     ; loc : Ploc.t
-    ; typed_nodes : list TNR.t
-    ; typed_node_names : list (NR.t * TNR.t)
+    ; typed_nodes : LSet.t TNR.t
+    ; typed_node_names : LMap.t NR.t TNR.t
     ; typed_equations : list TAEQ.t
     ; typed_side_effects : list TSide.t
     ; patt : MLast.patt
-    ; patt_var_to_noderef : list (string * TNR.t)
-    ; rev_patt_var_to_noderef : list (TNR.t * string)
-    ; patt_var_to_childnum : list (string * int)
+    ; patt_var_to_noderef : LMap.t string TNR.t
+    ; rev_patt_var_to_noderef : LMap.t TNR.t string
+    ; patt_var_to_childnum : LMap.t string int
     } ;
     value lhs p = p.name.PN.nonterm_name ;
     value pp_hum pps x =
@@ -509,7 +550,7 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
 
     value typed_nr ~{is_chainstart} loc p nr =
-      match List.assoc nr p.typed_node_names with [
+      match LMap.assoc nr p.typed_node_names with [
         x -> x
       | exception Not_found ->
         Ploc.raise loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
@@ -563,12 +604,11 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
       (p.typed_equations |> List.concat_map TAEQ.constituents_references)
     ;
     value typed_nonterminals p =
-      p.typed_nodes |> List.filter (fun [ TNR.CHILD _ _ | TNR.PARENT _ -> True | _ -> False ]) ;
+      p.typed_nodes |> LSet.toList |> List.filter (fun [ TNR.CHILD _ _ | TNR.PARENT _ -> True | _ -> False ]) |> LSet.ofList ;
 
     value parent_nonterminal p = p.name.PN.nonterm_name ;
     value child_nonterminals p =
-      p.typed_nodes |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ])
-    ;
+      p.typed_nodes |> LSet.toList |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ]) |> LSet.ofList ;
     value map_typed_equations f p =
       {(p) with typed_equations = List.map f p.typed_equations }
     ;
@@ -637,6 +677,7 @@ module AG = struct
   ; attribute_types : list (string * AT.t)
   ; node_attributes : list (string * (list string))
   ; production_attributes : list (string * (list string))
+  ; production_ntas : list (string * (list string))
   ; nonterminals : list string
   ; equations : list (PN.t * (list AEQ.t))
   ; side_effects : list (PN.t * (list ASide.t))
@@ -645,17 +686,34 @@ module AG = struct
   ;
 
   value is_primitive_ctyp ag z = List.mem z builtin_type_names || List.mem z ag.primitive_types ;
+  value _is_nta loc attribute_types nonterminals attrna =
+    match (List.assoc attrna attribute_types).AT.ty with [
+        <:ctyp< $lid:id$ >> -> List.mem id nonterminals
+      | _ -> False
+      | exception Not_found ->
+         Ploc.raise loc (Failure Fmt.(str "is_nta: attribute %s has no declared type" attrna))
+    ]
+  ;
 
   value mk0 loc primitive_types axiom nonterminals
     (attribute_types, node_attributes, production_attributes)
-    equations side_effects = {
+    equations side_effects =
+    let attribute_types = attribute_types |> List.map (fun (ana, aty) -> (ana, AT.mk aty)) in
+    let production_attributes =
+      production_attributes
+      |> List.map (fun (pna, l) -> (pna, l |> List.stable_sort Stdlib.compare)) in
+    let production_ntas =
+      production_attributes
+      |> List.map (fun (pna, l) -> (pna, l |> List.filter (_is_nta loc attribute_types nonterminals) |> List.stable_sort Stdlib.compare)) in
+    {
     loc = loc
   ; primitive_types = primitive_types
   ; axiom = axiom
   ; nonterminals = nonterminals
-  ; attribute_types = attribute_types |> List.map (fun (ana, aty) -> (ana, AT.mk aty))
+  ; attribute_types = attribute_types
   ; node_attributes = node_attributes
   ; production_attributes = production_attributes
+  ; production_ntas = production_ntas
   ; equations = equations
   ; side_effects = side_effects
   ; productions = []
@@ -703,6 +761,19 @@ module AG = struct
     let attrs = List.assoc pn ag.production_attributes in
     List.mem attrna attrs
   ;
+  value is_nta ag attrna = _is_nta ag.loc ag.attribute_types ag.nonterminals attrna ;
+  value production_ntas ag nt =
+    match List.assoc nt ag.production_ntas with [
+      x -> x
+    | exception Not_found -> []
+    ]
+  ;
+  value production_nta_exists ag (pn, attrna) =
+    let pn = PN.unparse pn in
+    List.mem_assoc pn ag.production_ntas &&
+    let attrs = List.assoc pn ag.production_ntas in
+    List.mem attrna attrs
+  ;
   value is_declared_attribute ag attrna = List.mem_assoc attrna ag.attribute_types ;
   value attribute_type ag attrna =
     match List.assoc attrna ag.attribute_types with [
@@ -710,6 +781,15 @@ module AG = struct
     | exception Not_found ->
       Ploc.raise ag.loc (Failure Fmt.(str "attribute_type: attribute %s has no declared type" attrna))
     ]
+  ;
+  value nta_type_name ag attrna = do {
+    assert (is_nta ag attrna) ;
+    match (List.assoc attrna ag.attribute_types).AT.ty with [
+        <:ctyp< $lid:id$ >> -> id
+      | _ -> assert False
+      | exception Not_found -> assert False
+    ]
+  }
   ;
 
   value remote_upward_attributes ag =
@@ -851,7 +931,7 @@ module NodeAliases = NA ;
 value tuple2production loc ag lhs_name ?{case_name=None} tl =
   let open AG in
   let node_aliases = NA.mk() in
-  let typed_nodes = ref [TNR.PARENT lhs_name] in
+  let typed_nodes = ref [] in
   let patt_nref_l = tl |> List.mapi (fun i -> fun [
       <:ctyp:< $lid:tyname$ >> when List.mem tyname ag.nonterminals -> do {
         let aliasnum = NA.next_nterm_number node_aliases tyname in
@@ -873,7 +953,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
                         lhs_name Pp_MLast.pp_ctyp ty))
   ]) in
   let pn = { PN.nonterm_name = lhs_name ; case_name = case_name } in
-  let typed_nodes = List.rev typed_nodes.val in
+  let typed_nodes = [(TNR.PARENT lhs_name) :: (List.rev typed_nodes.val)] in
   let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
   let side_effects = match List.assoc pn ag.side_effects with [ x -> x | exception Not_found -> [] ] in
   let node_aliases = [(TNR.PARENT lhs_name, NR.PARENT None) :: NA.get node_aliases] in
@@ -883,14 +963,14 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   let p = {
     P.name = pn
   ; loc = loc
-  ; typed_nodes = typed_nodes
-  ; typed_node_names = typed_node_names
+  ; typed_nodes = LSet.ofList typed_nodes
+  ; typed_node_names = LMap.ofList typed_node_names
   ; typed_equations = []
   ; typed_side_effects = []
   ; patt = Patt.tuple loc (List.map Std.fst3 patt_nref_l)
-  ; patt_var_to_noderef = List.map Std.snd3 patt_nref_l
-  ; rev_patt_var_to_noderef = patt_nref_l |> List.map Std.snd3 |> List.map (fun (a,b) -> (b,a))
-  ; patt_var_to_childnum = List.map Std.third3 patt_nref_l
+  ; patt_var_to_noderef = LMap.ofList (List.map Std.snd3 patt_nref_l)
+  ; rev_patt_var_to_noderef = patt_nref_l |> List.map Std.snd3 |> List.map (fun (a,b) -> (b,a)) |> LMap.ofList
+  ; patt_var_to_childnum = LMap.ofList (List.map Std.third3 patt_nref_l)
   } in
   let typed_equations = List.map (P.typed_equation p) equations in
   let typed_side_effects = List.map (P.typed_side_effect p) side_effects in
@@ -1043,8 +1123,8 @@ module AGOps = struct
       | _ -> g
       ] in
       List.fold_left (fun g p ->
-          let lhs = List.hd p.P.typed_nodes in
-          let rhsl = List.tl p.P.typed_nodes in
+          let lhs = p.P.typed_nodes |> LSet.toList |> List.hd in
+          let rhsl = p.P.typed_nodes |> LSet.toList |> List.tl in
           List.fold_left (fun g rhs -> add_edge g (lhs, p, rhs)) g rhsl)
         g (AG.all_productions ag)
   ;
@@ -1187,7 +1267,7 @@ module AGOps = struct
         (AG.node_attributes ag nt))
     ))
     && (ag |> AG.all_productions |> List.for_all (fun p ->
-               (List.tl p.P.typed_nodes) |> List.for_all (fun node ->
+               p.P.typed_nodes |> LSet.toList |> List.tl |> List.for_all (fun node ->
                    match node with [
                      TNR.PARENT nt ->
                      let synthesized = NTOps._AS m nt in
@@ -1323,7 +1403,7 @@ module AGOps = struct
     let loc = p.P.loc in
     let pnt = p.P.name.PN.nonterm_name in
     let defined_arefs = List.map TAEQ.lhs p.P.typed_equations in
-    let cattr_children = (List.tl p.P.typed_nodes) |> List.filter_map TNR.(fun [
+    let cattr_children = p.P.typed_nodes |> LSet.toList |> List.tl |> List.filter_map TNR.(fun [
         (CHILD nt i) as cnr when AG.node_attribute_exists ag (nt, cattr) -> Some (cnr, (nt, i))
       | _ -> None
       ]) in
@@ -1378,7 +1458,7 @@ module AGOps = struct
     let nt_needs_chain p =
       let pnt = p.P.name.PN.nonterm_name in
       let parent_has_cattr = AG.node_attribute_exists ag (pnt, cattr) in
-      let child_has_cattr = (List.tl p.P.typed_nodes) |> List.exists TNR.(fun [
+      let child_has_cattr = p.P.typed_nodes |> LSet.toList |> List.tl |> List.exists TNR.(fun [
           CHILD nt i -> AG.node_attribute_exists ag (nt, cattr)
         | _ -> False
         ]) in
@@ -1445,7 +1525,7 @@ module AGOps = struct
     let open TAR in
     let pre = "pre_"^cattr in
     let post = "post_"^cattr in
-    let (parent, children) = match p.P.typed_nodes with [ [h :: t] -> (h,t) | _ -> assert False ] in
+    let (parent, children) = match LSet.toList p.P.typed_nodes with [ [h :: t] -> (h,t) | _ -> assert False ] in
     let new_lhs = match e.lhs with [
       NT nt a when nt = parent && a = cattr ->
       NT parent post
@@ -1673,7 +1753,7 @@ module AGOps = struct
     let parent_nt = P.parent_nonterminal p in
     let child_nts = P.child_nonterminals p in
     if not (List.mem parent_nt sofar) && not (nt_satisfies_rua ag rua parent_nt) &&
-       [] <> Std.intersect (P.child_nonterminals p) sofar then
+       [] <> Std.intersect (LSet.toList (P.child_nonterminals p)) sofar then
       Some parent_nt else None
   ;
 
@@ -1782,13 +1862,13 @@ module AGOps = struct
     ag |> AG.map_productions (fun nt p ->
         let loc = p.loc in
         let parent = P.parent_nonterminal p in
-        let children = P.child_nonterminals p in
+        let children = LSet.toList (P.child_nonterminals p) in
         let copy_equations = match (List.mem (P.parent_nonterminal p) ntl,
                                     ([] <> Std.intersect children ntl),
                                     rua_to_nt_aref ag rua parent) with [
           (True, True, None) ->
           (* both parent and children have the RUA attribute; add copy-equations *)
-          p.typed_nodes |> List.filter_map (fun [
+          p.typed_nodes |> LSet.toList |> List.filter_map (fun [
               (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
               rua_copy_equation loc (cnr, new_attr) (parent, new_attr)
             | _ -> None
@@ -1801,7 +1881,7 @@ module AGOps = struct
 
         | (_, True, Some satisfying_attrna) ->
           (* children have RUA; parent satisfies RUA, add copy-equations *)
-          p.typed_nodes |> List.filter_map (fun [
+          p.typed_nodes |> LSet.toList |> List.filter_map (fun [
               (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
               rua_copy_equation loc (cnr, new_attr) (parent, satisfying_attrna)
             | _ -> None
@@ -2019,7 +2099,7 @@ module AGOps = struct
       let child_is_in = ref False in
       let pl = AG.node_productions ag nt in do {
         pl |> List.iter (fun p ->
-           p.P.typed_nodes |> List.iter (fun [
+           p.P.typed_nodes |> LSet.toList |> List.iter (fun [
              TNR.CHILD cnt _ -> do {
                  dfsrec [nt :: stk] cnt ;
                  if List.mem cnt acc.val then child_is_in.val := True else ()
@@ -2089,7 +2169,7 @@ module AGOps = struct
       } in
       {(p) with P.typed_equations = [copy_eq :: p.P.typed_equations]}
     | None ->
-      let rhs_nodes = (List.tl p.P.typed_nodes) |> List.filter_map (fun [
+      let rhs_nodes = p.P.typed_nodes |> LSet.toList |> List.tl |> List.filter_map (fun [
           (TNR.CHILD cnt _) as cnr when List.mem cnt carreach ->
           Some (TAR.NT cnr new_attr)
         | _ -> None

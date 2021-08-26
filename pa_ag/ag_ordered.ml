@@ -1,10 +1,11 @@
 
-open Ag_types ;
-open AG ;
-open AGOps ;
 open Pa_ppx_utils ;
 open Pa_ppx_base ;
 open Ppxutil ;
+
+open Ag_types ;
+open AG ;
+open AGOps ;
 
 value nddp p =
   p
@@ -77,7 +78,7 @@ value add_idp ag new_ids =
   ag
   |> AG.all_productions
   |> List.map (fun p ->
-      let nl = p.P.typed_nodes in
+      let nl = LSet.toList p.P.typed_nodes in
       (p.P.name, 
            nl
            |> List.concat_map (fun [
@@ -402,7 +403,7 @@ value to_list g =
   ;
 
   value upconverted_map p _t =
-    p.P.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
+    p.P.typed_nodes |> LSet.toList |> List.concat_map (fun tnr -> match tnr with [
       (TNR.PARENT nt | TNR.CHILD nt _) ->
       let _t = must_lookup_t nt _t in
       upconverted_map_for_tnr tnr _t
@@ -412,7 +413,7 @@ value to_list g =
   ;
 
   value partition_edges p _t =
-    p.P.typed_nodes |> List.concat_map (fun tnr -> match tnr with [
+    p.P.typed_nodes |> LSet.toList |> List.concat_map (fun tnr -> match tnr with [
       (TNR.PARENT nt | TNR.CHILD nt _) ->
       let _t = must_lookup_t nt _t in
       partition_edges_for_tnr tnr _t
@@ -482,7 +483,7 @@ value to_list g =
     EXTERNAL (TNR.PARENT _ | TNR.PRIM _ _) _ -> assert False
   | EXTERNAL (TNR.CHILD cnt childnum as cnr) passnum ->
     let fname = visit_nonterminal_fname cnt passnum in
-    let cv = match List.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+    let cv = match LMap.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
     <:expr< $lid:fname$ attrs $lid:cv$ >>
 
   | AR (TAR.PROD pn attrna) ->
@@ -500,7 +501,7 @@ value to_list g =
   | AR (TAR.NT (TNR.CHILD cnt childnum as cnr) attrna) ->
     let cntcons = Ag_tsort.node_constructor cnt in
     let cattrcons = Ag_tsort.attr_constructor attrna in
-    let cv = match List.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+    let cv = match LMap.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
     <:expr< compute_attribute attrs (Node . $uid:cntcons$ $lid:cv$, $uid:cattrcons$) >>
 
   | _ -> assert False
@@ -513,10 +514,10 @@ value to_list g =
       [ EXTERNAL (TNR.PARENT pnt) passnum :: _ ] -> (pnt, passnum)
     | _ -> assert False ] in
     let parent_setters = if pnum <> 0 then [] else
-        p.P.typed_nodes |> List.filter_map (fun [
+        p.P.typed_nodes |> LSet.toList |> List.filter_map (fun [
             TNR.CHILD cnt _ as cnr ->
-            let cv = match List.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
-             let abs_childnum = match List.assoc cv p.P.patt_var_to_childnum with [
+            let cv = match LMap.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
+             let abs_childnum = match LMap.assoc cv p.P.patt_var_to_childnum with [
                x -> x | exception Not_found -> assert False
              ] in
             Some <:expr< AttrTable . $lid:Ag_tsort.parent_setter_name cnt$
