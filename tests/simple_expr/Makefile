@@ -28,10 +28,10 @@ TESTS= \
 	test4.byte \
 	vogt_thesis_page7.byte \
 	simple1.byte \
-#	simple_hoag0.byte \
-#	simple_hoag.byte \
+	simple_hoag.byte \
 	silver_dc.byte \
 	silver_lambda_firstorder.byte \
+#	simple_hoag0.byte \
 
 ML=\
 	test1_ast.ml test1_variants.ml test1_ag.ml test1_migrate.ml test1_pa.ml test1.ml \
