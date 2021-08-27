@@ -530,7 +530,7 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
     type t = {
       name : PN.t
     ; loc : Ploc.t
-    ; typed_nodes : LSet.t TNR.t
+    ; typed_nodes : (TNR.t * LSet.t TNR.t)
     ; typed_node_names : LMap.t NR.t TNR.t
     ; typed_equations : list TAEQ.t
     ; typed_side_effects : list TSide.t
@@ -604,11 +604,12 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
       (p.typed_equations |> List.concat_map TAEQ.constituents_references)
     ;
     value typed_nonterminals p =
-      p.typed_nodes |> LSet.toList |> List.filter (fun [ TNR.CHILD _ _ | TNR.PARENT _ -> True | _ -> False ]) |> LSet.ofList ;
+      let (p,l) = p.typed_nodes in
+      [p :: LSet.toList l] |> List.filter (fun [ TNR.CHILD _ _ | TNR.PARENT _ -> True | _ -> False ]) |> LSet.ofList ;
 
     value parent_nonterminal p = p.name.PN.nonterm_name ;
     value child_nonterminals p =
-      p.typed_nodes |> LSet.toList |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ]) |> LSet.ofList ;
+      p.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ]) |> LSet.ofList ;
     value map_typed_equations f p =
       {(p) with typed_equations = List.map f p.typed_equations }
     ;
@@ -953,7 +954,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
                         lhs_name Pp_MLast.pp_ctyp ty))
   ]) in
   let pn = { PN.nonterm_name = lhs_name ; case_name = case_name } in
-  let typed_nodes = [(TNR.PARENT lhs_name) :: (List.rev typed_nodes.val)] in
+  let typed_nodes = List.rev typed_nodes.val in
   let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
   let side_effects = match List.assoc pn ag.side_effects with [ x -> x | exception Not_found -> [] ] in
   let node_aliases = [(TNR.PARENT lhs_name, NR.PARENT None) :: NA.get node_aliases] in
@@ -963,7 +964,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   let p = {
     P.name = pn
   ; loc = loc
-  ; typed_nodes = LSet.ofList typed_nodes
+  ; typed_nodes = (TNR.PARENT lhs_name, LSet.ofList typed_nodes)
   ; typed_node_names = LMap.ofList typed_node_names
   ; typed_equations = []
   ; typed_side_effects = []
@@ -1123,8 +1124,8 @@ module AGOps = struct
       | _ -> g
       ] in
       List.fold_left (fun g p ->
-          let lhs = p.P.typed_nodes |> LSet.toList |> List.hd in
-          let rhsl = p.P.typed_nodes |> LSet.toList |> List.tl in
+          let (lhs, rhsl) = p.P.typed_nodes in
+          let rhsl = LSet.toList rhsl in
           List.fold_left (fun g rhs -> add_edge g (lhs, p, rhs)) g rhsl)
         g (AG.all_productions ag)
   ;
@@ -1267,7 +1268,7 @@ module AGOps = struct
         (AG.node_attributes ag nt))
     ))
     && (ag |> AG.all_productions |> List.for_all (fun p ->
-               p.P.typed_nodes |> LSet.toList |> List.tl |> List.for_all (fun node ->
+               p.P.typed_nodes |> snd |> LSet.toList |> List.for_all (fun node ->
                    match node with [
                      TNR.PARENT nt ->
                      let synthesized = NTOps._AS m nt in
@@ -1403,7 +1404,7 @@ module AGOps = struct
     let loc = p.P.loc in
     let pnt = p.P.name.PN.nonterm_name in
     let defined_arefs = List.map TAEQ.lhs p.P.typed_equations in
-    let cattr_children = p.P.typed_nodes |> LSet.toList |> List.tl |> List.filter_map TNR.(fun [
+    let cattr_children = p.P.typed_nodes |> snd |> LSet.toList |> List.filter_map TNR.(fun [
         (CHILD nt i) as cnr when AG.node_attribute_exists ag (nt, cattr) -> Some (cnr, (nt, i))
       | _ -> None
       ]) in
@@ -1458,7 +1459,7 @@ module AGOps = struct
     let nt_needs_chain p =
       let pnt = p.P.name.PN.nonterm_name in
       let parent_has_cattr = AG.node_attribute_exists ag (pnt, cattr) in
-      let child_has_cattr = p.P.typed_nodes |> LSet.toList |> List.tl |> List.exists TNR.(fun [
+      let child_has_cattr = p.P.typed_nodes |> snd |> LSet.toList |> List.exists TNR.(fun [
           CHILD nt i -> AG.node_attribute_exists ag (nt, cattr)
         | _ -> False
         ]) in
@@ -1525,13 +1526,13 @@ module AGOps = struct
     let open TAR in
     let pre = "pre_"^cattr in
     let post = "post_"^cattr in
-    let (parent, children) = match LSet.toList p.P.typed_nodes with [ [h :: t] -> (h,t) | _ -> assert False ] in
+    let (parent, children) = p.P.typed_nodes in
     let new_lhs = match e.lhs with [
       NT nt a when nt = parent && a = cattr ->
       NT parent post
-    | NT cnt a when a = cattr && List.mem cnt children ->
+    | NT cnt a when a = cattr && LSet.mem cnt children ->
       NT cnt pre
-    | CHAINSTART _ cnt a when a = cattr && List.mem cnt children ->
+    | CHAINSTART _ cnt a when a = cattr && LSet.mem cnt children ->
       NT cnt pre
     | x -> x
     ] in
@@ -1868,7 +1869,7 @@ module AGOps = struct
                                     rua_to_nt_aref ag rua parent) with [
           (True, True, None) ->
           (* both parent and children have the RUA attribute; add copy-equations *)
-          p.typed_nodes |> LSet.toList |> List.filter_map (fun [
+          p.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [
               (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
               rua_copy_equation loc (cnr, new_attr) (parent, new_attr)
             | _ -> None
@@ -1881,7 +1882,7 @@ module AGOps = struct
 
         | (_, True, Some satisfying_attrna) ->
           (* children have RUA; parent satisfies RUA, add copy-equations *)
-          p.typed_nodes |> LSet.toList |> List.filter_map (fun [
+          p.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [
               (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
               rua_copy_equation loc (cnr, new_attr) (parent, satisfying_attrna)
             | _ -> None
@@ -2099,7 +2100,7 @@ module AGOps = struct
       let child_is_in = ref False in
       let pl = AG.node_productions ag nt in do {
         pl |> List.iter (fun p ->
-           p.P.typed_nodes |> LSet.toList |> List.iter (fun [
+           p.P.typed_nodes |> snd |> LSet.toList |> List.iter (fun [
              TNR.CHILD cnt _ -> do {
                  dfsrec [nt :: stk] cnt ;
                  if List.mem cnt acc.val then child_is_in.val := True else ()
@@ -2169,7 +2170,7 @@ module AGOps = struct
       } in
       {(p) with P.typed_equations = [copy_eq :: p.P.typed_equations]}
     | None ->
-      let rhs_nodes = p.P.typed_nodes |> LSet.toList |> List.tl |> List.filter_map (fun [
+      let rhs_nodes = p.P.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [
           (TNR.CHILD cnt _) as cnr when List.mem cnt carreach ->
           Some (TAR.NT cnr new_attr)
         | _ -> None
