@@ -603,11 +603,18 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
     value constituents_references p =
       (p.typed_equations |> List.concat_map TAEQ.constituents_references)
     ;
-    value typed_nonterminals p =
+
+    value parent_nonterminal_name p = p.name.PN.nonterm_name ;
+
+    value typed_nodes p =
       let (p,l) = p.typed_nodes in
       [p :: LSet.toList l] |> List.filter (fun [ TNR.CHILD _ _ | TNR.PARENT _ -> True | _ -> False ]) |> LSet.ofList ;
 
-    value parent_nonterminal p = p.name.PN.nonterm_name ;
+    value parent_node p = fst p.typed_nodes ;
+    value child_nodes p =
+      p.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [ TNR.CHILD _ _ as n -> Some n | _ -> None ]) |> LSet.ofList ;
+
+    value parent_nonterminal p = match parent_node p with [ TNR.PARENT nt -> nt | _ -> assert False ] ;
     value child_nonterminals p =
       p.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [ TNR.CHILD cnt _ -> Some cnt | _ -> None ]) |> LSet.ofList ;
     value map_typed_equations f p =
@@ -1124,9 +1131,12 @@ module AGOps = struct
       | _ -> g
       ] in
       List.fold_left (fun g p ->
-          let (lhs, rhsl) = p.P.typed_nodes in
-          let rhsl = LSet.toList rhsl in
-          List.fold_left (fun g rhs -> add_edge g (lhs, p, rhs)) g rhsl)
+          let lhs = P.parent_node p in
+          p
+          |> P.child_nodes
+          |> LSet.toList
+          |> List.fold_left (fun g rhs -> add_edge g (lhs, p, rhs)) g
+        )
         g (AG.all_productions ag)
   ;
 
@@ -1268,7 +1278,7 @@ module AGOps = struct
         (AG.node_attributes ag nt))
     ))
     && (ag |> AG.all_productions |> List.for_all (fun p ->
-               p.P.typed_nodes |> snd |> LSet.toList |> List.for_all (fun node ->
+               p |> P.child_nodes |> LSet.toList |> List.for_all (fun node ->
                    match node with [
                      TNR.PARENT nt ->
                      let synthesized = NTOps._AS m nt in
@@ -1404,7 +1414,7 @@ module AGOps = struct
     let loc = p.P.loc in
     let pnt = p.P.name.PN.nonterm_name in
     let defined_arefs = List.map TAEQ.lhs p.P.typed_equations in
-    let cattr_children = p.P.typed_nodes |> snd |> LSet.toList |> List.filter_map TNR.(fun [
+    let cattr_children = p |> P.child_nodes |> LSet.toList |> List.filter_map TNR.(fun [
         (CHILD nt i) as cnr when AG.node_attribute_exists ag (nt, cattr) -> Some (cnr, (nt, i))
       | _ -> None
       ]) in
@@ -1459,7 +1469,7 @@ module AGOps = struct
     let nt_needs_chain p =
       let pnt = p.P.name.PN.nonterm_name in
       let parent_has_cattr = AG.node_attribute_exists ag (pnt, cattr) in
-      let child_has_cattr = p.P.typed_nodes |> snd |> LSet.toList |> List.exists TNR.(fun [
+      let child_has_cattr = p |> P.child_nodes |> LSet.toList |> List.exists TNR.(fun [
           CHILD nt i -> AG.node_attribute_exists ag (nt, cattr)
         | _ -> False
         ]) in
@@ -1751,7 +1761,7 @@ module AGOps = struct
   ;
 
   value rua_production_step ag rua sofar p =
-    let parent_nt = P.parent_nonterminal p in
+    let parent_nt = P.parent_nonterminal_name p in
     let child_nts = P.child_nonterminals p in
     if not (List.mem parent_nt sofar) && not (nt_satisfies_rua ag rua parent_nt) &&
        [] <> Std.intersect (LSet.toList (P.child_nonterminals p)) sofar then
@@ -1862,14 +1872,14 @@ module AGOps = struct
     let open P in
     ag |> AG.map_productions (fun nt p ->
         let loc = p.loc in
-        let parent = P.parent_nonterminal p in
+        let parent = P.parent_nonterminal_name p in
         let children = LSet.toList (P.child_nonterminals p) in
-        let copy_equations = match (List.mem (P.parent_nonterminal p) ntl,
+        let copy_equations = match (List.mem (P.parent_nonterminal_name p) ntl,
                                     ([] <> Std.intersect children ntl),
                                     rua_to_nt_aref ag rua parent) with [
           (True, True, None) ->
           (* both parent and children have the RUA attribute; add copy-equations *)
-          p.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [
+          p |> P.child_nodes |> LSet.toList |> List.filter_map (fun [
               (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
               rua_copy_equation loc (cnr, new_attr) (parent, new_attr)
             | _ -> None
@@ -1882,7 +1892,7 @@ module AGOps = struct
 
         | (_, True, Some satisfying_attrna) ->
           (* children have RUA; parent satisfies RUA, add copy-equations *)
-          p.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [
+          p |> P.child_nodes |> LSet.toList |> List.filter_map (fun [
               (TNR.CHILD cnt _) as cnr when List.mem cnt ntl ->
               rua_copy_equation loc (cnr, new_attr) (parent, satisfying_attrna)
             | _ -> None
@@ -1901,7 +1911,7 @@ module AGOps = struct
     let open P in
     let open TAEQ in
     let loc = p.P.loc in
-    let parent = P.parent_nonterminal p in
+    let parent = P.parent_nonterminal_name p in
     let new_attr = rua_to_attribute rua in
     match (node_attribute_exists ag (parent, new_attr), rua_to_nt_aref ag rua parent) with [
       (True, _) ->
@@ -2100,7 +2110,7 @@ module AGOps = struct
       let child_is_in = ref False in
       let pl = AG.node_productions ag nt in do {
         pl |> List.iter (fun p ->
-           p.P.typed_nodes |> snd |> LSet.toList |> List.iter (fun [
+           p |> P.child_nodes |> LSet.toList |> List.iter (fun [
              TNR.CHILD cnt _ -> do {
                  dfsrec [nt :: stk] cnt ;
                  if List.mem cnt acc.val then child_is_in.val := True else ()
@@ -2170,7 +2180,7 @@ module AGOps = struct
       } in
       {(p) with P.typed_equations = [copy_eq :: p.P.typed_equations]}
     | None ->
-      let rhs_nodes = p.P.typed_nodes |> snd |> LSet.toList |> List.filter_map (fun [
+      let rhs_nodes = p |> P.child_nodes |> LSet.toList |> List.filter_map (fun [
           (TNR.CHILD cnt _) as cnr when List.mem cnt carreach ->
           Some (TAR.NT cnr new_attr)
         | _ -> None

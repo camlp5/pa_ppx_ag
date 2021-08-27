@@ -78,8 +78,7 @@ value add_idp ag new_ids =
   ag
   |> AG.all_productions
   |> List.map (fun p ->
-      let (h,l) = p.P.typed_nodes in
-      let nl = [h :: LSet.toList l]  in
+      let nl = p |> P.typed_nodes |> LSet.toList  in
       (p.P.name, 
            nl
            |> List.concat_map (fun [
@@ -404,8 +403,7 @@ value to_list g =
   ;
 
   value upconverted_map p _t =
-    let (h,l) = p.P.typed_nodes in
-    [h :: LSet.toList l] |> List.concat_map (fun tnr -> match tnr with [
+    p |> P.typed_nodes |> LSet.toList |> List.concat_map (fun tnr -> match tnr with [
       (TNR.PARENT nt | TNR.CHILD nt _) ->
       let _t = must_lookup_t nt _t in
       upconverted_map_for_tnr tnr _t
@@ -415,8 +413,7 @@ value to_list g =
   ;
 
   value partition_edges p _t =
-    let (h,l) = p.P.typed_nodes in
-    [h :: LSet.toList l] |> List.concat_map (fun tnr -> match tnr with [
+    p |> P.typed_nodes |> LSet.toList |> List.concat_map (fun tnr -> match tnr with [
       (TNR.PARENT nt | TNR.CHILD nt _) ->
       let _t = must_lookup_t nt _t in
       partition_edges_for_tnr tnr _t
@@ -517,8 +514,7 @@ value to_list g =
       [ EXTERNAL (TNR.PARENT pnt) passnum :: _ ] -> (pnt, passnum)
     | _ -> assert False ] in
     let parent_setters = if pnum <> 0 then [] else
-    let (h,l) = p.P.typed_nodes in
-    [h :: LSet.toList l] |> List.filter_map (fun [
+    p |> P.typed_nodes |> LSet.toList |> List.filter_map (fun [
             TNR.CHILD cnt _ as cnr ->
             let cv = match LMap.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
              let abs_childnum = match LMap.assoc cv p.P.patt_var_to_childnum with [
