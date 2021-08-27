@@ -127,6 +127,8 @@ end
         PARENT None
       | <:expr< [%nterm $int:n$;] >> ->
         CHILD None (int_of_string n)
+      | <:expr< [%nterm - $int:n$;] >> ->
+        CHILD None (-(int_of_string n))
       | <:expr< [%nterm $lid:tyname$ . ( $int:n$ );]  >> ->
         CHILD (Some tyname) (int_of_string n)
 
@@ -527,11 +529,19 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
   end ;
 
   module P = struct
+    type nta_maps = {
+        name_to_nr : LMap.t string NR.t
+      ; nr_to_name : LMap.t NR.t string
+      ; nr_to_tnr : LMap.t NR.t TNR.t
+      ; tnr_to_nr : LMap.t TNR.t NR.t
+      }
+    ;
     type t = {
       name : PN.t
     ; loc : Ploc.t
     ; typed_nodes : (TNR.t * LSet.t TNR.t)
     ; typed_node_names : LMap.t NR.t TNR.t
+    ; nta_maps : nta_maps
     ; typed_equations : list TAEQ.t
     ; typed_side_effects : list TSide.t
     ; patt : MLast.patt
@@ -550,11 +560,21 @@ value tclos l = l |> of_list |> TAROps.transitive_closure |> to_list ;
     value pp_top pps x = Fmt.(pf pps "#<prod< %a >>" pp_hum x) ;
 
     value typed_nr ~{is_chainstart} loc p nr =
-      match LMap.assoc nr p.typed_node_names with [
-        x -> x
-      | exception Not_found ->
-        Ploc.raise loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
-                                       (NR.pp_hum ~{is_chainstart}) nr))
+      match nr with [
+          NR.CHILD _ n when n < 0 ->
+          match LMap.assoc nr p.nta_maps.nr_to_tnr with [
+              x -> x
+            | exception Not_found ->
+               Ploc.raise loc (Failure Fmt.(str "nta reference %a could not be converted to its typed form"
+                                              (NR.pp_hum ~{is_chainstart}) nr))
+            ]
+        | _ ->
+            match LMap.assoc nr p.typed_node_names with [
+                x -> x
+              | exception Not_found ->
+                 Ploc.raise loc (Failure Fmt.(str "nonterminal %a could not be converted to its typed form"
+                                                (NR.pp_hum ~{is_chainstart}) nr))
+              ]
     ]
     ;
     value typed_attribute loc p =
@@ -770,8 +790,8 @@ module AG = struct
     List.mem attrna attrs
   ;
   value is_nta ag attrna = _is_nta ag.loc ag.attribute_types ag.nonterminals attrna ;
-  value production_ntas ag nt =
-    match List.assoc nt ag.production_ntas with [
+  value production_ntas ag pn =
+    match List.assoc pn ag.production_ntas with [
       x -> x
     | exception Not_found -> []
     ]
@@ -961,6 +981,23 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
                         lhs_name Pp_MLast.pp_ctyp ty))
   ]) in
   let pn = { PN.nonterm_name = lhs_name ; case_name = case_name } in
+  let ntas = production_ntas ag (PN.unparse pn) in
+  let nta_lists =
+    let node_aliases = NA.mk() in
+    ntas
+    |> List.mapi (fun i ntana -> do {
+                    let tyname = AG.nta_type_name ag ntana in
+                    let aliasnum = NA.next_nterm_number node_aliases tyname in
+                    NA.add node_aliases (TNR.CHILD tyname aliasnum, NR.CHILD None (i+1)) ;
+                    (ntana, TNR.CHILD tyname (-aliasnum), NR.CHILD None (-(i+1)))
+         }) in
+  let nta_maps = {
+      P.name_to_nr = nta_lists |> List.map (fun (name, tnr, nr) -> (name,nr)) |> LMap.ofList
+    ; nr_to_name = nta_lists |> List.map (fun (name, tnr, nr) -> (nr,name)) |> LMap.ofList
+    ; nr_to_tnr  = nta_lists |> List.map (fun (name, tnr, nr) -> (nr,tnr)) |> LMap.ofList
+    ; tnr_to_nr  = nta_lists |> List.map (fun (name, tnr, nr) -> (tnr,nr)) |> LMap.ofList
+    } in
+
   let typed_nodes = List.rev typed_nodes.val in
   let equations = match List.assoc pn ag.equations with [ x -> x | exception Not_found -> [] ] in
   let side_effects = match List.assoc pn ag.side_effects with [ x -> x | exception Not_found -> [] ] in
@@ -973,6 +1010,7 @@ value tuple2production loc ag lhs_name ?{case_name=None} tl =
   ; loc = loc
   ; typed_nodes = (TNR.PARENT lhs_name, LSet.ofList typed_nodes)
   ; typed_node_names = LMap.ofList typed_node_names
+  ; nta_maps = nta_maps
   ; typed_equations = []
   ; typed_side_effects = []
   ; patt = Patt.tuple loc (List.map Std.fst3 patt_nref_l)
@@ -1278,7 +1316,7 @@ module AGOps = struct
         (AG.node_attributes ag nt))
     ))
     && (ag |> AG.all_productions |> List.for_all (fun p ->
-               p |> P.child_nodes |> LSet.toList |> List.for_all (fun node ->
+               p |> P.typed_nodes |> LSet.toList |> List.for_all (fun node ->
                    match node with [
                      TNR.PARENT nt ->
                      let synthesized = NTOps._AS m nt in

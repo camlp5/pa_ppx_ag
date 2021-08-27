@@ -10,14 +10,17 @@ and root =
      attribution_model =
        {attributed_module_name = AT; normal_module_name = OK};
      primitive_types = []; axiom = root;
-     attribute_types = {localn = [%typ: one]; n = [%typ: int]};
-     node_attributes = {one = [n]; root = [n]};
+     attribute_types = {localn = [%typ: one]; n = [%typ: int]; m = [%typ: int]};
+     node_attributes = {one = [n;m]; root = [n;m]};
      production_attributes = {root__ROOT = [localn]};
      attribution =
-       {one__ONE = [%nterm 0].n <- 1;
+       {one__ONE = [%nterm 0].n <- [%nterm 0].m ;
         root__ROOT =
           begin
-            [%nterm 0].n <- [%nta localn.n];
+            [%nterm 0].m := 1 ;
+            [%nterm -1].m := [%nterm 0].m ;
+            [%nterm 0].n := [%nterm -1].n ;
+
             [%local localn] :=
               Migrate.ToAttributed.(migrate_one (make_dt ())) ONE
           end}}];;

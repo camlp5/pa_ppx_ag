@@ -498,11 +498,13 @@ value to_list g =
     let pattrcons = Ag_tsort.attr_constructor attrna in
     <:expr< compute_attribute attrs (Node . $uid:pntcons$ parent, $uid:pattrcons$) >>
 
-  | AR (TAR.NT (TNR.CHILD cnt childnum as cnr) attrna) ->
+  | AR (TAR.NT (TNR.CHILD cnt childnum as cnr) attrna) when childnum > 0 ->
     let cntcons = Ag_tsort.node_constructor cnt in
     let cattrcons = Ag_tsort.attr_constructor attrna in
     let cv = match LMap.assoc cnr p.P.rev_patt_var_to_noderef with [ x -> x | exception Not_found -> assert False ] in
     <:expr< compute_attribute attrs (Node . $uid:cntcons$ $lid:cv$, $uid:cattrcons$) >>
+
+  | AR (TAR.NT (TNR.CHILD cnt childnum as cnr) attrna) when childnum < 0 -> assert False
 
   | _ -> assert False
   ]
